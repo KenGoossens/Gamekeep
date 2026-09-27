@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api, type CatalogApp, type CatalogTemplate } from '../api.ts';
+import {
+  ApiError,
+  api,
+  type CatalogApp,
+  type CatalogTemplate,
+  type DeployReview,
+  type Finding,
+} from '../api.ts';
 import { navigate } from '../router.ts';
+import { Findings } from '../components/Findings.tsx';
 
 export function CatalogPage() {
   const [query, setQuery] = useState('');
@@ -121,6 +129,26 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ serverId: string; appdataPath: string } | null>(null);
 
+  const [review, setReview] = useState<DeployReview | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  // Fetched as soon as the form opens, so the operator is reading what this
+  // app asks for while they fill in the name rather than after they commit.
+  useEffect(() => {
+    let live = true;
+    api.reviewApp(app.id).then(
+      (r) => {
+        if (live) setReview(r);
+      },
+      () => {
+        if (live) setReviewError('Could not check this app before deploying.');
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [app.id]);
+
   const variables = template.fields.filter((f) => f.type === 'Variable');
   const portFields = template.fields.filter((f) => f.type === 'Port');
   const paths = template.fields.filter((f) => f.type === 'Path');
@@ -132,6 +160,7 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
       const result = await api.deploy({
         appId: app.id,
         name,
+        acknowledge: Boolean(review?.needsAcknowledgement),
         variables: values,
         ports: Object.fromEntries(
           Object.entries(ports).map(([k, v]) => [k, Number(v)]).filter(([, v]) => Number.isFinite(v)),
@@ -139,10 +168,18 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
       });
       setDone({ serverId: result.serverId, appdataPath: result.appdataPath });
     } catch (err) {
+      // A refusal carries the findings that caused it, so the reason lands on
+      // screen rather than a bare "failed".
+      if (err instanceof ApiError && Array.isArray(err.body.findings)) {
+        const findings = err.body.findings as Finding[];
+        setReview((prev) => (prev ? { ...prev, findings, deployable: false } : prev));
+      }
       setError(
         err instanceof ApiError && typeof err.body.message === 'string'
           ? err.body.message
-          : 'The deployment failed.',
+          : err instanceof ApiError && err.body.error === 'refused'
+            ? 'Refused — see the checks above.'
+            : 'The deployment failed.',
       );
     } finally {
       setBusy(false);
@@ -243,11 +280,36 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
           server's own directory. Host paths from the template are ignored on purpose.
         </p>
 
+        <h3 className="subhead">Before you deploy</h3>
+        {reviewError ? <p className="hint bad">{reviewError}</p> : null}
+        {!review && !reviewError ? <p className="empty">Checking this app…</p> : null}
+        {review ? (
+          <>
+            <Findings findings={review.findings} />
+            {review.image?.digest ? (
+              <p className="plan-hash">
+                image <code>{review.image.digest}</code>
+              </p>
+            ) : null}
+          </>
+        ) : null}
+
         {error ? <p className="hint bad">{error}</p> : null}
 
         <div className="actions">
-          <button type="button" className="btn-primary" disabled={busy || !name} onClick={() => void deploy()}>
-            {busy ? 'Deploying…' : `Deploy ${app.name}`}
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy || !name || (review ? !review.deployable : false)}
+            onClick={() => void deploy()}
+          >
+            {busy
+              ? 'Deploying…'
+              : review && !review.deployable
+                ? 'Cannot deploy'
+                : review?.needsAcknowledgement
+                  ? `Deploy ${app.name} anyway`
+                  : `Deploy ${app.name}`}
           </button>
           <button type="button" className="btn-ghost" onClick={onCancel} disabled={busy}>
             Cancel

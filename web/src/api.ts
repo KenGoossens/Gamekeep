@@ -189,6 +189,23 @@ export interface Finding {
   detail?: string;
 }
 
+export interface ImageFacts {
+  digest: string | null;
+  createdAt: string | null;
+  user: string | null;
+  architecture: string | null;
+  os: string | null;
+  exposedPorts: string[];
+}
+
+export interface DeployReview {
+  app: CatalogApp;
+  findings: Finding[];
+  image: ImageFacts | null;
+  deployable: boolean;
+  needsAcknowledgement: boolean;
+}
+
 export interface InstallPlan {
   source: string;
   modId: string;
@@ -471,11 +488,15 @@ export const api = {
     ),
   catalogTemplate: (id: string) =>
     request<CatalogTemplate>(`/api/catalog/${encodeURIComponent(id)}/template`),
+  reviewApp: (id: string) =>
+    request<DeployReview>(`/api/catalog/${encodeURIComponent(id)}/review`),
+
   deploy: (body: {
     appId: string;
     name: string;
     variables: Record<string, string>;
     ports: Record<string, number>;
+    acknowledge?: boolean;
   }) =>
     request<{ serverId: string; container: string; appdataPath: string; unraidTemplate: string | null }>(
       '/api/catalog/deploy',

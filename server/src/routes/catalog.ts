@@ -3,6 +3,8 @@ import { originOf } from '../auth/origin.js';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
 import { DeployError, planDeployment, slugify } from '../deploy.js';
+import { passes, uncertain } from '../findings.js';
+import { reviewImage, reviewTemplate } from '../review/deploy.js';
 
 const escapeXml = (value: string): string =>
   value.replace(/[&<>"']/g, (c) =>
@@ -130,8 +132,44 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   });
 
+  /**
+   * What this app asks for, before anything is pulled or created.
+   *
+   * The template half is local and instant; the image half is a registry
+   * lookup of a few kilobytes, which is why an operator can see the digest and
+   * the build date of a two-gigabyte image without committing to it.
+   */
+  app.get<{ Params: { id: string } }>('/api/catalog/:id/review', operator, async (request, reply) => {
+    const found = await catalog.find(decodeURIComponent(request.params.id));
+    if (!found) return reply.code(404).send({ error: 'unknown-app' });
+
+    try {
+      const parsed = catalog.template(found);
+      const template = reviewTemplate(found, parsed, catalog.isTrusted);
+      const { findings: image, facts } = await reviewImage(parsed.repository);
+      const findings = [...template, ...image];
+
+      return reply.send({
+        app: found,
+        findings,
+        image: facts,
+        deployable: passes(findings),
+        needsAcknowledgement: uncertain(findings),
+      });
+    } catch (err) {
+      request.log.error({ err, app: found.id }, 'deploy review failed');
+      return reply.code(502).send({ error: 'review-failed', message: (err as Error).message });
+    }
+  });
+
   app.post<{
-    Body: { appId?: string; name?: string; variables?: Record<string, string>; ports?: Record<string, number> };
+    Body: {
+      appId?: string;
+      name?: string;
+      variables?: Record<string, string>;
+      ports?: Record<string, number>;
+      acknowledge?: boolean;
+    };
   }>('/api/catalog/deploy', operator, async (request, reply) => {
     const user = request.user!;
     const body = request.body ?? {};
@@ -153,6 +191,37 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
 
     try {
       const parsed = catalog.template(found);
+
+      /*
+       * Reviewed here as well as in the route above, for the same reason a mod
+       * is re-inspected at install time: the review an operator read is for
+       * them to read, not a token to be replayed back. A tag may also have
+       * moved between the two calls.
+       */
+      const templateFindings = reviewTemplate(found, parsed, catalog.isTrusted);
+      const { findings: imageFindings, facts } = await reviewImage(parsed.repository);
+      const findings = [...templateFindings, ...imageFindings];
+
+      if (!passes(findings)) {
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId,
+          action: 'server-deployed',
+          result: 'failure',
+          detail: `Refused ${found.name}: ${findings
+            .filter((f) => f.state === 'fail')
+            .map((f) => f.summary)
+            .join('; ')}`,
+          ...originOf(request),
+        });
+        return reply.code(422).send({ error: 'refused', findings });
+      }
+
+      if (uncertain(findings) && !body.acknowledge) {
+        return reply.code(428).send({ error: 'needs-acknowledgement', findings, image: facts });
+      }
+
       const plan = planDeployment(
         found,
         parsed,
@@ -198,7 +267,11 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
         serverId,
         action: 'server-deployed',
         result: 'success',
-        detail: `Deployed ${found.name} (${plan.image}) as ${plan.containerName}`,
+        // The digest, not just the tag: a tag can be moved later, so without
+        // this the log says which label was asked for and not what ran.
+        detail: `Deployed ${found.name} (${plan.image}${
+          facts?.digest ? ` @ ${facts.digest}` : ''
+        }) as ${plan.containerName}${uncertain(findings) ? ' — deployed over warnings' : ''}`,
         ...originOf(request),
       });
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, type InstallPlan, type ModStatus, type ModSummary } from '../api.ts';
+import { Findings } from './Findings.tsx';
 
 /**
  * Installing mods, with the report shown before anything is written.
@@ -11,13 +12,6 @@ import { ApiError, api, type InstallPlan, type ModStatus, type ModSummary } from
  * that the archive cannot escape its directory, what the scanners recognised,
  * and whether the dependencies line up.
  */
-
-const STATE_WORD: Record<string, string> = {
-  pass: 'ok',
-  warn: 'caution',
-  fail: 'blocked',
-  unknown: 'unproven',
-};
 
 function bytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -37,17 +31,7 @@ function Report({ plan }: { plan: InstallPlan }) {
         </span>
       </div>
 
-      <ul className="findings">
-        {plan.findings.map((f) => (
-          <li key={f.id} className={`finding finding-${f.state}`}>
-            <span className="finding-state">{STATE_WORD[f.state] ?? f.state}</span>
-            <span className="finding-body">
-              <strong>{f.label}</strong> {f.summary}
-              {f.detail ? <em>{f.detail}</em> : null}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <Findings findings={plan.findings} />
 
       <p className="plan-hash">
         sha256 <code>{plan.sha256}</code>
