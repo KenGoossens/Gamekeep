@@ -171,6 +171,15 @@ export interface RouterStatus {
   config: Record<string, string>;
 }
 
+export interface LogFile {
+  path: string;
+  label: string;
+  sizeBytes: number;
+  modifiedAt: number | null;
+  /** Steam client chatter rather than the game's own log. */
+  noise: boolean;
+}
+
 export interface ActiveSession {
   id: string;
   userId: string;
@@ -514,6 +523,13 @@ export const api = {
     if (!response.ok) throw new ApiError(response.status, body as Record<string, unknown>);
     return body as { path: string; bytes: number; replaced: boolean };
   },
+
+  logFiles: (serverId: string) =>
+    request<{ files: LogFile[] }>(`/api/servers/${encodeURIComponent(serverId)}/logs/files`),
+  logFile: (serverId: string, file: string, offset: number) =>
+    request<{ path: string; size: number; text: string; rotated: boolean }>(
+      `/api/servers/${encodeURIComponent(serverId)}/logs/file?file=${encodeURIComponent(file)}&offset=${offset}`,
+    ),
 
   sessions: () => request<{ sessions: ActiveSession[] }>('/api/sessions'),
   signOutSession: (id: string) =>

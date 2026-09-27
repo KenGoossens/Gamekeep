@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, type LogFile } from '../api.ts';
 
 /**
  * The live console, followed as it happens.
+ *
+ * Two sources, and the difference matters. The container log is whatever the
+ * server writes to stdout — for Valheim that is everything, for Satisfactory
+ * it is mostly the launcher. The game's own log files carry the detail, and
+ * they live somewhere different for every game.
  *
  * Two behaviours make a log viewer usable rather than merely present. It
  * follows the tail until you scroll up, and then it stops and says so --
@@ -21,6 +27,12 @@ interface Line {
 const MAX_LINES = 3000;
 /** How close to the bottom still counts as "following". */
 const STICK_PX = 40;
+/** How often a log file is checked for new bytes. */
+const POLL_MS = 2000;
+/** On opening a file, start this far from the end rather than at the top. */
+const BACKFILL_BYTES = 60 * 1024;
+
+const CONTAINER = '@container';
 
 /** Docker prefixes each line with an RFC3339 timestamp when asked to. */
 function split(raw: string): { at: string | null; text: string } {
@@ -34,15 +46,24 @@ function clock(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? '' : d.toTimeString().slice(0, 8);
 }
 
+function bytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1048576) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1048576).toFixed(1)} MB`;
+}
+
 export function LogsTab({ serverId }: { serverId: string }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [live, setLive] = useState(true);
   const [following, setFollowing] = useState(true);
   const [filter, setFilter] = useState('');
   const [status, setStatus] = useState<string | null>('Connecting…');
+  const [source, setSource] = useState(CONTAINER);
+  const [files, setFiles] = useState<LogFile[] | null>(null);
 
   const box = useRef<HTMLDivElement>(null);
   const nextId = useRef(0);
+  const offset = useRef(0);
 
   const append = useCallback((text: string, stream: Line['stream']) => {
     setLines((prev) => {
@@ -51,8 +72,24 @@ export function LogsTab({ serverId }: { serverId: string }) {
     });
   }, []);
 
+  // Which log files this server keeps, asked once.
   useEffect(() => {
-    if (!live) return;
+    api.logFiles(serverId).then(
+      (r) => setFiles(r.files),
+      () => setFiles([]),
+    );
+  }, [serverId]);
+
+  // Starting over whenever the source changes: the two are different streams
+  // of text and mixing them would be nonsense.
+  useEffect(() => {
+    setLines([]);
+    offset.current = 0;
+  }, [source, serverId]);
+
+  // ---- the container console, streamed ----
+  useEffect(() => {
+    if (!live || source !== CONTAINER) return;
     setStatus('Connecting…');
 
     /*
@@ -60,23 +97,58 @@ export function LogsTab({ serverId }: { serverId: string }) {
      * long-lived connection, which over a home internet link it will. The
      * cookie goes with it because this is a same-origin request.
      */
-    const source = new EventSource(`/api/servers/${encodeURIComponent(serverId)}/logs/stream?tail=400`);
+    const stream = new EventSource(`/api/servers/${encodeURIComponent(serverId)}/logs/stream?tail=400`);
 
-    source.addEventListener('open', () => setStatus(null));
-    source.addEventListener('stdout', (e) => append((e as MessageEvent<string>).data, 'stdout'));
-    source.addEventListener('stderr', (e) => append((e as MessageEvent<string>).data, 'stderr'));
-    source.addEventListener('ended', (e) => {
+    stream.addEventListener('open', () => setStatus(null));
+    stream.addEventListener('stdout', (e) => append((e as MessageEvent<string>).data, 'stdout'));
+    stream.addEventListener('stderr', (e) => append((e as MessageEvent<string>).data, 'stderr'));
+    stream.addEventListener('ended', (e) => {
       append((e as MessageEvent<string>).data, 'system');
       setStatus('The server stopped writing. Reconnecting when it starts again.');
     });
-    source.addEventListener('error', () => {
-      // Fires both on a dropped connection and on a refusal; EventSource
-      // retries on its own, so this only needs to say what is happening.
-      setStatus('Connection lost — retrying…');
-    });
+    stream.addEventListener('error', () => setStatus('Connection lost — retrying…'));
 
-    return () => source.close();
-  }, [serverId, live, append]);
+    return () => stream.close();
+  }, [serverId, live, source, append]);
+
+  // ---- a log file, polled ----
+  useEffect(() => {
+    if (!live || source === CONTAINER) return;
+    let cancelled = false;
+
+    const chosen = files?.find((f) => f.path === source);
+    // Opening a large log at byte zero would send megabytes nobody asked for;
+    // the last stretch is what anyone means by "the log".
+    offset.current = Math.max(0, (chosen?.sizeBytes ?? 0) - BACKFILL_BYTES);
+
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const chunk = await api.logFile(serverId, source, offset.current);
+        if (cancelled) return;
+        setStatus(null);
+
+        if (chunk.rotated) {
+          append('— the file was rotated; reading the new one from the top —', 'system');
+          offset.current = 0;
+        } else {
+          offset.current = chunk.size;
+          for (const line of chunk.text.split('\n')) {
+            if (line.length > 0) append(line, 'stdout');
+          }
+        }
+      } catch {
+        if (!cancelled) setStatus('Could not read that file — retrying…');
+      }
+    }
+
+    void poll();
+    const timer = setInterval(() => void poll(), POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [serverId, live, source, files, append]);
 
   // Sticks to the bottom only while the reader is already there.
   useEffect(() => {
@@ -96,20 +168,26 @@ export function LogsTab({ serverId }: { serverId: string }) {
   }
 
   function download() {
+    const name = source === CONTAINER ? 'container' : (source.split('/').pop() ?? 'log');
     const blob = new Blob([lines.map((l) => l.text).join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${serverId}-log.txt`;
+    a.download = `${serverId}-${name}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
+  const interesting = (files ?? []).filter((f) => !f.noise);
+  const rest = (files ?? []).filter((f) => f.noise);
+
   return (
     <>
       <p className="notes">
-        The container’s console, as it happens. Logs can contain player addresses and any password
-        the server prints at start-up, which is why this sits at operator level.
+        The container’s console is whatever the server writes to stdout. Some games keep their own
+        log file with far more detail — those are listed below when they exist. Logs can contain
+        player addresses and any password the server prints at start-up, which is why this sits at
+        operator level.
       </p>
 
       <div className="logbar">
@@ -117,6 +195,33 @@ export function LogsTab({ serverId }: { serverId: string }) {
           <span className="dot" />
           {live ? (status ?? 'live') : 'paused'}
         </span>
+
+        <select
+          className="rolepick"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          aria-label="Log source"
+        >
+          <option value={CONTAINER}>Container console</option>
+          {interesting.length > 0 ? (
+            <optgroup label="Game logs">
+              {interesting.map((f) => (
+                <option key={f.path} value={f.path}>
+                  {f.label} ({bytes(f.sizeBytes)})
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          {rest.length > 0 ? (
+            <optgroup label="Steam and system logs">
+              {rest.map((f) => (
+                <option key={f.path} value={f.path}>
+                  {f.label} ({bytes(f.sizeBytes)})
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+        </select>
 
         <input
           className="modsearch"
@@ -141,6 +246,13 @@ export function LogsTab({ serverId }: { serverId: string }) {
         </button>
       </div>
 
+      {files !== null && files.length === 0 ? (
+        <p className="hint">
+          This server keeps no log files of its own — everything it has to say goes to the console
+          above.
+        </p>
+      ) : null}
+
       {!following ? (
         <button
           type="button"
@@ -157,9 +269,7 @@ export function LogsTab({ serverId }: { serverId: string }) {
 
       <div className="logbox" ref={box} onScroll={onScroll} role="log" aria-live="off">
         {shown.length === 0 ? (
-          <p className="empty">
-            {filter ? 'No lines match that filter.' : 'Nothing yet.'}
-          </p>
+          <p className="empty">{filter ? 'No lines match that filter.' : 'Nothing yet.'}</p>
         ) : (
           shown.map((line) => {
             const { at, text } = split(line.text);

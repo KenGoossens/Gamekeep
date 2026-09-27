@@ -2,6 +2,7 @@ import { PassThrough } from 'node:stream';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { AppContext } from '../context.js';
 import { originOf } from '../auth/origin.js';
+import { createLogFileReader } from '../logs/files.js';
 
 /**
  * Reading a game server's console output, live.
@@ -41,6 +42,7 @@ function sseWrite(reply: FastifyReply, event: string, data: string): void {
 
 export function registerLogRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, docker, db, guard } = ctx;
+  const logFiles = createLogFileReader(docker);
   const operator = { preHandler: guard.requireOperator };
 
   const tailOf = (raw: unknown): number =>
@@ -71,7 +73,55 @@ export function registerLogRoutes(app: FastifyInstance, ctx: AppContext) {
     },
   );
 
-  /** The live tail. */
+  /** Which log files this server keeps, beside its container console. */
+  app.get<{ Params: { id: string } }>('/api/servers/:id/logs/files', operator, async (request, reply) => {
+    const server = registry.get(request.params.id);
+    if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+    try {
+      return reply.send({ files: await logFiles.list(server) });
+    } catch (err) {
+      // A game with no log files is the normal case for Valheim, not a fault.
+      request.log.info({ err, server: server.id }, 'log file discovery failed');
+      return reply.send({ files: [], message: (err as Error).message });
+    }
+  });
+
+  /**
+   * Reads whatever a log file has gained since a byte offset.
+   *
+   * Polled by the client rather than streamed, and deliberately so: following
+   * a file with "tail -f" leaves a process inside the game server that
+   * outlives the browser tab which asked for it, and a quiet log gives it no
+   * reason to notice. Every command this runs exits on its own.
+   */
+  app.get<{ Params: { id: string }; Querystring: { file?: string; offset?: string } }>(
+    '/api/servers/:id/logs/file',
+    operator,
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const requested = (request.query.file ?? '').trim();
+      if (!requested) return reply.code(400).send({ error: 'no-file' });
+
+      try {
+        // Confined to the container's own mounts; a client naming a path is
+        // exactly the case this exists for.
+        const path = await logFiles.resolve(server, requested);
+        const chunk = await logFiles.read(server, path, Number(request.query.offset) || 0);
+        return reply.send({ path, ...chunk });
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        if (code === 'outside-root') {
+          return reply.code(403).send({ error: 'outside-root', message: (err as Error).message });
+        }
+        return reply.code(502).send({ error: 'read-failed', message: (err as Error).message });
+      }
+    },
+  );
+
+  /** The live tail of the container's own console. */
   app.get<{ Params: { id: string }; Querystring: { tail?: string } }>(
     '/api/servers/:id/logs/stream',
     operator,
