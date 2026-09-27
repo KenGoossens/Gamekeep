@@ -195,10 +195,38 @@ export function ServerDetailPage({
               type="button"
               className={tab === key ? 'tab active' : 'tab'}
               aria-disabled={locked}
+              // The padlock is drawn, so the reason has to reach a screen
+              // reader some other way: this is that way, and it also becomes
+              // the tooltip for anyone hovering.
+              title={locked ? `Stop the server to use ${label}` : undefined}
               onClick={() => (locked ? setBlocked(label) : setTab(key))}
             >
               {label}
-              {locked ? " · locked" : null}
+              {locked ? (
+                <>
+                  <svg
+                    className="tab-lock"
+                    viewBox="0 0 16 16"
+                    width="11"
+                    height="11"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    {/* Drawn rather than an emoji: a padlock glyph renders
+                        differently on every platform and rarely matches the
+                        surrounding weight. */}
+                    <path
+                      d="M4.75 7V5a3.25 3.25 0 0 1 6.5 0v2"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                    <rect x="3" y="7" width="10" height="7" rx="1.6" fill="currentColor" />
+                  </svg>
+                  <span className="sr-only"> (locked — stop the server first)</span>
+                </>
+              ) : null}
             </button>
           );
         })}
