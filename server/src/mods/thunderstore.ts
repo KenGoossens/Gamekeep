@@ -101,7 +101,6 @@ function parseDependency(fullName: string): { id: string; range: string | null }
 export const thunderstoreSource: ModSource = {
   id: 'thunderstore',
   label: 'Thunderstore',
-  gameTypes: ['valheim'],
   searchable: false,
   lookupHint: 'A Thunderstore package URL, or Author/ModName.',
   loader: { id: 'denikson/BepInExPack_Valheim', label: 'BepInEx' },
@@ -136,7 +135,7 @@ export const thunderstoreSource: ModSource = {
       releasedAt: v.date_created,
       sizeBytes: v.file_size ?? null,
       // Thunderstore publishes none.
-      sha256: null,
+      hash: null,
       downloadUrl: v.download_url,
       dependencies: (v.dependencies ?? []).map((d) => {
         const { id: depId, range } = parseDependency(d);

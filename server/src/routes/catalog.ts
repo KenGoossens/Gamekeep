@@ -5,6 +5,7 @@ import type { AppContext } from '../context.js';
 import { DeployError, planDeployment, slugify } from '../deploy.js';
 import { passes, uncertain } from '../findings.js';
 import { reviewImage, reviewTemplate } from '../review/deploy.js';
+import { identifyGame } from '../games.js';
 
 const escapeXml = (value: string): string =>
   value.replace(/[&<>"']/g, (c) =>
@@ -245,6 +246,21 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
 
       // Registered in the database, not the config file: the file stays
       // read-only and remains the static, operator-controlled whitelist.
+      /*
+       * Recognising the game is what gives a deployed server a player count
+       * and a mods tab. Without it the server works but is mute: nothing else
+       * ever writes a query type, so one deployed here used to behave worse
+       * than one added by hand to servers.json.
+       *
+       * The lowest published port is the one to ask; GameDig applies each
+       * game's own query-port offset from there.
+       */
+      const game = identifyGame(found.name, parsed.repository);
+      const ports = Object.keys(plan.portBindings)
+        .map((spec) => Number(spec.split('/')[0]))
+        .filter((p) => Number.isFinite(p))
+        .sort((a, b) => a - b);
+
       const definition = {
         id: serverId,
         displayName: name,
@@ -252,6 +268,10 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
         iconUrl: parsed.icon ?? undefined,
         cooldownSeconds: 300,
         restartTimeoutSeconds: 300,
+        query:
+          game && ports.length > 0 && env.LAN_ADDRESS.trim()
+            ? { type: game.query, host: env.LAN_ADDRESS.trim(), port: ports[0] }
+            : undefined,
         notes: `Deployed from Community Applications (${found.publisher}).`,
       };
       db.addManagedServer(serverId, definition, user.id);

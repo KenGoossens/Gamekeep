@@ -104,7 +104,6 @@ const VERSIONS = `query($ref: ModReference!) {
 export const ficsitSource: ModSource = {
   id: 'ficsit',
   label: 'ficsit.app',
-  gameTypes: ['satisfactory'],
   searchable: true,
   lookupHint: 'A mod reference, such as RefinedPower.',
   loader: { id: 'SML', label: 'Satisfactory Mod Loader' },
@@ -143,7 +142,7 @@ export const ficsitSource: ModSource = {
         // The target's own size and hash, never the mod-wide ones: those
         // describe the Windows client build.
         sizeBytes: target.size ?? null,
-        sha256: target.hash ?? null,
+        hash: target.hash ? { algo: 'sha256' as const, value: target.hash } : null,
         downloadUrl: new URL(target.link, 'https://api.ficsit.app').toString(),
         dependencies: (version.dependencies ?? []).map((d) => ({
           id: d.mod_id,

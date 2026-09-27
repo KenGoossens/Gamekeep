@@ -15,6 +15,7 @@ import {
   type ZipEntry,
 } from './zip.js';
 import { ModSourceError, type ModSource, type ModVersion } from './sources.js';
+import { gameByQueryType, type ModLayout } from '../games.js';
 
 /**
  * Turning a repository listing into files inside a game server.
@@ -48,6 +49,10 @@ export interface InstallPlan {
   sizeBytes: number;
   /** Where each archive entry will land, relative to the server's data root. */
   targetDirectory: string;
+  /** 'extract' unpacks the archive; 'file' drops it in whole. */
+  installMode: 'extract' | 'file';
+  /** The name the artefact is written under, in 'file' mode. */
+  filename: string;
   fileCount: number;
   archive: ArchiveReport;
   scans: ScanVerdict[];
@@ -71,52 +76,16 @@ export interface InstalledMod {
 
 /* ---- where a mod's files belong ---------------------------------------- */
 
-export interface GameLayout {
-  /** Directory, relative to the server's data root, that mods are unpacked into. */
-  modsDirectory: (fullName: string) => string;
-  /** Paths proving the loader is present, relative to the data root. */
-  loaderMarkers: string[];
-  /** Extensions a mod for this game may legitimately contain. */
-  allowedExtensions: string[];
-}
-
-/**
- * A mod id may contain a slash (Thunderstore's Author/Name), which would turn
- * one directory into two nested ones and leave an empty parent behind on
- * uninstall. Thunderstore's own full_name form uses a hyphen; follow it.
+/*
+ * The layout lives in the games registry now, beside the query type, so a
+ * game cannot be known well enough to report its players but not well enough
+ * to take a mod. This re-exports it under the name the installer already
+ * used rather than renaming it everywhere.
  */
-function directoryName(modId: string): string {
-  return modId.replace(/[/\\]/g, '-').replace(/[^A-Za-z0-9._-]/g, '_');
-}
-
-const LAYOUTS: Record<string, GameLayout> = {
-  satisfactory: {
-    // SML loads every directory under Mods/ by its mod reference.
-    modsDirectory: (fullName) => `FactoryGame/Mods/${directoryName(fullName)}`,
-    loaderMarkers: ['FactoryGame/Mods/SML'],
-    allowedExtensions: [
-      '.pak', '.sig', '.ucas', '.utoc', '.so', '.dll', '.json', '.uplugin',
-      '.txt', '.md', '.png', '.jpg', '.cfg', '.ini', '(none)',
-      // Unreal Engine ships these beside every packaged plugin. Flagging them
-      // would warn on literally every Satisfactory mod, which trains an
-      // operator to click past the warnings that do mean something.
-      '.sym', '.debug', '.modules', '.uasset', '.umap', '.uexp', '.ubulk', '.res',
-    ],
-  },
-  valheim: {
-    // BepInEx scans plugins/ recursively; one directory per package keeps an
-    // uninstall unambiguous.
-    modsDirectory: (fullName) => `BepInEx/plugins/${directoryName(fullName)}`,
-    loaderMarkers: ['BepInEx/core', '.doorstop_version'],
-    allowedExtensions: [
-      '.dll', '.json', '.txt', '.md', '.png', '.jpg', '.cfg', '.xml', '.yml',
-      '.yaml', '.assets', '.bundle', '.manifest', '(none)',
-    ],
-  },
-};
+export type GameLayout = ModLayout;
 
 export function layoutFor(gameType: string | undefined): GameLayout | null {
-  return gameType ? (LAYOUTS[gameType] ?? null) : null;
+  return gameByQueryType(gameType)?.mods ?? null;
 }
 
 /* ---- the checks --------------------------------------------------------- */
@@ -130,7 +99,16 @@ function sha256Of(body: Buffer): string {
  * that means something is definitely wrong: either the download was tampered
  * with or the repository is inconsistent, and neither is worth installing.
  */
-function integrityFinding(expected: string | null, actual: string): Finding {
+function integrityFinding(
+  published: { algo: 'sha256' | 'sha512' | 'sha1'; value: string } | null,
+  body: Buffer,
+): Finding {
+  // Compared under whichever algorithm the publisher used, not ours: hashing
+  // the bytes with sha256 and calling a sha512 mismatch a failure would refuse
+  // every Modrinth download.
+  const expected = published?.value ?? null;
+  const actual = published ? createHash(published.algo).update(body).digest('hex') : '';
+
   if (!expected) {
     return {
       id: 'integrity',
@@ -147,7 +125,7 @@ function integrityFinding(expected: string | null, actual: string): Finding {
       label: 'Integrity',
       state: 'fail',
       summary: 'The download does not match the published hash.',
-      detail: `Expected ${expected.slice(0, 16)}…, got ${actual.slice(0, 16)}…`,
+      detail: `Expected ${published!.algo} ${expected.slice(0, 16)}…, got ${actual.slice(0, 16)}…`,
     };
   }
   return {
@@ -193,8 +171,41 @@ function scanFinding(scans: ScanVerdict[]): Finding {
   }
 }
 
+/**
+ * The name an artefact is written under in 'file' mode. Sanitised because it
+ * comes from the repository, and it becomes a path.
+ */
+function artefactName(version: ModVersion, modId: string): string {
+  const raw = version.filename ?? `${modId}-${version.version}.jar`;
+  const base = raw.split(/[/\\]/).pop() ?? raw;
+  return base.replace(/[^A-Za-z0-9._+-]/g, '_').slice(0, 120) || 'mod.jar';
+}
+
 /** Flags file types that have no business in a mod for this game. */
-function contentFinding(report: ArchiveReport, layout: GameLayout): Finding {
+function contentFinding(report: ArchiveReport, layout: GameLayout, filename: string): Finding {
+  /*
+   * In 'file' mode the archive is the mod, so its own extension is what is
+   * judged: checking the .class files inside a .jar against a game's allowed
+   * list would warn on every Minecraft mod ever published.
+   */
+  if (layout.install === 'file') {
+    const dot = filename.lastIndexOf('.');
+    const ext = dot === -1 ? '(none)' : filename.slice(dot).toLowerCase();
+    return layout.allowedExtensions.includes(ext)
+      ? {
+          id: 'content',
+          label: 'Contents',
+          state: 'pass',
+          summary: `${filename} — ${report.files} entries inside, installed as one file.`,
+        }
+      : {
+          id: 'content',
+          label: 'Contents',
+          state: 'warn',
+          summary: `${filename} is a ${ext} file, which this game does not normally load.`,
+        };
+  }
+
   const unexpected = Object.keys(report.extensions).filter(
     (ext) => !layout.allowedExtensions.includes(ext),
   );
@@ -232,6 +243,26 @@ function compatibilityFindings(
   installed: InstalledState,
 ): Finding[] {
   const findings: Finding[] = [];
+
+  /*
+   * Reported, not enforced. A Minecraft build states its loader and game
+   * versions exactly, but the portal cannot read a running server's own
+   * Minecraft version with any confidence -- so this is put in front of the
+   * operator as something to match rather than passed off as verified. A mod
+   * built for the wrong Minecraft version is the single most common reason a
+   * modded server will not start.
+   */
+  if (version.compatibility) {
+    const { loaders, gameVersions } = version.compatibility;
+    findings.push({
+      id: 'built-for',
+      label: 'Built for',
+      state: 'unknown',
+      summary: `${loaders.join(' / ') || 'any loader'} — ${gameVersions.join(', ') || 'unstated'}`,
+      detail:
+        'Gamekeep cannot read this server’s own version, so check this matches it. A mod for the wrong version simply will not load.',
+    });
+  }
 
   if (source.loader) {
     findings.push(
@@ -352,7 +383,7 @@ export function createModInstaller(dockerClient: DockerClient) {
     const body = await download(version.downloadUrl);
     const sha256 = sha256Of(body);
 
-    const findings: Finding[] = [integrityFinding(version.sha256, sha256)];
+    const findings: Finding[] = [integrityFinding(version.hash, body)];
 
     // The closest thing either repository offers to "is this still looked
     // after". It is not a vulnerability feed -- no such thing exists for game
@@ -393,7 +424,9 @@ export function createModInstaller(dockerClient: DockerClient) {
           version: version.version,
           sha256,
           sizeBytes: body.length,
-          targetDirectory: layout.modsDirectory(mod.id),
+          targetDirectory: layout.directory(mod.id),
+          installMode: layout.install,
+          filename: artefactName(version, mod.id),
           fileCount: 0,
           archive: { entries: 0, files: 0, totalBytes: 0, compressedBytes: 0, peakRatio: 0, extensions: {} },
           scans: [],
@@ -415,7 +448,7 @@ export function createModInstaller(dockerClient: DockerClient) {
 
     const scans = await runScanners(body, sha256, scanners);
     findings.push(scanFinding(scans));
-    findings.push(contentFinding(archive, layout));
+    findings.push(contentFinding(archive, layout, artefactName(version, mod.id)));
     findings.push(...compatibilityFindings(version, source, installed));
 
     const failed = findings.some((f) => f.state === 'fail');
@@ -431,7 +464,9 @@ export function createModInstaller(dockerClient: DockerClient) {
         version: version.version,
         sha256,
         sizeBytes: body.length,
-        targetDirectory: layout.modsDirectory(mod.id),
+        targetDirectory: layout.directory(mod.id),
+        installMode: layout.install,
+        filename: artefactName(version, mod.id),
         fileCount: archive.files,
         archive,
         scans,
@@ -460,6 +495,33 @@ export function createModInstaller(dockerClient: DockerClient) {
 
     const written: string[] = [];
     const files: TarEntry[] = [];
+
+    /*
+     * A Minecraft .jar or a Factorio .zip is an archive the game opens itself,
+     * so it goes in whole. Unpacking it would leave a directory of class files
+     * the server does not load.
+     */
+    if (plan.installMode === 'file') {
+      const path = `${plan.targetDirectory}/${plan.filename}`;
+      const owner = await ownerOf(server.container, dataRoot);
+      const parts = plan.targetDirectory.split('/');
+      const dirs = parts.map((_, i) => parts.slice(0, i + 1).join('/'));
+
+      await docker.getContainer(server.container).putArchive(
+        Readable.from(
+          buildTarEntries(
+            [
+              ...dirs.map((name) => ({ name, content: Buffer.alloc(0), directory: true })),
+              { name: path, content: body },
+            ],
+            owner,
+          ),
+        ),
+        { path: dataRoot },
+      );
+      return [path];
+    }
+
     /*
      * Every directory is named explicitly, shallowest first. Docker will
      * happily create the intermediate directories of a nested path itself, but
@@ -540,12 +602,32 @@ export function createModInstaller(dockerClient: DockerClient) {
    * passed as an argv array: this is an "rm -rf" against a game server's data,
    * so there must be no way for a client-supplied string to reach it.
    */
-  async function remove(server: ServerConfig, dataRoot: string, directory: string): Promise<void> {
-    if (directory.includes('..') || directory.startsWith('/')) {
-      throw new ModSourceError('Refusing to remove that path.', 'bad-path');
+  async function remove(
+    server: ServerConfig,
+    dataRoot: string,
+    installed: { directory: string; files: string[] },
+    mode: 'extract' | 'file',
+  ): Promise<void> {
+    const root = dataRoot.replace(/\/$/, '');
+    const safe = (path: string): string => {
+      if (path.includes('..') || path.startsWith('/')) {
+        throw new ModSourceError('Refusing to remove that path.', 'bad-path');
+      }
+      return `${root}/${path}`;
+    };
+
+    /*
+     * In 'file' mode the directory is shared -- every Minecraft mod lives in
+     * the same mods/ folder -- so removing it would take every other mod with
+     * it. Only the exact files recorded at install time are deleted.
+     */
+    if (mode === 'file') {
+      if (installed.files.length === 0) return;
+      await helpers.run(server.container, ['rm', '-f', '--', ...installed.files.map(safe)]);
+      return;
     }
-    const target = `${dataRoot.replace(/\/$/, '')}/${directory}`;
-    await helpers.run(server.container, ['rm', '-rf', '--', target]);
+
+    await helpers.run(server.container, ['rm', '-rf', '--', safe(installed.directory)]);
   }
 
   return { prepare, commit, remove, exists };

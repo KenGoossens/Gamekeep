@@ -1,3 +1,4 @@
+import { gameByQueryType } from '../games.js';
 /**
  * Where mods may come from.
  *
@@ -33,20 +34,27 @@ export interface ModVersion {
   releasedAt: string | null;
   sizeBytes: number | null;
   /**
-   * The publisher's own hash. Present means the download can be proven to be
-   * the exact artefact they published; absent means it cannot, and the UI says
-   * so rather than implying a check happened.
+   * The publisher's own hash, under whichever algorithm they publish it --
+   * ficsit states SHA-256, Modrinth SHA-512. Present means the download can be
+   * proven to be exactly what they published; absent means it cannot, and the
+   * UI says so rather than implying a check that never happened.
    */
-  sha256: string | null;
+  hash: { algo: 'sha256' | 'sha512' | 'sha1'; value: string } | null;
   downloadUrl: string;
+  /** Suggested filename, for a game that takes the artefact as one file. */
+  filename?: string;
+  /**
+   * What the publisher says this build is for. Stated rather than enforced:
+   * the portal cannot always read a running game's own version, and a silent
+   * pass would be a claim it has no grounds for.
+   */
+  compatibility?: { loaders: string[]; gameVersions: string[] };
   dependencies: ModDependency[];
 }
 
 export interface ModSource {
   readonly id: string;
   readonly label: string;
-  /** servers.json query.type values this source serves. */
-  readonly gameTypes: string[];
   /** False when the repository offers no usable search (see thunderstore.ts). */
   readonly searchable: boolean;
   /** How the operator is told to identify a mod when search is unavailable. */
@@ -84,10 +92,17 @@ export function getSource(id: string): ModSource | null {
   return registry.get(id) ?? null;
 }
 
-/** The source serving a given server type, or null when modding is unsupported. */
+/**
+ * The source serving a given server type, or null when modding is unsupported.
+ *
+ * Driven by the games registry rather than a list on each source, so adding a
+ * game is one entry in one file. It is also what lets Thunderstore serve
+ * Valheim, V Rising and Lethal Company without knowing they exist: its
+ * per-package endpoint is not community-scoped.
+ */
 export function sourceForGame(gameType: string | undefined): ModSource | null {
-  if (!gameType) return null;
-  return listSources().find((s) => s.gameTypes.includes(gameType)) ?? null;
+  const profile = gameByQueryType(gameType);
+  return profile?.mods ? getSource(profile.mods.source) : null;
 }
 
 /** Shared fetch with a deadline, so a slow repository cannot wedge a request. */

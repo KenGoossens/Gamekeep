@@ -6,9 +6,11 @@ import { decryptSecret, encryptSecret } from '../secrets.js';
 import { dataRootsOf } from '../files.js';
 import { getSource, sourceForGame, ModSourceError, type ModSource } from '../mods/sources.js';
 import { layoutFor, type InstalledState } from '../mods/install.js';
+import { gameByQueryType } from '../games.js';
 import type { ScannerConfig } from '../mods/scan.js';
 import '../mods/ficsit.js';
 import '../mods/thunderstore.js';
+import '../mods/modrinth.js';
 
 /**
  * Installing a mod is running someone else's code inside a game server on this
@@ -54,7 +56,15 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
           code: 400,
           body: {
             error: 'unsupported-game',
-            message: `Gamekeep has no mod repository for ${gameType ?? 'this game'}.`,
+            // Some games have mods but no repository worth automating, and
+            // saying which is more use than a flat refusal.
+            message:
+              gameByQueryType(gameType)?.modsUnavailable ??
+              (gameByQueryType(gameType)
+                ? `Gamekeep has no mod repository for ${gameByQueryType(gameType)!.label} yet.`
+                : gameType
+                  ? `Gamekeep does not recognise "${gameType}" as a game it can find mods for.`
+                  : 'This server has no game type set, so Gamekeep cannot tell which mods would fit.'),
           },
         },
       };
@@ -350,7 +360,12 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
       if (!row) return reply.code(404).send({ error: 'not-installed' });
 
       try {
-        await mods.remove(server, await dataRoot(server), row.directory);
+        await mods.remove(
+          server,
+          await dataRoot(server),
+          { directory: row.directory, files: row.files },
+          layoutFor(server.query?.type)?.install ?? 'extract',
+        );
         db.forgetInstalledMod(server.id, row.source, row.modId);
         db.audit({
           userId: user.id,
