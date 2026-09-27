@@ -12,6 +12,9 @@
  */
 
 export type EventKind =
+  | 'restarted'
+  | 'started'
+  | 'stopped'
   | 'restart-unconfirmed'
   | 'restart-failed'
   | 'server-down'
@@ -19,6 +22,24 @@ export type EventKind =
   | 'deployed'
   | 'mod-installed'
   | 'access-granted';
+
+/**
+ * Events the portal itself caused, as opposed to ones it merely noticed.
+ *
+ * The difference decides whether repeats are collapsed. Two restarts five
+ * minutes apart are two things someone did and both are worth saying; two
+ * "server is down" a minute apart are one fact reported twice.
+ */
+const DELIBERATE: EventKind[] = [
+  'restarted',
+  'started',
+  'stopped',
+  'restart-unconfirmed',
+  'restart-failed',
+  'deployed',
+  'mod-installed',
+  'access-granted',
+];
 
 /**
  * Enough to recognise the game at a glance.
@@ -59,17 +80,25 @@ export interface NotifyConfig {
   discordWebhook?: string;
   /** Kinds the operator chose to hear about. Empty means the default set. */
   events?: string[];
+  /** Bumped when new kinds are added, so they are offered once. */
+  version?: number;
 }
 
 /** What is worth interrupting someone for, when nothing has been chosen. */
-export const DEFAULT_EVENTS: NotifyEvent['kind'][] = [
+export const DEFAULT_EVENTS: EventKind[] = [
+  'restarted',
+  'started',
+  'stopped',
   'restart-unconfirmed',
   'restart-failed',
   'server-down',
   'server-recovered',
 ];
 
-export const ALL_EVENTS: Array<{ kind: NotifyEvent['kind']; label: string }> = [
+export const ALL_EVENTS: Array<{ kind: EventKind; label: string }> = [
+  { kind: 'restarted', label: 'A server was restarted' },
+  { kind: 'started', label: 'A server was started' },
+  { kind: 'stopped', label: 'A server was stopped' },
   { kind: 'restart-unconfirmed', label: 'A restart came back but the game stayed silent' },
   { kind: 'restart-failed', label: 'A restart failed outright' },
   { kind: 'server-down', label: 'A server stopped without anyone asking' },
@@ -80,7 +109,10 @@ export const ALL_EVENTS: Array<{ kind: NotifyEvent['kind']; label: string }> = [
 ];
 
 /** Colour and wording per event, so a glance at the channel is enough. */
-const SHAPE: Record<NotifyEvent['kind'], { title: string; colour: number }> = {
+const SHAPE: Record<EventKind, { title: string; colour: number }> = {
+  restarted: { title: 'Server restarted', colour: 0x4ade80 },
+  started: { title: 'Server started', colour: 0x4ade80 },
+  stopped: { title: 'Server stopped', colour: 0x9aa5c4 },
   'restart-unconfirmed': { title: 'Restart unconfirmed', colour: 0xfbbf24 },
   'restart-failed': { title: 'Restart failed', colour: 0xf87171 },
   'server-down': { title: 'Server went down', colour: 0xf87171 },
@@ -195,10 +227,19 @@ export function createNotifier(options: {
     const wanted = config.events?.length ? config.events : DEFAULT_EVENTS;
     if (!wanted.includes(event.kind)) return;
 
-    const key = `${event.kind}:${event.server?.id ?? event.server?.name ?? ''}`;
-    const now = Date.now();
-    if (now - (lastSent.get(key) ?? 0) < QUIET_MS) return;
-    lastSent.set(key, now);
+    /*
+     * Only what the portal noticed is collapsed, never what someone did.
+     * Applying the quiet window to deliberate actions would mean a second
+     * restart within ten minutes simply never being mentioned -- which is
+     * exactly the case where someone is retrying because the first did not
+     * take, and the moment you most want to hear about it.
+     */
+    if (!DELIBERATE.includes(event.kind)) {
+      const key = `${event.kind}:${event.server?.id ?? event.server?.name ?? ''}`;
+      const now = Date.now();
+      if (now - (lastSent.get(key) ?? 0) < QUIET_MS) return;
+      lastSent.set(key, now);
+    }
 
     void toDiscord(config.discordWebhook, event).catch((err: Error) =>
       options.onError(`notification failed: ${err.message}`),

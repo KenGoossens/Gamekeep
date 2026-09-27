@@ -10,16 +10,35 @@ import { ALL_EVENTS, DEFAULT_EVENTS, type NotifyConfig } from '../notify.js';
  */
 export const NOTIFY_KEY = 'notifications';
 
+/**
+ * Kinds that did not exist when earlier settings were saved.
+ *
+ * Their absence from a stored selection is not a decision -- nobody can
+ * decline something they were never offered -- so they are added once, and
+ * the config is stamped so a later, deliberate removal sticks. Without this
+ * the setting quietly filters out every new event type ever added.
+ */
+const ADDED_IN_V2: string[] = ['restarted', 'started', 'stopped'];
+
 export function readNotifyConfig(ctx: Pick<AppContext, 'db' | 'env'>): NotifyConfig {
   const raw = ctx.db.getSetting(NOTIFY_KEY);
   if (!raw) return {};
   const plain = decryptSecret(raw, ctx.env.SESSION_SECRET);
   if (!plain) return {};
+
+  let config: NotifyConfig;
   try {
-    return JSON.parse(plain) as NotifyConfig;
+    config = JSON.parse(plain) as NotifyConfig;
   } catch {
     return {};
   }
+
+  if (config.version !== 2 && config.events?.length) {
+    const events = [...new Set([...config.events, ...ADDED_IN_V2])];
+    config = { ...config, events, version: 2 };
+    ctx.db.setSetting(NOTIFY_KEY, encryptSecret(JSON.stringify(config), ctx.env.SESSION_SECRET));
+  }
+  return config;
 }
 
 export function registerNotifyRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -79,7 +98,7 @@ export function registerNotifyRoutes(app: FastifyInstance, ctx: AppContext) {
         return reply.code(502).send({ error: 'unreachable', message: (err as Error).message });
       }
 
-      db.setSetting(NOTIFY_KEY, encryptSecret(JSON.stringify({ discordWebhook: webhook, events }), env.SESSION_SECRET));
+      db.setSetting(NOTIFY_KEY, encryptSecret(JSON.stringify({ discordWebhook: webhook, events, version: 2 }), env.SESSION_SECRET));
       db.audit({
         userId: user.id,
         username: user.username,

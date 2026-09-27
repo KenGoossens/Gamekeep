@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { originOf } from '../auth/origin.js';
 import type { AppContext } from '../context.js';
 import { canOperate } from '../db.js';
+import type { EventKind } from '../notify.js';
 
 export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, actions, cooldown, db, guard, docker, gameQuery, notify } = ctx;
@@ -26,32 +27,46 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
     });
 
     /*
-     * Only the outcomes worth interrupting someone for. A clean restart is
-     * the system working, and a channel that pings for those gets muted.
+     * Every settled action is reported, not only the ones that went wrong.
+     * Which kind depends on how it ended: a restart that got the container
+     * back but never heard from the game is its own thing, and folding it in
+     * with the successes would hide the one outcome most worth seeing.
      */
-    if (job.phase !== 'done') {
-      const server = registry.get(job.serverId);
-      notify.send({
-        kind: job.containerRestarted ? 'restart-unconfirmed' : 'restart-failed',
-        server: server
-          ? {
-              name: server.displayName,
-              id: server.id,
-              steamAppId: server.steamAppId,
-              iconUrl: server.iconUrl,
-            }
-          : { name: job.serverId },
-        actor: {
-          username: job.actorUsername,
-          // Looked up now rather than captured with the job: a role can
-          // change while a restart is still running.
-          role: job.actorUserId ? (db.findById(job.actorUserId)?.role ?? undefined) : undefined,
-        },
-        detail: job.containerRestarted
-          ? 'The container came back, but the game never answered.'
-          : (job.error ?? undefined),
-      });
-    }
+    const kind: EventKind =
+      job.phase === 'done'
+        ? job.action === 'start'
+          ? 'started'
+          : job.action === 'stop'
+            ? 'stopped'
+            : 'restarted'
+        : job.containerRestarted
+          ? 'restart-unconfirmed'
+          : 'restart-failed';
+
+    const server = registry.get(job.serverId);
+    notify.send({
+      kind,
+      server: server
+        ? {
+            name: server.displayName,
+            id: server.id,
+            steamAppId: server.steamAppId,
+            iconUrl: server.iconUrl,
+          }
+        : { name: job.serverId },
+      actor: {
+        username: job.actorUsername,
+        // Looked up now rather than captured with the job: a role can change
+        // while a restart is still running.
+        role: job.actorUserId ? (db.findById(job.actorUserId)?.role ?? undefined) : undefined,
+      },
+      detail:
+        job.phase === 'done'
+          ? undefined
+          : job.containerRestarted
+            ? 'The container came back, but the game never answered.'
+            : (job.error ?? `The ${job.action} did not complete.`),
+    });
   });
 
   app.post<{ Params: { id: string } }>(

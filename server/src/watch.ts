@@ -42,6 +42,8 @@ export function createWatcher(deps: {
   notify: Notifier;
   lastActionAt: (serverId: string) => number | null;
 }) {
+  /** Servers this watcher reported as down, so only those get a recovery. */
+  const announcedDown = new Set<string>();
   /** Last known running state per server; absent until the first look. */
   const running = new Map<string, boolean>();
 
@@ -63,7 +65,15 @@ export function createWatcher(deps: {
       if (was === undefined || was === isRunning) continue;
 
       if (isRunning) {
-        deps.notify.send({ kind: 'server-recovered', server: art(server) });
+        /*
+         * Only for a server this actually reported as down. Someone pressing
+         * start already produces its own message, and answering that with
+         * "server is back" says the same thing twice -- and calls a deliberate
+         * start a recovery, which it was not.
+         */
+        if (announcedDown.delete(server.id)) {
+          deps.notify.send({ kind: 'server-recovered', server: art(server) });
+        }
         continue;
       }
 
@@ -72,6 +82,7 @@ export function createWatcher(deps: {
       const expected = Boolean(job) || (recent !== null && Date.now() - recent < GRACE_MS);
       if (expected) continue;
 
+      announcedDown.add(server.id);
       deps.notify.send({ kind: 'server-down', server: art(server) });
     }
   }
