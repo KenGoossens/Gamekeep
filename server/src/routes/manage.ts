@@ -1,0 +1,264 @@
+import type { FastifyInstance } from 'fastify';
+import type { AppContext } from '../context.js';
+import { FileError } from '../files.js';
+import { originOf } from '../auth/origin.js';
+import { RETENTION_MS } from '../metrics.js';
+import { readWorld } from '../world.js';
+
+export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
+  const { registry, metrics, settings, files, db, guard } = ctx;
+  const anyone = { preHandler: guard.requireActiveUser };
+  const operator = { preHandler: guard.requireOperator };
+
+  // ---- performance ----------------------------------------------------
+  app.get<{ Params: { id: string }; Querystring: { since?: string } }>(
+    '/api/servers/:id/metrics',
+    anyone,
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const since = Math.min(Number(request.query.since) || RETENTION_MS, RETENTION_MS);
+      return reply.send({
+        current: await metrics.current(server),
+        history: metrics.history(server.id, since),
+        retentionMs: RETENTION_MS,
+      });
+    },
+  );
+
+  // ---- world -----------------------------------------------------------
+  app.get<{ Params: { id: string } }>(
+    '/api/servers/:id/world',
+    anyone,
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      // Never fatal: a game we cannot read simply reports nothing.
+      try {
+        return reply.send({ world: await readWorld(server, files) });
+      } catch {
+        return reply.send({ world: null });
+      }
+    },
+  );
+
+  // ---- settings -------------------------------------------------------
+  app.get<{ Params: { id: string } }>(
+    '/api/servers/:id/settings',
+    operator,
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      try {
+        return reply.send({ settings: await settings.read(server) });
+      } catch (err) {
+        return reply.code(502).send({ error: 'read-failed', message: (err as Error).message });
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { changes?: Record<string, string> } }>(
+    '/api/servers/:id/settings',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const changes = request.body?.changes;
+      if (!changes || typeof changes !== 'object') {
+        return reply.code(400).send({ error: 'invalid-body' });
+      }
+
+      try {
+        const steps: string[] = [];
+        const applied = await settings.apply(server, changes, (m) => steps.push(m));
+
+        if (applied.length === 0) {
+          return reply.send({ applied: [], steps: [], message: 'Nothing changed.' });
+        }
+
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'settings-changed',
+          result: 'success',
+          // Only the names, never the values: some of these are passwords.
+          detail: `Changed ${applied.join(', ')}`,
+          ...originOf(request),
+        });
+        return reply.send({ applied, steps });
+      } catch (err) {
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'settings-changed',
+          result: 'failure',
+          detail: (err as Error).message,
+          ...originOf(request),
+        });
+        return reply.code(500).send({ error: 'apply-failed', message: (err as Error).message });
+      }
+    },
+  );
+
+  // ---- file editor ----------------------------------------------------
+  const fileFailure = (err: unknown) =>
+    err instanceof FileError
+      ? { status: 400, body: { error: err.code, message: err.message } }
+      : { status: 502, body: { error: 'file-failed', message: (err as Error).message } };
+
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>(
+    '/api/servers/:id/files',
+    operator,
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      try {
+        return reply.send(await files.list(server, request.query.path ?? ''));
+      } catch (err) {
+        const f = fileFailure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>(
+    '/api/servers/:id/file',
+    operator,
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      if (!request.query.path) return reply.code(400).send({ error: 'path-required' });
+
+      try {
+        const content = await files.read(server, request.query.path);
+        return reply.send({ path: request.query.path, content });
+      } catch (err) {
+        const f = fileFailure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { path?: string } }>(
+    '/api/servers/:id/file/new',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      if (typeof request.body?.path !== 'string') {
+        return reply.code(400).send({ error: 'invalid-body' });
+      }
+
+      try {
+        const result = await files.create(server, request.body.path);
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'file-edited',
+          result: 'success',
+          detail: `Created ${result.path}`,
+          ...originOf(request),
+        });
+        return reply.code(201).send(result);
+      } catch (err) {
+        const f = fileFailure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string }; Querystring: { path?: string } }>(
+    '/api/servers/:id/file/upload',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const part = await request.file();
+      if (!part) return reply.code(400).send({ error: 'no-file' });
+
+      try {
+        const buffer = await part.toBuffer();
+        const result = await files.upload(
+          server,
+          request.query.path ?? '',
+          part.filename,
+          buffer,
+        );
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'file-uploaded',
+          result: 'success',
+          detail: `Uploaded ${result.path} (${result.bytes} bytes)${result.replaced ? ', replaced an existing file' : ''}`,
+          ...originOf(request),
+        });
+        return reply.send(result);
+      } catch (err) {
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'file-uploaded',
+          result: 'failure',
+          detail: (err as Error).message,
+          ...originOf(request),
+        });
+        const f = fileFailure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+
+  app.put<{ Params: { id: string }; Body: { path?: string; content?: string } }>(
+    '/api/servers/:id/file',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const { path, content } = request.body ?? {};
+      if (typeof path !== 'string' || typeof content !== 'string') {
+        return reply.code(400).send({ error: 'invalid-body' });
+      }
+
+      try {
+        const result = await files.write(server, path, content);
+        if (result.unchanged) return reply.send(result);
+
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'file-edited',
+          result: 'success',
+          detail: `Edited ${result.path} (${result.bytes} bytes)${result.backup ? ', backup kept' : ''}`,
+          ...originOf(request),
+        });
+        return reply.send(result);
+      } catch (err) {
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'file-edited',
+          result: 'failure',
+          detail: `${path}: ${(err as Error).message}`,
+          ...originOf(request),
+        });
+        const f = fileFailure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+}

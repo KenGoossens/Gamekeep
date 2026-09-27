@@ -1,0 +1,75 @@
+services:
+  gamekeep:
+    build: .
+    image: gamekeep:latest
+    container_name: gamekeep
+    restart: unless-stopped
+    env_file: .env
+
+    # Only needed to reach the portal directly on the LAN. Behind a reverse
+    # proxy or a Cloudflare Tunnel on the same network, delete this block --
+    # then the portal has no published port at all.
+    ports:
+      - "8088:8080"
+
+    volumes:
+      # The one thing that makes this work: the portal restarts containers
+      # through Docker. Root-equivalent on the host -- see the README's
+      # security model, and the socket-proxy alternative below.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # Sessions, audit log, metrics and cached artwork.
+      # SQLite dislikes network filesystems: on Unraid use a pool path
+      # (/mnt/cache/...) rather than the /mnt/user FUSE layer.
+      - ./data:/data
+
+      # Read-only on purpose: this file IS the container whitelist.
+      - ./config:/config:ro
+
+      # Where servers deployed through the portal keep their data. Must match
+      # APPDATA_HOST_ROOT in .env -- the left side is what the host sees.
+      - /srv/gameservers:/gameservers
+
+      # Unraid only: lets deployed servers show up in the Docker tab.
+      # Remove this line on any other host.
+      #- /boot/config/plugins/dockerMan/templates-user:/unraid-templates
+
+    networks:
+      - gamekeep
+
+networks:
+  gamekeep:
+    driver: bridge
+
+# --- Optional: put a tunnel in front -----------------------------------------
+# Publishes the portal without opening a port on your router. Point the tunnel
+# at http://gamekeep:8080 and delete the ports: block above.
+#
+#  cloudflared:
+#    image: cloudflare/cloudflared:latest
+#    container_name: cloudflared
+#    restart: unless-stopped
+#    command: tunnel --no-autoupdate run
+#    environment:
+#      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+#    networks:
+#      - gamekeep
+
+# --- Optional hardening ------------------------------------------------------
+# Replace the docker.sock mount with a proxy exposing only what is needed, then
+# set DOCKER_HOST=http://dockerproxy:2375 in .env and drop the socket volume.
+#
+#  dockerproxy:
+#    image: tecnativa/docker-socket-proxy:latest
+#    container_name: gamekeep-dockerproxy
+#    restart: unless-stopped
+#    environment:
+#      CONTAINERS: 1   # inspect, list, stats
+#      POST: 1         # restart, stop, start
+#      IMAGES: 1       # only for pull-recreate and deploying new servers
+#      EXEC: 1         # only for the file editor
+#      # Everything else stays off: no VOLUMES, no NETWORKS, no SECRETS.
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock:ro
+#    networks:
+#      - gamekeep

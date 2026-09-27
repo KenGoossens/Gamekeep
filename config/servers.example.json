@@ -1,0 +1,34 @@
+{
+  "servers": [
+    {
+      "id": "valheim",
+      "displayName": "Valheim",
+      "container": "Valheim",
+      "query": { "type": "valheim", "host": "Valheim", "port": 2456 },
+      "steamAppId": 892970,
+      "accent": "#c8a15a",
+      "cooldownSeconds": 300,
+      "restartTimeoutSeconds": 300,
+      "notes": "Updates on restart -- the container runs SteamCMD on boot."
+    },
+    {
+      "id": "satisfactory",
+      "displayName": "Satisfactory",
+      "container": "Satisfactory",
+      "query": { "type": "satisfactory", "host": "Satisfactory", "port": 7777 },
+      "steamAppId": 526870,
+      "cooldownSeconds": 300,
+      "restartTimeoutSeconds": 420
+    },
+    {
+      "id": "minecraft",
+      "displayName": "Minecraft",
+      "container": "Minecraft",
+      "query": { "type": "mbe", "host": "Minecraft", "port": 19132 },
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/minecraft.png",
+      "cooldownSeconds": 300,
+      "restartTimeoutSeconds": 240,
+      "notes": "Bedrock Edition. Not on Steam, so artwork comes from an icon set."
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Gamekeep</Name>
+  <Repository>ghcr.io/kengoossens/gamekeep:latest</Repository>
+  <Registry>https://ghcr.io/kengoossens/gamekeep</Registry>
+  <Branch>
+    <Tag>latest</Tag>
+    <TagDescription>Latest release</TagDescription>
+  </Branch>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/KenGoossens/Gamekeep/issues</Support>
+  <Project>https://github.com/KenGoossens/Gamekeep</Project>
+  <Overview>
+Let your friends restart your game servers without giving them access to Unraid.
+
+They sign in, see which servers are up and how many people are playing, and press Restart when a game update lands. A cooldown stops anyone restarting a server that is still booting, and a shared activity log shows who did what.
+
+Three roles: owner (everything), operator (install, stop, start and restart servers), member (restart only).
+
+Also included: live CPU and memory graphs with 24h history, an environment-variable editor, a file browser with backups on every change, installing new game servers straight from Community Applications, and optional port forwarding through your router.
+
+IMPORTANT - read before installing:
+This container mounts the Docker socket, which is root-equivalent on your server. It only ever touches the containers you list in its config file, and it never lets a request name a container directly. Even so, treat the owner password like your Unraid root password, and put Cloudflare Access or similar in front if you expose it to the internet.
+
+FIRST RUN:
+Leave PUBLIC_URL as the address you will actually use. On first start the log prints a one-time SETUP TOKEN - open the WebUI, paste it, and create the owner account. Nobody can claim that account without reading your container log.
+  </Overview>
+  <Category>Tools: Productivity: GameServers:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/icon.png</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+
+  <Config Name="WebUI Port" Target="8080" Default="8088" Mode="tcp" Description="Port for the portal. Not needed if you put a reverse proxy or Cloudflare Tunnel on the same Docker network." Type="Port" Display="always" Required="true" Mask="false">8088</Config>
+
+  <Config Name="Docker socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="rw" Description="How the portal restarts your game servers. Required." Type="Path" Display="always" Required="true" Mask="false">/var/run/docker.sock</Config>
+
+  <Config Name="Data" Target="/data" Default="/mnt/cache/appdata/gamekeep/data" Mode="rw" Description="Accounts, audit log, metrics and cached artwork. Use a POOL path (/mnt/cache/...) and not /mnt/user - SQLite and the FUSE layer do not get along." Type="Path" Display="always" Required="true" Mask="false">/mnt/cache/appdata/gamekeep/data</Config>
+
+  <Config Name="Config" Target="/config" Default="/mnt/cache/appdata/gamekeep/config" Mode="ro" Description="Holds servers.json, which lists the containers this portal may touch. Read-only on purpose: it IS the whitelist." Type="Path" Display="always" Required="true" Mask="false">/mnt/cache/appdata/gamekeep/config</Config>
+
+  <Config Name="Game server data" Target="/gameservers" Default="/mnt/cache/Game Servers" Mode="rw" Description="Where servers deployed through the portal keep their files. Must match APPDATA_HOST_ROOT below." Type="Path" Display="always" Required="true" Mask="false">/mnt/cache/Game Servers</Config>
+
+  <Config Name="Unraid templates" Target="/unraid-templates" Default="/boot/config/plugins/dockerMan/templates-user" Mode="rw" Description="Optional. Lets servers deployed through the portal show up properly in your Docker tab instead of as orphan images." Type="Path" Display="always" Required="false" Mask="false">/boot/config/plugins/dockerMan/templates-user</Config>
+
+  <Config Name="PUBLIC_URL" Target="PUBLIC_URL" Default="" Mode="" Description="The address people will type, e.g. https://portal.example.com or http://192.168.1.10:8088. Decides whether session cookies are marked Secure, so get it right once you are on HTTPS." Type="Variable" Display="always" Required="true" Mask="false"/>
+
+  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="" Mode="" Description="At least 32 characters. Generate with: openssl rand -hex 32 - changing it signs everyone out." Type="Variable" Display="always" Required="true" Mask="true"/>
+
+  <Config Name="APPDATA_HOST_ROOT" Target="APPDATA_HOST_ROOT" Default="/mnt/cache/Game Servers" Mode="" Description="The SAME directory as the Game server data path above, but as the HOST sees it. Docker resolves bind mounts against the host, so a mismatch here silently writes game data to the wrong place." Type="Variable" Display="always" Required="true" Mask="false">/mnt/cache/Game Servers</Config>
+
+  <Config Name="APPDATA_ROOT" Target="APPDATA_ROOT" Default="/gameservers" Mode="" Description="The same directory as the container sees it. Leave as-is unless you changed the mount above." Type="Variable" Display="advanced" Required="true" Mask="false">/gameservers</Config>
+
+  <Config Name="LAN_ADDRESS" Target="LAN_ADDRESS" Default="" Mode="" Description="Optional. Your Unraid server's address on the LAN, e.g. 192.168.1.10. Used to tell you which port forwards a new game server needs, and to create them if you connect a router." Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="TRUSTED_PROXIES" Target="TRUSTED_PROXIES" Default="127.0.0.1,::1,172.16.0.0/12" Mode="" Description="Which sources may set X-Forwarded-For. This decides what the audit log records as a visitor's IP address. The default trusts the Docker bridge range, where a reverse proxy or cloudflared lives. Widen deliberately or not at all." Type="Variable" Display="advanced" Required="false" Mask="false">127.0.0.1,::1,172.16.0.0/12</Config>
+
+  <Config Name="TRUSTED_PUBLISHERS" Target="TRUSTED_PUBLISHERS" Default="" Mode="" Description="Optional. Whose game servers may be installed from Community Applications, comma separated. Deploying a container is root-equivalent, so this is a trust list. Leave empty for the built-in default." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="TZ" Target="TZ" Default="Europe/Brussels" Mode="" Description="Timezone, so the audit log reads in your local time." Type="Variable" Display="always" Required="false" Mask="false">Europe/Brussels</Config>
+</Container>

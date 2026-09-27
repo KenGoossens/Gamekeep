@@ -1,0 +1,482 @@
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+
+export type AuditAction =
+  | 'setup'
+  | 'login'
+  | 'login-failed'
+  | 'logout'
+  | 'restart'
+  | 'start'
+  | 'stop'
+  | 'pull-recreate'
+  | 'server-deployed'
+  | 'server-removed'
+  | 'settings-changed'
+  | 'file-edited'
+  | 'file-uploaded'
+  | 'integration-changed'
+  | 'portforward-opened'
+  | 'portforward-closed'
+  | 'user-created'
+  | 'user-deleted'
+  | 'user-promoted'
+  | 'user-demoted'
+  | 'user-disabled'
+  | 'user-enabled'
+  | 'password-changed'
+  | 'password-reset';
+
+export type AuditResult =
+  | 'success'
+  | 'unconfirmed'
+  | 'failure'
+  | 'denied'
+  | 'cooldown'
+  | 'busy';
+
+export interface AuditRow {
+  id: number;
+  ts: number;
+  userId: string | null;
+  username: string;
+  serverId: string | null;
+  action: AuditAction;
+  result: AuditResult;
+  detail: string | null;
+  ip: string | null;
+  userAgent: string | null;
+}
+
+/**
+ * Three levels, so managing game servers can be delegated without also handing
+ * over the accounts.
+ *
+ *   owner    - everything, including creating and removing users
+ *   operator - install, stop, start and restart game servers; no user admin
+ *   member   - restart only
+ */
+export type Role = 'owner' | 'operator' | 'member';
+
+export const ROLES: Role[] = ['owner', 'operator', 'member'];
+
+export const toRole = (value: unknown): Role =>
+  value === 'owner' || value === 'operator' ? value : 'member';
+
+/** May install, stop and start servers. */
+export const canOperate = (role: Role): boolean => role === 'owner' || role === 'operator';
+
+export interface UserRow {
+  id: string;
+  username: string;
+  role: Role;
+  mustChangePassword: boolean;
+  disabled: boolean;
+  createdAt: number;
+  createdBy: string | null;
+  lastLoginAt: number | null;
+}
+
+export interface SessionUser extends UserRow {
+  sessionId: string;
+}
+
+interface UserDbRow {
+  id: string;
+  username: string;
+  role: string;
+  must_change_password: number;
+  disabled: number;
+  created_at: number;
+  created_by: string | null;
+  last_login_at: number | null;
+}
+
+const toUser = (r: UserDbRow): UserRow => ({
+  id: r.id,
+  username: r.username,
+  role: toRole(r.role),
+  mustChangePassword: r.must_change_password === 1,
+  disabled: r.disabled === 1,
+  createdAt: r.created_at,
+  createdBy: r.created_by,
+  lastLoginAt: r.last_login_at,
+});
+
+const USER_COLUMNS =
+  'id, username, role, must_change_password, disabled, created_at, created_by, last_login_at';
+
+export function openDatabase(path: string) {
+  mkdirSync(dirname(path), { recursive: true });
+  const db = new DatabaseSync(path);
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
+
+  // The Discord-era schema keyed sessions and audit rows to a Discord id. Those
+  // tables cannot describe a local account, and there were never any real
+  // accounts in that shape, so rebuild rather than migrate.
+  const tableExists = (table: string) =>
+    (db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name=?").get(table) as { n: number })
+      .n > 0;
+  const hasColumn = (table: string, column: string) => {
+    const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    return rows.some((r) => r.name === column);
+  };
+  if (hasColumn('sessions', 'discord_id')) {
+    db.exec('DROP TABLE IF EXISTS sessions');
+    db.exec('DROP TABLE IF EXISTS audit_log');
+  }
+
+  // Two roles became three. An existing administrator becomes the owner --
+  // they were already trusted with everything -- and everyone else a member.
+  if (hasColumn('users', 'is_admin') && !hasColumn('users', 'role')) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+    db.exec("UPDATE users SET role = CASE WHEN is_admin = 1 THEN 'owner' ELSE 'member' END");
+  }
+  // Older audit rows simply have no address recorded.
+  if (tableExists('audit_log') && !hasColumn('audit_log', 'ip')) {
+    db.exec('ALTER TABLE audit_log ADD COLUMN ip TEXT');
+    db.exec('ALTER TABLE audit_log ADD COLUMN user_agent TEXT');
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id                   TEXT PRIMARY KEY,
+      username             TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      password_hash        TEXT NOT NULL,
+      role                 TEXT NOT NULL DEFAULT 'member',
+      must_change_password INTEGER NOT NULL DEFAULT 0,
+      disabled             INTEGER NOT NULL DEFAULT 0,
+      created_at           INTEGER NOT NULL,
+      created_by           TEXT,
+      last_login_at        INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
+
+    CREATE TABLE IF NOT EXISTS managed_servers (
+      id                      TEXT PRIMARY KEY,
+      definition              TEXT NOT NULL,
+      created_at              INTEGER NOT NULL,
+      created_by              TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS metrics (
+      server_id   TEXT NOT NULL,
+      ts          INTEGER NOT NULL,
+      cpu_percent REAL NOT NULL,
+      mem_bytes   INTEGER NOT NULL,
+      mem_limit   INTEGER NOT NULL,
+      net_rx      INTEGER NOT NULL,
+      net_tx      INTEGER NOT NULL,
+      blk_read    INTEGER NOT NULL,
+      blk_write   INTEGER NOT NULL,
+      players     INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_metrics ON metrics (server_id, ts DESC);
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts        INTEGER NOT NULL,
+      user_id   TEXT,
+      username  TEXT NOT NULL,
+      server_id TEXT,
+      action     TEXT NOT NULL,
+      result     TEXT NOT NULL,
+      detail     TEXT,
+      ip         TEXT,
+      user_agent TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log (ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_server ON audit_log (server_id, action, result, ts DESC);
+  `);
+
+  const st = {
+    countUsers: db.prepare('SELECT COUNT(*) AS n FROM users'),
+    countOwners: db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'owner' AND disabled = 0"),
+    insertUser: db.prepare(
+      `INSERT INTO users (id, username, password_hash, role, must_change_password, disabled, created_at, created_by)
+       VALUES (@id, @username, @passwordHash, @role, @mustChangePassword, 0, @createdAt, @createdBy)`,
+    ),
+    userByName: db.prepare(`SELECT ${USER_COLUMNS}, password_hash FROM users WHERE username = ? COLLATE NOCASE`),
+    userById: db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`),
+    listUsers: db.prepare(
+      `SELECT ${USER_COLUMNS} FROM users
+       ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'operator' THEN 1 ELSE 2 END, username COLLATE NOCASE`,
+    ),
+    setPassword: db.prepare(
+      'UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ?',
+    ),
+    setRole: db.prepare('UPDATE users SET role = ? WHERE id = ?'),
+    setDisabled: db.prepare('UPDATE users SET disabled = ? WHERE id = ?'),
+    touchLogin: db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?'),
+    deleteUser: db.prepare('DELETE FROM users WHERE id = ?'),
+
+    insertSession: db.prepare(
+      'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+    ),
+    sessionUser: db.prepare(
+      `SELECT s.id AS session_id, ${USER_COLUMNS.split(', ').map((c) => 'u.' + c).join(', ')}
+       FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.id = ? AND s.expires_at > ?`,
+    ),
+    deleteSession: db.prepare('DELETE FROM sessions WHERE id = ?'),
+    deleteUserSessions: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
+    sweepSessions: db.prepare('DELETE FROM sessions WHERE expires_at <= ?'),
+
+    listManaged: db.prepare('SELECT id, definition FROM managed_servers ORDER BY created_at'),
+    insertManaged: db.prepare(
+      'INSERT INTO managed_servers (id, definition, created_at, created_by) VALUES (?, ?, ?, ?)',
+    ),
+    deleteManaged: db.prepare('DELETE FROM managed_servers WHERE id = ?'),
+
+    getSetting: db.prepare('SELECT value FROM app_settings WHERE key = ?'),
+    setSetting: db.prepare(
+      'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    ),
+    deleteSetting: db.prepare('DELETE FROM app_settings WHERE key = ?'),
+
+    insertMetric: db.prepare(
+      `INSERT INTO metrics (server_id, ts, cpu_percent, mem_bytes, mem_limit, net_rx, net_tx, blk_read, blk_write, players)
+       VALUES (@serverId, @ts, @cpuPercent, @memBytes, @memLimit, @netRx, @netTx, @blkRead, @blkWrite, @players)`,
+    ),
+    readMetrics: db.prepare(
+      `SELECT ts, cpu_percent, mem_bytes, mem_limit, net_rx, net_tx, blk_read, blk_write, players
+       FROM metrics WHERE server_id = ? AND ts >= ? ORDER BY ts`,
+    ),
+    pruneMetrics: db.prepare('DELETE FROM metrics WHERE ts < ?'),
+
+    insertAudit: db.prepare(
+      `INSERT INTO audit_log (ts, user_id, username, server_id, action, result, detail, ip, user_agent)
+       VALUES (@ts, @userId, @username, @serverId, @action, @result, @detail, @ip, @userAgent)`,
+    ),
+    recentAudit: db.prepare(
+      `SELECT id, ts, user_id, username, server_id, action, result, detail, ip, user_agent
+       FROM audit_log ORDER BY ts DESC, id DESC LIMIT ?`,
+    ),
+    lastSuccessfulAction: db.prepare(
+      `SELECT MAX(ts) AS ts FROM audit_log
+       WHERE server_id = ? AND result IN ('success', 'unconfirmed')
+         AND action IN ('restart', 'pull-recreate')`,
+    ),
+  };
+
+  return {
+    raw: db,
+
+    userCount: () => (st.countUsers.get() as { n: number }).n,
+    /** Disabled admins do not count -- they cannot act. */
+    activeOwnerCount: () => (st.countOwners.get() as { n: number }).n,
+
+    createUser(user: {
+      id: string;
+      username: string;
+      passwordHash: string;
+      role: Role;
+      mustChangePassword: boolean;
+      createdBy: string | null;
+    }) {
+      st.insertUser.run({
+        id: user.id,
+        username: user.username,
+        passwordHash: user.passwordHash,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword ? 1 : 0,
+        createdAt: Date.now(),
+        createdBy: user.createdBy,
+      });
+    },
+
+    /** Returns the stored hash alongside the user, for login only. */
+    findByUsername(username: string): (UserRow & { passwordHash: string }) | undefined {
+      const row = st.userByName.get(username) as unknown as (UserDbRow & { password_hash: string }) | undefined;
+      return row ? { ...toUser(row), passwordHash: row.password_hash } : undefined;
+    },
+
+    findById(id: string): UserRow | undefined {
+      const row = st.userById.get(id) as unknown as UserDbRow | undefined;
+      return row ? toUser(row) : undefined;
+    },
+
+    listUsers: (): UserRow[] => (st.listUsers.all() as unknown as UserDbRow[]).map(toUser),
+
+    setPassword(userId: string, passwordHash: string, mustChange: boolean) {
+      st.setPassword.run(passwordHash, mustChange ? 1 : 0, userId);
+    },
+    setRole: (userId: string, role: Role) => void st.setRole.run(role, userId),
+    setDisabled: (userId: string, disabled: boolean) => void st.setDisabled.run(disabled ? 1 : 0, userId),
+    touchLogin: (userId: string) => void st.touchLogin.run(Date.now(), userId),
+    /** Sessions cascade, so a deleted user is logged out everywhere at once. */
+    deleteUser: (userId: string) => void st.deleteUser.run(userId),
+
+    /**
+     * Servers deployed through the portal. The config file stays read-only --
+     * it is the static whitelist -- and anything the portal creates itself is
+     * recorded here instead. Both sources are merged by the server registry.
+     */
+    listManagedServers(): Array<{ id: string; definition: unknown }> {
+      const rows = st.listManaged.all() as unknown as Array<{ id: string; definition: string }>;
+      return rows.flatMap((row) => {
+        try {
+          return [{ id: row.id, definition: JSON.parse(row.definition) as unknown }];
+        } catch {
+          // A row we cannot parse is skipped rather than crashing the portal.
+          return [];
+        }
+      });
+    },
+
+    addManagedServer(id: string, definition: unknown, createdBy: string | null) {
+      st.insertManaged.run(id, JSON.stringify(definition), Date.now(), createdBy);
+    },
+
+    removeManagedServer(id: string) {
+      st.deleteManaged.run(id);
+    },
+
+    /** Small encrypted key/value store for integration credentials. */
+    getSetting(key: string): string | null {
+      const row = st.getSetting.get(key) as { value: string } | undefined;
+      return row?.value ?? null;
+    },
+    setSetting: (key: string, value: string) => void st.setSetting.run(key, value),
+    deleteSetting: (key: string) => void st.deleteSetting.run(key),
+
+    recordMetric(
+      serverId: string,
+      point: {
+        ts: number;
+        cpuPercent: number;
+        memBytes: number;
+        memLimit: number;
+        netRx: number;
+        netTx: number;
+        blkRead: number;
+        blkWrite: number;
+        players: number | null;
+      },
+    ) {
+      st.insertMetric.run({ serverId, ...point });
+    },
+
+    readMetrics(serverId: string, since: number) {
+      const rows = st.readMetrics.all(serverId, since) as unknown as Array<Record<string, number | null>>;
+      return rows.map((r) => ({
+        ts: r.ts as number,
+        cpuPercent: r.cpu_percent as number,
+        memBytes: r.mem_bytes as number,
+        memLimit: r.mem_limit as number,
+        netRx: r.net_rx as number,
+        netTx: r.net_tx as number,
+        blkRead: r.blk_read as number,
+        blkWrite: r.blk_write as number,
+        players: r.players as number | null,
+      }));
+    },
+
+    /** Keeps the table bounded; called after every collection round. */
+    pruneMetrics: (before: number) => void st.pruneMetrics.run(before),
+
+    createSession(id: string, userId: string, expiresAt: number) {
+      st.insertSession.run(id, userId, Date.now(), expiresAt);
+    },
+
+    /**
+     * Resolves a session to its user in one query. A disabled account still has
+     * rows here; the caller is responsible for rejecting it.
+     */
+    sessionUser(sessionId: string): SessionUser | undefined {
+      const row = st.sessionUser.get(sessionId, Date.now()) as unknown as
+        | (UserDbRow & { session_id: string })
+        | undefined;
+      return row ? { ...toUser(row), sessionId: row.session_id } : undefined;
+    },
+
+    deleteSession: (id: string) => void st.deleteSession.run(id),
+    /** Used on password change, demotion, disable and delete. */
+    deleteUserSessions: (userId: string) => void st.deleteUserSessions.run(userId),
+    sweepExpiredSessions: () => Number(st.sweepSessions.run(Date.now()).changes),
+
+    /**
+     * Every attempt is recorded, including the refusals. The refusals are the
+     * interesting rows: a failed login or a burst of cooldown hits is what you
+     * actually want to see after the fact. The username is denormalised so the
+     * history stays readable after an account is deleted.
+     */
+    audit(entry: {
+      userId: string | null;
+      username: string;
+      serverId: string | null;
+      action: AuditAction;
+      result: AuditResult;
+      detail?: string | null;
+      ip?: string | null;
+      userAgent?: string | null;
+    }) {
+      st.insertAudit.run({
+        ts: Date.now(),
+        userId: entry.userId,
+        username: entry.username,
+        serverId: entry.serverId,
+        action: entry.action,
+        result: entry.result,
+        detail: entry.detail ?? null,
+        ip: entry.ip ?? null,
+        userAgent: entry.userAgent ? entry.userAgent.slice(0, 300) : null,
+      });
+    },
+
+    recentAudit(limit: number): AuditRow[] {
+      const rows = st.recentAudit.all(limit) as unknown as Array<{
+        id: number;
+        ts: number;
+        user_id: string | null;
+        username: string;
+        server_id: string | null;
+        action: AuditAction;
+        result: AuditResult;
+        detail: string | null;
+        ip: string | null;
+        user_agent: string | null;
+      }>;
+      return rows.map((r) => ({
+        id: r.id,
+        ts: r.ts,
+        userId: r.user_id,
+        username: r.username,
+        serverId: r.server_id,
+        action: r.action,
+        result: r.result,
+        detail: r.detail,
+        ip: r.ip,
+        userAgent: r.user_agent,
+      }));
+    },
+
+    /**
+     * Cooldown is derived from the audit log rather than from memory, so it
+     * survives a restart of the portal itself. 'unconfirmed' counts too: the
+     * container did restart, the game just never answered, and that server is
+     * most likely still loading.
+     */
+    lastSuccessfulActionAt(serverId: string): number | null {
+      const row = st.lastSuccessfulAction.get(serverId) as { ts: number | null } | undefined;
+      return row?.ts ?? null;
+    },
+  };
+}
+
+export type Db = ReturnType<typeof openDatabase>;

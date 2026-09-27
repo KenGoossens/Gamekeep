@@ -1,0 +1,245 @@
+import type { FastifyInstance } from 'fastify';
+import type { AppContext } from '../context.js';
+import { originOf } from '../auth/origin.js';
+import { decryptSecret, encryptSecret } from '../secrets.js';
+import { coveredBy, requiredForwards, UnifiError } from '../unifi.js';
+import { buildProvider, listProviders, type RouterProvider } from '../router/provider.js';
+import '../router/unifi-provider.js';
+
+const SETTING_KEY = 'router';
+
+interface StoredRouter {
+  provider: string;
+  config: Record<string, string>;
+}
+
+export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
+  const { registry, docker, db, env, guard } = ctx;
+  const owner = { preHandler: guard.requireOwner };
+  const operator = { preHandler: guard.requireOperator };
+
+  /** Decrypts the stored connection, or null when no router is connected. */
+  function loadRouter(): { stored: StoredRouter; provider: RouterProvider } | null {
+    const raw = db.getSetting(SETTING_KEY);
+    if (!raw) return null;
+    const plain = decryptSecret(raw, env.SESSION_SECRET);
+    if (!plain) return null;
+
+    try {
+      const stored = JSON.parse(plain) as StoredRouter;
+      const provider = buildProvider(stored.provider, stored.config);
+      return provider ? { stored, provider } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Where forwards should point. Without it the portal can still say which
+   * ports are needed, just not to which address.
+   */
+  const target = () => env.LAN_ADDRESS.trim();
+  const failure = (err: unknown) =>
+    err instanceof UnifiError
+      ? { status: err.code === 'unauthorized' ? 401 : 502, body: { error: err.code, message: err.message } }
+      : { status: 500, body: { error: 'unifi-failed', message: (err as Error).message } };
+
+  // ---- the router connection: owner only ------------------------------
+  app.get('/api/integrations/router', owner, async (_request, reply) => {
+    const current = loadRouter();
+    return reply.send({
+      providers: listProviders(),
+      lanAddress: target(),
+      configured: Boolean(current),
+      provider: current?.stored.provider ?? null,
+      // Secrets are never returned, only the harmless fields.
+      config: current
+        ? Object.fromEntries(
+            Object.entries(current.stored.config).filter(
+              ([key]) => !['apiKey', 'password', 'token', 'fingerprint'].includes(key),
+            ),
+          )
+        : {},
+    });
+  });
+
+  app.put<{ Body: { provider?: string; config?: Record<string, string> } }>(
+    '/api/integrations/router',
+    owner,
+    async (request, reply) => {
+      const user = request.user!;
+      const id = String(request.body?.provider ?? '').trim();
+      const config = { ...(request.body?.config ?? {}) };
+
+      const provider = buildProvider(id, config);
+      if (!provider) {
+        return reply.code(400).send({ error: 'unknown-provider', message: 'No such router type.' });
+      }
+
+      try {
+        // Proven before it is stored, so a bad setting never becomes a
+        // silent failure discovered later during a deploy.
+        const result = await provider.test();
+        if (result.fingerprint) config.fingerprint = result.fingerprint;
+
+        db.setSetting(
+          SETTING_KEY,
+          encryptSecret(JSON.stringify({ provider: id, config }), env.SESSION_SECRET),
+        );
+
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: null,
+          action: 'integration-changed',
+          result: 'success',
+          detail: `Connected router via ${provider.label} (${result.detail})`,
+          ...originOf(request),
+        });
+        return reply.send({ configured: true, provider: id, detail: result.detail });
+      } catch (err) {
+        const f = failure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+
+  app.delete('/api/integrations/router', owner, async (request, reply) => {
+    const user = request.user!;
+    db.deleteSetting(SETTING_KEY);
+    db.audit({
+      userId: user.id,
+      username: user.username,
+      serverId: null,
+      action: 'integration-changed',
+      result: 'success',
+      detail: 'Disconnected the router',
+      ...originOf(request),
+    });
+    return reply.send({ configured: false });
+  });
+  // ---- per-server forwards: operator level -----------------------------
+  app.get<{ Params: { id: string } }>(
+    '/api/servers/:id/portforward',
+    operator,
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const current = loadRouter();
+      const needed = await requiredForwards(docker, server);
+      const to = target();
+
+      if (!current) {
+        // Still useful without a router: these are the rules to make by hand.
+        return reply.send({ configured: false, target: to, needed, rules: [], missing: needed });
+      }
+
+      try {
+        const rules = await current.provider.list();
+        const missing = needed.filter((n) => !rules.some((r) => coveredBy(r, n, to)));
+        const mine = rules.filter((r) => r.fwd === to && needed.some((n) => coveredBy(r, n, to)));
+        return reply.send({ configured: true, target: to, needed, rules: mine, missing });
+      } catch (err) {
+        const f = failure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { ports?: string[] } }>(
+    '/api/servers/:id/portforward',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const current = loadRouter();
+      if (!current) return reply.code(409).send({ error: 'not-configured' });
+      const to = target();
+      if (!to) {
+        return reply
+          .code(409)
+          .send({ error: 'no-lan-address', message: 'Set LAN_ADDRESS so forwards have a destination.' });
+      }
+
+      try {
+        const client = current.provider;
+        const [needed, existing] = await Promise.all([
+          requiredForwards(docker, server),
+          client.list(),
+        ]);
+
+        const requested = request.body?.ports;
+        if (!Array.isArray(requested) || requested.length === 0) {
+          return reply.code(400).send({ error: 'no-ports', message: 'Choose which ports to open.' });
+        }
+
+        // Only ports this server actually publishes, and only ones not already
+        // covered -- a client cannot name an arbitrary port to open.
+        const missing = needed.filter(
+          (n) => requested.includes(n.port) && !existing.some((r) => coveredBy(r, n, to)),
+        );
+        const created = [];
+        for (const need of missing) created.push(await client.create(to, need));
+
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'portforward-opened',
+          result: 'success',
+          detail:
+            created.length > 0
+              ? `Opened ${created.map((r) => `${r.proto} ${r.dstPort}`).join(', ')} to ${to}`
+              : 'Nothing to open; every port was already forwarded',
+          ...originOf(request),
+        });
+        return reply.send({ created, alreadyPresent: needed.length - missing.length });
+      } catch (err) {
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'portforward-opened',
+          result: 'failure',
+          detail: (err as Error).message,
+          ...originOf(request),
+        });
+        const f = failure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+
+  app.delete<{ Params: { id: string; ruleId: string } }>(
+    '/api/servers/:id/portforward/:ruleId',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const current = loadRouter();
+      if (!current) return reply.code(409).send({ error: 'not-configured' });
+
+      try {
+        await current.provider.remove(request.params.ruleId);
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'portforward-closed',
+          result: 'success',
+          detail: `Removed rule ${request.params.ruleId}`,
+          ...originOf(request),
+        });
+        return reply.send({ ok: true });
+      } catch (err) {
+        const f = failure(err);
+        return reply.code(f.status).send(f.body);
+      }
+    },
+  );
+}
