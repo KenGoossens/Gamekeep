@@ -109,7 +109,11 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
 
   function fail(err: unknown) {
     if (err instanceof ModSourceError) {
-      return { code: err.code === 'not-found' ? 404 : 502, body: { error: err.code, message: err.message } };
+      // A client-only mod is a fact about the mod, not a failure of the
+      // repository, so it must not be reported as a bad gateway.
+      const code =
+        err.code === 'not-found' ? 404 : err.code === 'no-server-build' ? 422 : 502;
+      return { code, body: { error: err.code, message: err.message } };
     }
     return { code: 500, body: { error: 'mod-failed', message: (err as Error).message } };
   }

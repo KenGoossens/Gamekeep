@@ -66,6 +66,9 @@ function toSummary(p: MrProject): ModSummary {
     url: `https://modrinth.com/mod/${p.slug}`,
     // Modrinth archives a project rather than flagging it deprecated.
     deprecated: p.status === 'archived',
+    // 'unsupported' means the mod does nothing on a server; the other values
+    // ('required', 'optional', 'unknown') all leave it worth offering.
+    serverSupported: p.server_side ? p.server_side !== 'unsupported' : null,
   };
 }
 

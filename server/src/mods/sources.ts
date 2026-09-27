@@ -20,6 +20,12 @@ export interface ModSummary {
   url: string;
   /** The publisher marked it superseded or abandoned. */
   deprecated: boolean;
+  /**
+   * Whether a build exists that a dedicated server can run. Null when the
+   * repository does not say -- which is different from "no", and the UI is
+   * careful not to present it as one.
+   */
+  serverSupported?: boolean | null;
 }
 
 export interface ModDependency {

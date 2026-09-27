@@ -33,6 +33,7 @@ interface GqlMod {
   mod_reference: string;
   short_description: string;
   authors?: Array<{ user: { username: string } }>;
+  versions?: Array<{ targets?: Array<{ targetName: string }> }>;
 }
 
 interface GqlVersion {
@@ -62,6 +63,9 @@ async function query<T>(gql: string, variables: Record<string, unknown> = {}): P
 }
 
 function toSummary(mod: GqlMod): ModSummary {
+  // Absent when the query did not ask for targets, which is not the same as
+  // "no server build" -- so it stays null rather than becoming false.
+  const targets = mod.versions?.[0]?.targets;
   return {
     source: 'ficsit',
     id: mod.mod_reference,
@@ -71,12 +75,24 @@ function toSummary(mod: GqlMod): ModSummary {
     url: `https://ficsit.app/mod/${mod.mod_reference}`,
     // The repository has no deprecation flag of its own.
     deprecated: false,
+    serverSupported: targets ? targets.some((t) => t.targetName === TARGET) : null,
   };
 }
 
+/*
+ * The newest version's targets come back with the search, which is what lets
+ * the list say up front that a mod is client-only. A great many Satisfactory
+ * mods are: without this the operator finds out by clicking Check it and
+ * getting an error, which reads like the portal is broken rather than like
+ * the mod simply not having a server build.
+ */
 const SEARCH = `query($q: String!) {
   getMods(filter: { search: $q, limit: 20 }) {
-    mods { id name mod_reference short_description authors { user { username } } }
+    mods {
+      id name mod_reference short_description
+      authors { user { username } }
+      versions(filter: { limit: 1 }) { targets { targetName } }
+    }
   }
 }`;
 
@@ -150,6 +166,26 @@ export const ficsitSource: ModSource = {
           optional: Boolean(d.optional),
         })),
       });
+    }
+
+    /*
+     * Every version skipped means this is a client-only mod, and saying so is
+     * the whole answer. Returning an empty list left the caller to report
+     * "could not inspect that mod", which reads like the portal is broken
+     * rather than like the mod simply having nothing a server can run.
+     */
+    if (out.length === 0) {
+      const offered = new Set(
+        (data.getModByReference.versions ?? []).flatMap((v) =>
+          (v.targets ?? []).map((t) => t.targetName),
+        ),
+      );
+      throw new ModSourceError(
+        offered.size > 0
+          ? `This is a client-only mod — it builds for ${[...offered].join(', ')} and has no dedicated-server version, so there is nothing to install here.`
+          : 'This mod publishes no downloadable builds.',
+        'no-server-build',
+      );
     }
     return out;
   },

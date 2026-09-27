@@ -222,6 +222,12 @@ export function ModsTab({ serverId }: { serverId: string }) {
               <span className="mod-name">
                 {m.name}
                 {m.deprecated ? <span className="mod-flag">deprecated</span> : null}
+                {/* Said here rather than after a click: a great many mods are
+                    client-only, and finding that out by pressing Check it and
+                    getting an error reads like the portal being broken. */}
+                {m.serverSupported === false ? (
+                  <span className="mod-flag mod-clientonly">client only</span>
+                ) : null}
                 <span className="mod-meta"> {m.summary}</span>
               </span>
               <a className="btn-ghost small" href={m.url} target="_blank" rel="noreferrer">
@@ -230,7 +236,12 @@ export function ModsTab({ serverId }: { serverId: string }) {
               <button
                 type="button"
                 className="btn-ghost small"
-                disabled={busy !== null}
+                disabled={busy !== null || m.serverSupported === false}
+                title={
+                  m.serverSupported === false
+                    ? 'This mod has no dedicated-server build, so there is nothing to install.'
+                    : undefined
+                }
                 onClick={() => void inspect(m)}
               >
                 {busy === m.id ? 'Checking…' : 'Check it'}

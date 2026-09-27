@@ -264,6 +264,8 @@ export interface ModSummary {
   author: string;
   url: string;
   deprecated: boolean;
+  /** Null when the repository does not say, which is not the same as false. */
+  serverSupported?: boolean | null;
 }
 
 export interface Finding {
