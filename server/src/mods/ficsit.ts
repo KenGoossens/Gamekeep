@@ -87,7 +87,7 @@ function toSummary(mod: GqlMod): ModSummary {
  * the mod simply not having a server build.
  */
 const SEARCH = `query($q: String!) {
-  getMods(filter: { search: $q, limit: 20 }) {
+  getMods(filter: { search: $q, limit: 60 }) {
     mods {
       id name mod_reference short_description
       authors { user { username } }

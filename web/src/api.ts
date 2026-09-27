@@ -581,7 +581,7 @@ export const api = {
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
   searchMods: (serverId: string, q: string) =>
-    request<{ results: ModSummary[] }>(
+    request<{ results: ModSummary[]; hidden: number }>(
       `/api/servers/${serverId}/mods/search?q=${encodeURIComponent(q)}`,
     ),
   inspectMod: (serverId: string, mod: string, version?: string) =>

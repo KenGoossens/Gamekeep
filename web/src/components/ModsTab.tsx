@@ -44,6 +44,7 @@ export function ModsTab({ serverId }: { serverId: string }) {
   const [status, setStatus] = useState<ModStatus | null>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ModSummary[] | null>(null);
+  const [hidden, setHidden] = useState(0);
   const [plan, setPlan] = useState<InstallPlan | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +72,9 @@ export function ModsTab({ serverId }: { serverId: string }) {
     setResults(null);
     setPlan(null);
     try {
-      setResults((await api.searchMods(serverId, query)).results);
+      const found = await api.searchMods(serverId, query);
+      setResults(found.results);
+      setHidden(found.hidden ?? 0);
     } catch (err) {
       setError(explain(err, 'Could not search the mod repository.'));
     } finally {
@@ -214,7 +217,22 @@ export function ModsTab({ serverId }: { serverId: string }) {
       {note ? <p className="hint ok">{note}</p> : null}
       {error ? <p className="hint bad">{error}</p> : null}
 
-      {results && results.length === 0 ? <p className="empty">Nothing found.</p> : null}
+      {results && results.length === 0 ? (
+        <p className="empty">
+          {hidden > 0
+            ? `Nothing that runs on a server. ${hidden} client-only mod${hidden === 1 ? '' : 's'} matched and were left out.`
+            : 'Nothing found.'}
+        </p>
+      ) : null}
+
+      {/* So a short list reads as "these are the ones that work" rather than
+          as a search that half failed. */}
+      {results && results.length > 0 && hidden > 0 ? (
+        <p className="hint">
+          {hidden} client-only mod{hidden === 1 ? '' : 's'} left out — they have no
+          dedicated-server build.
+        </p>
+      ) : null}
       {results && results.length > 0 && !plan ? (
         <ul className="modlist">
           {results.map((m) => (
@@ -222,12 +240,6 @@ export function ModsTab({ serverId }: { serverId: string }) {
               <span className="mod-name">
                 {m.name}
                 {m.deprecated ? <span className="mod-flag">deprecated</span> : null}
-                {/* Said here rather than after a click: a great many mods are
-                    client-only, and finding that out by pressing Check it and
-                    getting an error reads like the portal being broken. */}
-                {m.serverSupported === false ? (
-                  <span className="mod-flag mod-clientonly">client only</span>
-                ) : null}
                 <span className="mod-meta"> {m.summary}</span>
               </span>
               <a className="btn-ghost small" href={m.url} target="_blank" rel="noreferrer">
@@ -236,12 +248,7 @@ export function ModsTab({ serverId }: { serverId: string }) {
               <button
                 type="button"
                 className="btn-ghost small"
-                disabled={busy !== null || m.serverSupported === false}
-                title={
-                  m.serverSupported === false
-                    ? 'This mod has no dedicated-server build, so there is nothing to install.'
-                    : undefined
-                }
+                disabled={busy !== null}
                 onClick={() => void inspect(m)}
               >
                 {busy === m.id ? 'Checking…' : 'Check it'}

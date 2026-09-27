@@ -165,10 +165,26 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
       try {
         // A repository without search still resolves an exact reference, which
         // is how Thunderstore mods are added.
-        const results = found.source.searchable
+        const all = found.source.searchable
           ? await found.source.search(q)
           : [await found.source.lookup(q)];
-        return reply.send({ results });
+
+        /*
+         * Client-only mods are dropped rather than shown and disabled. There
+         * is nothing to decide about them -- a dedicated server cannot run
+         * one at all -- and a list where most entries are unusable makes the
+         * few that work harder to find.
+         *
+         * Only a definite false is filtered. A repository that says nothing
+         * gets null, and null is not a no.
+         */
+        const results = all.filter((mod) => mod.serverSupported !== false);
+        return reply.send({
+          results: results.slice(0, 20),
+          // Reported so a short list reads as "these are the ones that work"
+          // rather than as a search that half failed.
+          hidden: all.length - results.length,
+        });
       } catch (err) {
         const f = fail(err);
         return reply.code(f.code).send(f.body);

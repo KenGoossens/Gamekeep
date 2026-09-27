@@ -954,6 +954,3 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
   padding: 6px 0; font-size: 0.86rem; cursor: pointer;
 }
 .eventrow input { margin: 2px 0 0; accent-color: var(--accent); flex: none; }
-
-/* A mod that cannot run on a server at all, said before it is clicked. */
-.mod-clientonly { color: var(--faint); border-color: var(--border); }
