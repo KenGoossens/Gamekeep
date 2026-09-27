@@ -18,10 +18,11 @@ import { SettingsTab } from '../components/SettingsTab.tsx';
 import { FilesTab } from '../components/FilesTab.tsx';
 import { NetworkTab } from '../components/NetworkTab.tsx';
 import { ModsTab } from '../components/ModsTab.tsx';
+import { LogsTab } from '../components/LogsTab.tsx';
 import { Modal } from '../components/Modal.tsx';
 import { WorldCard } from '../components/WorldCard.tsx';
 
-type Tab = 'overview' | 'metrics' | 'settings' | 'files' | 'mods' | 'network';
+type Tab = 'overview' | 'metrics' | 'logs' | 'settings' | 'files' | 'mods' | 'network';
 
 const POLL_IDLE_MS = 5000;
 const POLL_BUSY_MS = 2000;
@@ -83,7 +84,7 @@ export function ServerDetailPage({
   if (missing) {
     return (
       <>
-        <a {...linkProps('/')} className="backlink">
+        <a {...linkProps('/servers')} className="backlink">
           ← Servers
         </a>
         <p className="empty">That server is not configured.</p>
@@ -98,7 +99,7 @@ export function ServerDetailPage({
 
   return (
     <>
-      <a {...linkProps('/')} className="backlink">
+      <a {...linkProps('/servers')} className="backlink">
         ← Servers
       </a>
 
@@ -176,9 +177,12 @@ export function ServerDetailPage({
             ['metrics', 'Performance', false],
             ...(canOperate
               ? ([
+                  // Logs are most useful precisely while the server runs, so
+                  // unlike the tabs below this one is never locked.
+                  ['logs', 'Logs', false],
                   ['settings', 'Settings', true],
                   ['files', 'Files', true],
-                    ['mods', 'Mods', true],
+                  ['mods', 'Mods', true],
                   ['network', 'Network', false],
                 ] as Array<[Tab, string, boolean]>)
               : []),
@@ -246,6 +250,15 @@ export function ServerDetailPage({
             <h2>Reachability</h2>
           </div>
           <NetworkTab serverId={server.id} isOwner={isOwner} />
+        </section>
+      ) : null}
+
+      {tab === 'logs' && canOperate ? (
+        <section className="card">
+          <div className="card-head">
+            <h2>Logs</h2>
+          </div>
+          <LogsTab serverId={server.id} />
         </section>
       ) : null}
 
@@ -328,7 +341,7 @@ export function ServerDetailPage({
       </>
       )}
 
-      <button type="button" className="btn-ghost" onClick={() => navigate('/')}>
+      <button type="button" className="btn-ghost" onClick={() => navigate('/servers')}>
         Back to all servers
       </button>
     </>

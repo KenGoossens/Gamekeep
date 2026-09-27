@@ -38,7 +38,10 @@ export function parseRoute(path: string): Route {
   if (parts[0] === 'servers' && parts[1]) {
     return { page: 'server', serverId: decodeURIComponent(parts[1]) };
   }
-  return { page: 'servers' };
+  if (parts[0] === 'servers') return { page: 'servers' };
+  // The root is the dashboard: the first question anyone opening this has is
+  // whether anything is wrong, not which server to click.
+  return { page: 'dashboard' };
 }
 
 /** An anchor that routes client-side but still behaves like a real link. */

@@ -13,8 +13,8 @@ interface Props {
 
 export function AppShell({ me, current, onSignedOut, children }: Props) {
   const tabs = [
-    { href: '/', label: 'Servers', key: 'servers' },
-    { href: '/dashboard', label: 'Dashboard', key: 'dashboard' },
+    { href: '/', label: 'Dashboard', key: 'dashboard' },
+    { href: '/servers', label: 'Servers', key: 'servers' },
     { href: '/activity', label: 'Activity', key: 'activity' },
     ...(canOperate(me.role) ? [{ href: '/catalog', label: 'Add server', key: 'catalog' }] : []),
     ...(me.role === 'owner'

@@ -867,3 +867,31 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
   .stat-value { font-size: 1.7rem; }
   .fleet { grid-template-columns: 1fr; }
 }
+
+/* ---- live log -----------------------------------------------------------
+   A terminal, so it reads like one: monospace, tight lines, and the surface
+   dropped to the page background so the text is the brightest thing.      */
+.logbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 10px; }
+.logbar .modsearch { flex: 1; min-width: 10rem; }
+
+.logbox {
+  height: 26rem; overflow: auto; overscroll-behavior: contain;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem; line-height: 1.5;
+}
+.logline { display: flex; gap: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.logtime { color: var(--faint); flex: none; font-variant-numeric: tabular-nums; }
+.logtext { min-width: 0; color: var(--text); }
+/* stderr is tinted, but the stream is also carried by where it came from --
+   the tint is a hint, never the only way to tell. */
+.logline-stderr .logtext { color: #f0a58a; }
+.logline-system .logtext { color: var(--muted); font-style: italic; }
+
+.jumpdown { margin-bottom: 8px; }
+
+@media (max-width: 560px) {
+  .logbox { height: 18rem; font-size: 0.74rem; }
+  .logtime { display: none; }
+}
