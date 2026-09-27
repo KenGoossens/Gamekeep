@@ -642,3 +642,46 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
   margin: 0 0 16px;
   box-shadow: 0 8px 28px -8px rgba(124, 108, 242, 0.5);
 }
+
+/* ---- status panel -------------------------------------------------------
+   One row per dependency. The left edge carries the state as a colour bar,
+   but the pill beside the name always says it in words too. */
+.check-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+
+.check {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--faint);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.check-ok { border-left-color: var(--ok); }
+.check-warn { border-left-color: var(--warn); }
+.check-bad { border-left-color: var(--bad); }
+
+.check-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.check-label { font-weight: 600; flex: 1; min-width: 0; }
+
+.check-summary { margin: 6px 0 0; font-size: 0.9rem; color: var(--text); }
+.check-detail { margin: 6px 0 0; font-size: 0.85rem; color: var(--muted); line-height: 1.55; }
+
+/* Key/value pairs, wrapping freely rather than forcing a table on a phone. */
+.check-facts { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 10px 0 0; }
+.check-facts > div {
+  display: flex; align-items: baseline; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: 999px; padding: 3px 10px;
+  font-size: 0.78rem; max-width: 100%;
+}
+.check-facts dt { color: var(--faint); flex: none; }
+.check-facts dd {
+  margin: 0; color: var(--text); font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; min-width: 0;
+}
+
+.check-secret {
+  margin: 10px 0 0; padding-top: 9px; border-top: 1px dashed var(--border-soft);
+  font-size: 0.8rem; color: var(--faint); line-height: 1.55;
+  display: flex; gap: 7px; align-items: flex-start;
+}
+.key-mark { color: var(--accent-cyan); flex: none; line-height: 1.5; }

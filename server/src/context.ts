@@ -11,6 +11,7 @@ import type { Deployer } from './deploy.js';
 import type { MetricsCollector } from './metrics.js';
 import type { SettingsManager } from './settings.js';
 import type { createFileBrowser } from './files.js';
+import type { HealthReporter } from './health.js';
 import type { Sessions } from './auth/session.js';
 import type { SetupGuard } from './auth/setup.js';
 import type { LoginThrottle } from './auth/ratelimit.js';
@@ -34,6 +35,8 @@ export interface AppContext {
   metrics: MetricsCollector;
   settings: SettingsManager;
   files: ReturnType<typeof createFileBrowser>;
+  /** Read-only status of every connection the portal depends on. */
+  health: HealthReporter;
   sessions: Sessions;
   setup: SetupGuard;
   throttle: LoginThrottle;

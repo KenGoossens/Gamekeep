@@ -171,6 +171,24 @@ export interface RouterStatus {
   config: Record<string, string>;
 }
 
+export type CheckState = 'ok' | 'warn' | 'bad' | 'off' | 'unknown';
+
+export interface HealthCheck {
+  id: string;
+  label: string;
+  state: CheckState;
+  summary: string;
+  detail?: string;
+  /** Where this connection's credential is kept. Never the credential itself. */
+  secretHome?: string;
+  facts: Array<{ k: string; v: string }>;
+}
+
+export interface HealthReport {
+  checkedAt: number;
+  checks: HealthCheck[];
+}
+
 export interface RequiredForward {
   proto: 'tcp' | 'udp' | 'tcp_udp';
   port: string;
@@ -341,6 +359,9 @@ export const api = {
     if (!response.ok) throw new ApiError(response.status, body as Record<string, unknown>);
     return body as { path: string; bytes: number; replaced: boolean };
   },
+
+  health: (refresh = false) =>
+    request<HealthReport>(`/api/system/health${refresh ? '?refresh=1' : ''}`),
 
   router: () => request<RouterStatus>('/api/integrations/router'),
   connectRouter: (provider: string, config: Record<string, string>) =>

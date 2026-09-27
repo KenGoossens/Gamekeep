@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api, type RouterStatus } from '../api.ts';
+import { HealthPanel } from '../components/HealthPanel.tsx';
 
 /**
  * Owner-only. The router connection is optional: without it the portal still
@@ -24,7 +25,26 @@ export function SettingsPage() {
     );
   }, []);
 
-  if (!status) return <p className="empty">{error ?? 'Loading…'}</p>;
+  // The status panel does not wait on the router call: a router that has gone
+  // away is exactly when you most want to see the rest of the picture.
+  const head = (
+    <>
+      <div className="page-head">
+        <h1>Settings</h1>
+        <p>Connections this portal uses. Only the owner can change these.</p>
+      </div>
+      <HealthPanel />
+    </>
+  );
+
+  if (!status) {
+    return (
+      <>
+        {head}
+        <p className="empty">{error ?? 'Loading…'}</p>
+      </>
+    );
+  }
 
   const definition = status.providers.find((p) => p.id === provider);
   const missingRequired = (definition?.fields ?? []).some(
@@ -58,10 +78,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <div className="page-head">
-        <h1>Settings</h1>
-        <p>Connections this portal uses. Only the owner can change these.</p>
-      </div>
+      {head}
 
       <section className="card">
         <div className="card-head">
