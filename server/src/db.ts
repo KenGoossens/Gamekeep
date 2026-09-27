@@ -126,6 +126,18 @@ interface RawModRow {
   installed_by: string;
 }
 
+export interface ActiveSession {
+  id: string;
+  userId: string;
+  username: string;
+  role: Role;
+  createdAt: number;
+  expiresAt: number;
+  lastSeenAt: number | null;
+  ip: string | null;
+  userAgent: string | null;
+}
+
 export interface InstalledModRow {
   serverId: string;
   source: string;
@@ -198,6 +210,17 @@ export function openDatabase(path: string) {
     db.exec('ALTER TABLE audit_log ADD COLUMN ip TEXT');
     db.exec('ALTER TABLE audit_log ADD COLUMN user_agent TEXT');
   }
+    /*
+     * Sessions used to record only when they began and when they expire,
+     * which answers "how many are signed in" but not "who, from where, and
+     * are they still there". Existing sessions keep working; they simply show
+     * nothing for these until the next sign-in.
+     */
+    if (tableExists('sessions') && !hasColumn('sessions', 'ip')) {
+      db.exec('ALTER TABLE sessions ADD COLUMN ip TEXT');
+      db.exec('ALTER TABLE sessions ADD COLUMN user_agent TEXT');
+      db.exec('ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER');
+    }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -303,7 +326,17 @@ export function openDatabase(path: string) {
     deleteUser: db.prepare('DELETE FROM users WHERE id = ?'),
 
     insertSession: db.prepare(
-      'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+      `INSERT INTO sessions (id, user_id, created_at, expires_at, ip, user_agent, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ),
+    /** Cheap enough to run often; see touchSession for why it is not. */
+    touchSession: db.prepare('UPDATE sessions SET last_seen_at = ? WHERE id = ?'),
+    listSessions: db.prepare(
+      `SELECT s.id, s.user_id, s.created_at, s.expires_at, s.ip, s.user_agent, s.last_seen_at,
+              u.username, u.role
+         FROM sessions s JOIN users u ON u.id = s.user_id
+        WHERE s.expires_at > ?
+        ORDER BY COALESCE(s.last_seen_at, s.created_at) DESC`,
     ),
     sessionUser: db.prepare(
       `SELECT s.id AS session_id, ${USER_COLUMNS.split(', ').map((c) => 'u.' + c).join(', ')}
@@ -519,8 +552,52 @@ export function openDatabase(path: string) {
     /** Keeps the table bounded; called after every collection round. */
     pruneMetrics: (before: number) => void st.pruneMetrics.run(before),
 
-    createSession(id: string, userId: string, expiresAt: number) {
-      st.insertSession.run(id, userId, Date.now(), expiresAt);
+    createSession(
+      id: string,
+      userId: string,
+      expiresAt: number,
+      origin: { ip: string | null; userAgent: string | null } = { ip: null, userAgent: null },
+    ) {
+      const now = Date.now();
+      st.insertSession.run(id, userId, now, expiresAt, origin.ip, origin.userAgent, now);
+    },
+
+    /**
+     * Records that a session is still in use.
+     *
+     * Deliberately not called on every request: that would be a write per
+     * request on a database whose whole appeal is that it is one file. Once a
+     * minute is precise enough to answer "is this person still here" and costs
+     * almost nothing.
+     */
+    touchSession(id: string, seenAt: number) {
+      st.touchSession.run(seenAt, id);
+    },
+
+    listActiveSessions(): ActiveSession[] {
+      const rows = st.listSessions.all(Date.now()) as unknown as Array<{
+        id: string;
+        user_id: string;
+        username: string;
+        role: Role;
+        created_at: number;
+        expires_at: number;
+        ip: string | null;
+        user_agent: string | null;
+        last_seen_at: number | null;
+      }>;
+
+      return rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        username: row.username,
+        role: row.role,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        lastSeenAt: row.last_seen_at,
+        ip: row.ip,
+        userAgent: row.user_agent,
+      }));
     },
 
     /**

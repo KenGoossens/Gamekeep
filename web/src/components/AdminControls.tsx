@@ -6,7 +6,16 @@ import { ApiError, api, type GameServer } from '../api.ts';
  * self-healing, so anyone may do it; deliberately leaving a server switched
  * off is not something a guest should be able to do.
  */
-export function AdminControls({ server, onAction }: { server: GameServer; onAction: () => void }) {
+export function AdminControls({
+  server,
+  onAction,
+  onStarted,
+}: {
+  server: GameServer;
+  onAction: () => void;
+  /** Fired only when the action was accepted, never on a refusal. */
+  onStarted?: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +28,7 @@ export function AdminControls({ server, onAction }: { server: GameServer; onActi
     setError(null);
     try {
       await (action === 'start' ? api.start(server.id) : api.stop(server.id));
+      onStarted?.();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setError('There is already an action running.');
       else if (err instanceof ApiError && err.status === 403) setError('Administrators only.');

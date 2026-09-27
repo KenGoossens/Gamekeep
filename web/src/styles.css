@@ -921,3 +921,7 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
 .connect > summary::before { content: '▸ '; color: var(--faint); }
 .connect[open] > summary::before { content: '▾ '; }
 .connect > summary:hover { color: var(--text); }
+
+/* ---- sessions ---- */
+.session-role { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+.session-you { color: var(--ok); border-color: var(--ok); }

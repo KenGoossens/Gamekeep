@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { originOf } from './origin.js';
 import type { Env } from '../config.js';
 import type { Db, SessionUser } from '../db.js';
 
@@ -13,7 +14,11 @@ declare module 'fastify' {
   }
 }
 
+const TOUCH_INTERVAL_MS = 60_000;
+
 export function createSessions(env: Env, db: Db) {
+  /** When each session was last written, so the write can be skipped. */
+  const lastTouched = new Map<string, number>();
   const cookieOptions = {
     httpOnly: true,
     secure: env.PUBLIC_URL.startsWith('https://'),
@@ -24,9 +29,14 @@ export function createSessions(env: Env, db: Db) {
     signed: true,
   };
 
-  function create(reply: FastifyReply, userId: string): string {
+  function create(reply: FastifyReply, userId: string, request?: FastifyRequest): string {
     const id = randomBytes(32).toString('base64url');
-    db.createSession(id, userId, Date.now() + SESSION_TTL_MS);
+    db.createSession(id, userId, Date.now() + SESSION_TTL_MS, {
+      // Recorded here and never updated: it answers where this session began,
+      // which is what makes an unexpected one recognisable.
+      ip: request ? originOf(request).ip : null,
+      userAgent: request ? originOf(request).userAgent : null,
+    });
     reply.setCookie(SESSION_COOKIE, id, {
       ...cookieOptions,
       maxAge: Math.floor(SESSION_TTL_MS / 1000),
@@ -58,6 +68,14 @@ export function createSessions(env: Env, db: Db) {
 
     const user = db.sessionUser(id);
     if (!user) return null;
+
+    // At most once a minute: see db.touchSession.
+    const now = Date.now();
+    const last = lastTouched.get(id) ?? 0;
+    if (now - last > TOUCH_INTERVAL_MS) {
+      lastTouched.set(id, now);
+      db.touchSession(id, now);
+    }
 
     if (user.disabled) {
       db.deleteUserSessions(user.id);

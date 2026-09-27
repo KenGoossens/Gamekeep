@@ -167,6 +167,50 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext) {
     },
   );
 
+
+  /**
+   * Who is signed in right now.
+   *
+   * Owner-only: it names people, where they connected from and what they used,
+   * which is information about your friends rather than about the servers.
+   */
+  app.get('/api/sessions', owner, async (request, reply) => {
+    const mine = request.user!.sessionId;
+    return reply.send({
+      sessions: db.listActiveSessions().map((s) => ({
+        ...s,
+        // So the UI can mark one row rather than inviting the owner to sign
+        // themselves out by accident.
+        current: s.id === mine,
+        // The session id is a bearer credential; a truncated one is enough to
+        // tell two rows apart and useless to anyone reading over a shoulder.
+        id: s.id.slice(0, 8),
+      })),
+    });
+  });
+
+  /** Signs a session out. The person may simply sign in again. */
+  app.delete<{ Params: { id: string } }>('/api/sessions/:id', owner, async (request, reply) => {
+    const user = request.user!;
+    const prefix = request.params.id;
+    const target = db.listActiveSessions().find((s) => s.id.startsWith(prefix));
+    if (!target) return reply.code(404).send({ error: 'unknown-session' });
+
+    db.deleteSession(target.id);
+    db.audit({
+      userId: user.id,
+      username: user.username,
+      serverId: null,
+      action: 'logout',
+      result: 'success',
+      detail:
+        target.id === user.sessionId
+          ? 'Signed out of their own session'
+          : `Signed out ${target.username} (session from ${target.ip ?? 'an unknown address'})`,
+      ...originOf(request),
+    });
+    return reply.send({ ok: true });
+  });
   app.delete<{ Params: { id: string } }>('/api/users/:id', owner, async (request, reply) => {
     const me = request.user!;
     const target = db.findById(request.params.id);

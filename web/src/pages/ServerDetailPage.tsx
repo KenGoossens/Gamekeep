@@ -316,8 +316,17 @@ export function ServerDetailPage({
           <h2>Controls</h2>
         </div>
         {server.notes ? <p className="notes">{server.notes}</p> : null}
-        <RestartButton server={server} onAction={refresh} />
-        {canOperate ? <AdminControls server={server} onAction={refresh} /> : null}
+        {/* Straight to the log: the interesting part of a restart is what the
+            server prints while it comes back, not the spinner. Only for
+            operators, since that tab is theirs. */}
+        <RestartButton
+          server={server}
+          onAction={refresh}
+          onStarted={canOperate ? () => setTab('logs') : undefined}
+        />
+        {canOperate ? (
+          <AdminControls server={server} onAction={refresh} onStarted={() => setTab('logs')} />
+        ) : null}
       </section>
 
       {players && players.names.length > 0 ? (

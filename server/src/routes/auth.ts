@@ -83,7 +83,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext) {
       });
       request.log.info({ username }, 'first administrator created');
 
-      sessions.create(reply, id);
+      sessions.create(reply, id, request);
       return reply.send({ username, role: 'owner' });
     },
   );
@@ -127,7 +127,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext) {
 
       throttle.clear(keys);
       db.touchLogin(user!.id);
-      sessions.create(reply, user!.id);
+      sessions.create(reply, user!.id, request);
       db.audit({
         userId: user!.id,
         username: user!.username,
@@ -186,7 +186,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext) {
       // Every other session for this account is dropped, then a fresh one is
       // issued here -- so a changed password logs out anyone else holding it.
       db.deleteUserSessions(me.id);
-      sessions.create(reply, me.id);
+      sessions.create(reply, me.id, request);
 
       db.audit({
         userId: me.id,

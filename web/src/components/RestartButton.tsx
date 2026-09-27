@@ -5,9 +5,14 @@ interface Props {
   server: GameServer;
   /** Called after anything that should refresh the dashboard immediately. */
   onAction: () => void;
+  /**
+   * Called only when an action actually started, unlike onAction which also
+   * fires on a refusal. Used to jump straight to the log.
+   */
+  onStarted?: () => void;
 }
 
-export function RestartButton({ server, onAction }: Props) {
+export function RestartButton({ server, onAction, onStarted }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +43,7 @@ export function RestartButton({ server, onAction }: Props) {
     try {
       await api.restart(server.id);
       setConfirming(false);
+      onStarted?.();
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         const retry = Number(err.body.retryAfterSeconds) || 0;

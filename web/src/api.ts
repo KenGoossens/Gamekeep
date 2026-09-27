@@ -171,6 +171,20 @@ export interface RouterStatus {
   config: Record<string, string>;
 }
 
+export interface ActiveSession {
+  id: string;
+  userId: string;
+  username: string;
+  role: Role;
+  createdAt: number;
+  expiresAt: number;
+  lastSeenAt: number | null;
+  ip: string | null;
+  userAgent: string | null;
+  /** True for the browser making this request. */
+  current: boolean;
+}
+
 export interface AccessPolicy {
   id: string;
   name: string;
@@ -500,6 +514,10 @@ export const api = {
     if (!response.ok) throw new ApiError(response.status, body as Record<string, unknown>);
     return body as { path: string; bytes: number; replaced: boolean };
   },
+
+  sessions: () => request<{ sessions: ActiveSession[] }>('/api/sessions'),
+  signOutSession: (id: string) =>
+    request<{ ok: true }>(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   access: () => request<AccessStatus>('/api/integrations/access'),
   accessPolicies: (token: string, accountId: string) =>
