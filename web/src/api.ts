@@ -171,6 +171,25 @@ export interface RouterStatus {
   config: Record<string, string>;
 }
 
+export interface AccessPolicy {
+  id: string;
+  name: string;
+  decision: string;
+  emails: string[];
+  otherIncludes: number;
+  requireRules: number;
+  excludeRules: number;
+  appCount: number;
+}
+
+export interface AccessStatus {
+  configured: boolean;
+  canConfigure: boolean;
+  accountId?: string;
+  policy?: AccessPolicy;
+  message?: string;
+}
+
 export interface DashboardServer {
   id: string;
   displayName: string;
@@ -481,6 +500,30 @@ export const api = {
     if (!response.ok) throw new ApiError(response.status, body as Record<string, unknown>);
     return body as { path: string; bytes: number; replaced: boolean };
   },
+
+  access: () => request<AccessStatus>('/api/integrations/access'),
+  accessPolicies: (token: string, accountId: string) =>
+    request<{ policies: AccessPolicy[] }>('/api/integrations/access/policies', {
+      ...json({ token, accountId }),
+      method: 'POST',
+    }),
+  connectAccess: (token: string, accountId: string, policyId: string) =>
+    request<{ configured: true; detail: string; policy: AccessPolicy }>(
+      '/api/integrations/access',
+      { ...json({ token, accountId, policyId }), method: 'PUT' },
+    ),
+  disconnectAccess: () =>
+    request<{ configured: false }>('/api/integrations/access', { method: 'DELETE' }),
+  addAccessEmail: (email: string) =>
+    request<{ policy: AccessPolicy }>('/api/integrations/access/emails', {
+      ...json({ email }),
+      method: 'POST',
+    }).then((r) => r.policy),
+  removeAccessEmail: (email: string) =>
+    request<{ policy: AccessPolicy }>(
+      `/api/integrations/access/emails/${encodeURIComponent(email)}`,
+      { method: 'DELETE' },
+    ).then((r) => r.policy),
 
   dashboard: (windowMs: number) =>
     request<Dashboard>(`/api/dashboard?window=`),

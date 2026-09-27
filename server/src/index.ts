@@ -38,6 +38,7 @@ import { registerSystemRoutes } from './routes/system.js';
 import { registerModRoutes } from './routes/mods.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
+import { registerAccessRoutes } from './routes/access.js';
 import type { AppContext } from './context.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -153,6 +154,7 @@ async function main() {
   registerModRoutes(app, ctx);
   registerDashboardRoutes(app, ctx);
   registerLogRoutes(app, ctx);
+  registerAccessRoutes(app, ctx);
 
   if (existsSync(join(WEB_ROOT, 'index.html'))) {
     await app.register(fastifyStatic, { root: WEB_ROOT });

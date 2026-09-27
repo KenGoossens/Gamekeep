@@ -17,6 +17,8 @@ export type AuditAction =
   | 'mod-install'
   | 'mod-remove'
   | 'logs-read'
+  | 'access-granted'
+  | 'access-revoked'
   | 'file-edited'
   | 'file-uploaded'
   | 'integration-changed'
