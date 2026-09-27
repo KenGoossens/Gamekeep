@@ -11,14 +11,49 @@
  * working, and a channel that pings for those is a channel people mute.
  */
 
-export type NotifyEvent =
-  | { kind: 'restart-unconfirmed'; server: string; actor: string; detail?: string }
-  | { kind: 'restart-failed'; server: string; actor: string; detail?: string }
-  | { kind: 'server-down'; server: string; detail?: string }
-  | { kind: 'server-recovered'; server: string }
-  | { kind: 'deployed'; server: string; actor: string; detail?: string }
-  | { kind: 'mod-installed'; server: string; actor: string; detail?: string }
-  | { kind: 'access-granted'; actor: string; detail?: string };
+export type EventKind =
+  | 'restart-unconfirmed'
+  | 'restart-failed'
+  | 'server-down'
+  | 'server-recovered'
+  | 'deployed'
+  | 'mod-installed'
+  | 'access-granted';
+
+/**
+ * Enough to recognise the game at a glance.
+ *
+ * The artwork has to be somewhere Discord can fetch it, which rules out this
+ * portal's own /artwork route: that sits behind Cloudflare Access, and Discord
+ * cannot sign in. Both of the sources the portal already uses -- Steam's CDN
+ * and jsDelivr -- are public, so the notification links straight to those.
+ */
+export interface NotifyServer {
+  name: string;
+  id?: string;
+  steamAppId?: number | null;
+  iconUrl?: string | null;
+}
+
+/**
+ * Who did it.
+ *
+ * Name and role, and deliberately not the address the audit log records: this
+ * goes to a channel the other friends can read, and where someone lives is
+ * not something to publish to them. That detail stays where only the owner
+ * sees it.
+ */
+export interface NotifyActor {
+  username: string;
+  role?: string;
+}
+
+export interface NotifyEvent {
+  kind: EventKind;
+  server?: NotifyServer;
+  actor?: NotifyActor;
+  detail?: string;
+}
 
 export interface NotifyConfig {
   discordWebhook?: string;
@@ -63,15 +98,51 @@ const SHAPE: Record<NotifyEvent['kind'], { title: string; colour: number }> = {
  */
 const QUIET_MS = 10 * 60_000;
 
-function describe(event: NotifyEvent): { title: string; body: string; colour: number } {
-  const shape = SHAPE[event.kind];
-  const parts: string[] = [];
+const STEAM_CDN = 'https://cdn.cloudflare.steamstatic.com/steam/apps';
+const ICON_CDN = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png';
 
-  if ('server' in event) parts.push(`**${event.server}**`);
-  if ('actor' in event && event.actor) parts.push(`by ${event.actor}`);
-  if ('detail' in event && event.detail) parts.push(`\n${event.detail}`);
+/** The wide banner and the transparent logo, when the game is on Steam. */
+function artworkFor(server: NotifyServer | undefined): {
+  image?: { url: string };
+  thumbnail?: { url: string };
+} {
+  if (!server) return {};
 
-  return { title: shape.title, colour: shape.colour, body: parts.join(' ') || '—' };
+  if (server.steamAppId) {
+    return {
+      image: { url: `${STEAM_CDN}/${server.steamAppId}/capsule_616x353.jpg` },
+      thumbnail: { url: `${STEAM_CDN}/${server.steamAppId}/logo.png` },
+    };
+  }
+
+  // Not on Steam: the same icon the portal draws on its own tiles.
+  const icon = server.iconUrl ?? (server.id ? `${ICON_CDN}/${encodeURIComponent(server.id)}.png` : null);
+  return icon ? { thumbnail: { url: icon } } : {};
+}
+
+interface Field {
+  name: string;
+  value: string;
+  inline?: boolean;
+}
+
+function fieldsFor(event: NotifyEvent): Field[] {
+  const fields: Field[] = [];
+  if (event.server) fields.push({ name: 'Server', value: event.server.name, inline: true });
+
+  if (event.actor) {
+    fields.push({
+      name: 'Triggered by',
+      value: event.actor.role ? `${event.actor.username} (${event.actor.role})` : event.actor.username,
+      inline: true,
+    });
+  } else if (event.kind === 'server-down') {
+    // Said outright rather than left blank: "nobody" is the whole point of
+    // this particular message.
+    fields.push({ name: 'Triggered by', value: 'nobody — it stopped on its own', inline: true });
+  }
+
+  return fields;
 }
 
 export function createNotifier(options: {
@@ -82,7 +153,7 @@ export function createNotifier(options: {
   const lastSent = new Map<string, number>();
 
   async function toDiscord(webhook: string, event: NotifyEvent): Promise<void> {
-    const { title, body, colour } = describe(event);
+    const shape = SHAPE[event.kind];
     const response = await fetch(webhook, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -91,10 +162,15 @@ export function createNotifier(options: {
         username: 'Gamekeep',
         embeds: [
           {
-            title,
-            description: body,
-            color: colour,
+            title: shape.title,
+            description: event.detail,
+            color: shape.colour,
+            // The title links to the portal, so the message is one click from
+            // the thing it is about.
             url: options.publicUrl,
+            fields: fieldsFor(event),
+            ...artworkFor(event.server),
+            footer: { text: 'Gamekeep' },
             timestamp: new Date().toISOString(),
           },
         ],
@@ -119,7 +195,7 @@ export function createNotifier(options: {
     const wanted = config.events?.length ? config.events : DEFAULT_EVENTS;
     if (!wanted.includes(event.kind)) return;
 
-    const key = `${event.kind}:${'server' in event ? event.server : ''}`;
+    const key = `${event.kind}:${event.server?.id ?? event.server?.name ?? ''}`;
     const now = Date.now();
     if (now - (lastSent.get(key) ?? 0) < QUIET_MS) return;
     lastSent.set(key, now);
@@ -129,11 +205,19 @@ export function createNotifier(options: {
     );
   }
 
-  /** Used by the settings form to prove a webhook before it is stored. */
-  async function test(webhook: string): Promise<void> {
+  /**
+   * Proves a webhook before it is stored.
+   *
+   * Sent as one of the caller's own servers when there is one, because a test
+   * message with a made-up name carries no artwork -- and then it fails to
+   * test the half of this most likely to be wrong.
+   */
+  async function test(webhook: string, sample?: NotifyServer): Promise<void> {
     await toDiscord(webhook, {
       kind: 'server-recovered',
-      server: 'Gamekeep — this is a test message',
+      server: sample ?? { name: 'Gamekeep' },
+      actor: { username: 'this is a test', role: 'nobody restarted anything' },
+      detail: 'Notifications are working. A real message will look like this one.',
     });
   }
 

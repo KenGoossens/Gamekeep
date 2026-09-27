@@ -181,7 +181,7 @@ export function registerAccessRoutes(app: FastifyInstance, ctx: AppContext) {
         });
         notify.send({
           kind: 'access-granted',
-          actor: user.username,
+          actor: { username: user.username, role: user.role },
           detail: `${email.toLowerCase()} may now reach the portal`,
         });
         return reply.send({ policy });

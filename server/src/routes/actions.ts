@@ -30,10 +30,23 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
      * the system working, and a channel that pings for those gets muted.
      */
     if (job.phase !== 'done') {
+      const server = registry.get(job.serverId);
       notify.send({
         kind: job.containerRestarted ? 'restart-unconfirmed' : 'restart-failed',
-        server: registry.get(job.serverId)?.displayName ?? job.serverId,
-        actor: job.actorUsername,
+        server: server
+          ? {
+              name: server.displayName,
+              id: server.id,
+              steamAppId: server.steamAppId,
+              iconUrl: server.iconUrl,
+            }
+          : { name: job.serverId },
+        actor: {
+          username: job.actorUsername,
+          // Looked up now rather than captured with the job: a role can
+          // change while a restart is still running.
+          role: job.actorUserId ? (db.findById(job.actorUserId)?.role ?? undefined) : undefined,
+        },
         detail: job.containerRestarted
           ? 'The container came back, but the game never answered.'
           : (job.error ?? undefined),

@@ -2,6 +2,7 @@ import type { ActionRunner } from './docker/actions.js';
 import type { DockerClient } from './docker/client.js';
 import type { Notifier } from './notify.js';
 import type { ServerRegistry } from './registry.js';
+import type { ServerConfig } from './config.js';
 
 /**
  * Noticing that a server fell over.
@@ -23,6 +24,16 @@ const INTERVAL_MS = 30_000;
  * most of a cycle later.
  */
 const GRACE_MS = 3 * 60_000;
+
+/** The bits a notification needs to show the game rather than just name it. */
+function art(server: ServerConfig) {
+  return {
+    name: server.displayName,
+    id: server.id,
+    steamAppId: server.steamAppId,
+    iconUrl: server.iconUrl,
+  };
+}
 
 export function createWatcher(deps: {
   registry: ServerRegistry;
@@ -52,7 +63,7 @@ export function createWatcher(deps: {
       if (was === undefined || was === isRunning) continue;
 
       if (isRunning) {
-        deps.notify.send({ kind: 'server-recovered', server: server.displayName });
+        deps.notify.send({ kind: 'server-recovered', server: art(server) });
         continue;
       }
 
@@ -61,11 +72,7 @@ export function createWatcher(deps: {
       const expected = Boolean(job) || (recent !== null && Date.now() - recent < GRACE_MS);
       if (expected) continue;
 
-      deps.notify.send({
-        kind: 'server-down',
-        server: server.displayName,
-        detail: 'Nobody asked it to stop.',
-      });
+      deps.notify.send({ kind: 'server-down', server: art(server) });
     }
   }
 

@@ -330,8 +330,13 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
 
       notify.send({
         kind: 'mod-installed',
-        server: found.server.displayName,
-        actor: user.username,
+        server: {
+          name: found.server.displayName,
+          id: found.server.id,
+          steamAppId: found.server.steamAppId,
+          iconUrl: found.server.iconUrl,
+        },
+        actor: { username: user.username, role: user.role },
         detail: `${summary.name} ${version.version}`,
       });
       return reply.send({ installed: true, plan, files: files.length });

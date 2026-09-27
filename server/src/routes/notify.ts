@@ -62,7 +62,19 @@ export function registerNotifyRoutes(app: FastifyInstance, ctx: AppContext) {
       try {
         // Proven before it is stored, so a typo is found now rather than on
         // the night something actually breaks.
-        await notify.test(webhook);
+        // Sent as a real server so the test exercises the artwork too.
+        const sample = ctx.registry.list()[0];
+        await notify.test(
+          webhook,
+          sample
+            ? {
+                name: sample.displayName,
+                id: sample.id,
+                steamAppId: sample.steamAppId,
+                iconUrl: sample.iconUrl,
+              }
+            : undefined,
+        );
       } catch (err) {
         return reply.code(502).send({ error: 'unreachable', message: (err as Error).message });
       }

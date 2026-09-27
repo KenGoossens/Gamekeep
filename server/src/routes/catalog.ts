@@ -298,8 +298,8 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
 
       notify.send({
         kind: 'deployed',
-        server: name,
-        actor: user.username,
+        server: { name, id: serverId, iconUrl: parsed.icon },
+        actor: { username: user.username, role: user.role },
         detail: `${found.name} by ${found.publisher}`,
       });
       return reply.code(201).send({
