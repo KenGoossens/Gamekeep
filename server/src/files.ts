@@ -1,6 +1,8 @@
-import { PassThrough, Readable } from 'node:stream';
+import { Readable } from 'node:stream';
 import type { DockerClient } from './docker/client.js';
 import type { ServerConfig } from './config.js';
+import { buildTar } from './tar.js';
+import { createHelperRunner } from './docker/helper.js';
 
 export interface FileEntry {
   name: string;
@@ -118,101 +120,7 @@ export function resolveInsideAny(roots: string[], requested: string): string {
 export function createFileBrowser(dockerClient: DockerClient) {
   const { docker } = dockerClient;
 
-  /** Collects stdout from a multiplexed Docker stream, discarding stderr. */
-  async function collect(stream: NodeJS.ReadableStream): Promise<Buffer> {
-    const stdout = new PassThrough();
-    const stderr = new PassThrough();
-    docker.modem.demuxStream(stream, stdout, stderr);
-
-    const chunks: Buffer[] = [];
-    stdout.on('data', (c: Buffer) => chunks.push(c));
-
-    await new Promise<void>((resolve, reject) => {
-      stream.on('end', resolve);
-      stream.on('error', reject);
-      setTimeout(() => resolve(), 20_000).unref();
-    });
-    return Buffer.concat(chunks);
-  }
-
-  /**
-   * This portal's own image, cached. Borrowed as a shell for the helper below
-   * purely because it is certain to be present -- naming any other image would
-   * mean a pull, and pulling in order to list a directory is absurd.
-   */
-  let selfImage: string | null = null;
-  async function ownImage(): Promise<string> {
-    if (selfImage) return selfImage;
-    // Docker sets the hostname to the container id unless told otherwise.
-    const { hostname } = await import('node:os');
-    const info = await docker.getContainer(hostname()).inspect();
-    selfImage = info.Image;
-    return selfImage;
-  }
-
-  /**
-   * Lists a directory of a container that is stopped.
-   *
-   * Docker cannot exec into a stopped container, and the Files tab is only
-   * available *while* a server is stopped -- so the obvious approach is the
-   * one that never works here. A throwaway container borrowing the target's
-   * volumes sees exactly the same directories, needs no network, and is gone
-   * a second later.
-   */
-  async function runDetached(container: string, cmd: string[]): Promise<string> {
-    const helper = await docker.createContainer({
-      Image: await ownImage(),
-      Entrypoint: [],
-      Cmd: cmd,
-      User: 'root',
-      HostConfig: {
-        VolumesFrom: [container],
-        // It reads a directory listing; it has no business reaching anything.
-        NetworkMode: 'none',
-        AutoRemove: false,
-      },
-    });
-
-    try {
-      const stream = await helper.attach({ stream: true, stdout: true, stderr: true });
-      const output = collect(stream);
-      await helper.start();
-      const [{ StatusCode }, body] = await Promise.all([helper.wait(), output]);
-      if (StatusCode !== 0) {
-        throw new FileError('Could not read that path.', 'read-failed');
-      }
-      return body.toString('utf8');
-    } finally {
-      // Removed whatever happened, so a failed listing cannot leave litter
-      // behind on the host.
-      await helper.remove({ force: true }).catch(() => {});
-    }
-  }
-
-  /**
-   * Runs a command against the container's filesystem with an argv array --
-   * never a shell string -- so a path can never be read as a command.
-   */
-  async function run(container: string, cmd: string[]): Promise<string> {
-    const target = docker.getContainer(container);
-    const info = await target.inspect();
-    if (!info.State?.Running) return runDetached(container, cmd);
-
-    const exec = await target.exec({
-      Cmd: cmd,
-      AttachStdout: true,
-      AttachStderr: true,
-      User: 'root',
-    });
-    const stream = await exec.start({ hijack: true, stdin: false });
-    const body = await collect(stream);
-
-    const result = await exec.inspect();
-    if (result.ExitCode && result.ExitCode !== 0) {
-      throw new FileError('Could not read that path.', 'read-failed');
-    }
-    return body.toString('utf8');
-  }
+  const { run } = createHelperRunner(dockerClient);
 
   /** Parses `ls -lA`, which both busybox and GNU coreutils produce. */
   function parseListing(output: string, dir: string): FileEntry[] {
@@ -493,26 +401,3 @@ function extractSingleFile(archive: Buffer): string {
   throw new FileError('That archive contained no readable file.', 'empty-archive');
 }
 
-/** Builds a one-file tar, which is what putArchive expects. */
-export function buildTar(name: string, content: Buffer, mode = 0o644): Buffer {
-  const header = Buffer.alloc(512);
-  header.write(name.slice(0, 100), 0, 'ascii');
-  header.write(mode.toString(8).padStart(7, '0') + '\0', 100, 'ascii');
-  header.write('0000000\0', 108, 'ascii'); // uid
-  header.write('0000000\0', 116, 'ascii'); // gid
-  header.write(content.length.toString(8).padStart(11, '0') + '\0', 124, 'ascii');
-  header.write(Math.floor(Date.now() / 1000).toString(8).padStart(11, '0') + '\0', 136, 'ascii');
-  header.write('        ', 148, 'ascii'); // checksum placeholder: spaces
-  header.write('0', 156, 'ascii'); // regular file
-  header.write('ustar\0', 257, 'ascii');
-  header.write('00', 263, 'ascii');
-
-  // The checksum is the sum of every header byte with the field itself blank.
-  let checksum = 0;
-  for (const byte of header) checksum += byte;
-  header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 'ascii');
-
-  const padding = Buffer.alloc((512 - (content.length % 512)) % 512);
-  // Two zero blocks terminate the archive.
-  return Buffer.concat([header, content, padding, Buffer.alloc(1024)]);
-}

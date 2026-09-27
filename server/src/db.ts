@@ -14,6 +14,8 @@ export type AuditAction =
   | 'server-deployed'
   | 'server-removed'
   | 'settings-changed'
+  | 'mod-install'
+  | 'mod-remove'
   | 'file-edited'
   | 'file-uploaded'
   | 'integration-changed'
@@ -107,6 +109,60 @@ const toUser = (r: UserDbRow): UserRow => ({
 const USER_COLUMNS =
   'id, username, role, must_change_password, disabled, created_at, created_by, last_login_at';
 
+interface RawModRow {
+  server_id: string;
+  source: string;
+  mod_id: string;
+  mod_name: string;
+  version: string;
+  sha256: string;
+  directory: string;
+  files: string;
+  report: string | null;
+  installed_at: number;
+  installed_by: string;
+}
+
+export interface InstalledModRow {
+  serverId: string;
+  source: string;
+  modId: string;
+  modName: string;
+  version: string;
+  sha256: string;
+  directory: string;
+  files: string[];
+  report: unknown;
+  installedAt: number;
+  installedBy: string;
+}
+
+function toModRow(row: RawModRow): InstalledModRow {
+  function parse<T>(text: string | null, fallback: T): T {
+    try {
+      return text ? (JSON.parse(text) as T) : fallback;
+    } catch {
+      // A row we cannot parse still describes an installed mod; only the extra
+      // detail is lost, and losing that must not hide the mod itself.
+      return fallback;
+    }
+  }
+
+  return {
+    serverId: row.server_id,
+    source: row.source,
+    modId: row.mod_id,
+    modName: row.mod_name,
+    version: row.version,
+    sha256: row.sha256,
+    directory: row.directory,
+    files: parse<string[]>(row.files, []),
+    report: parse<unknown>(row.report, null),
+    installedAt: row.installed_at,
+    installedBy: row.installed_by,
+  };
+}
+
 export function openDatabase(path: string) {
   mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
@@ -167,6 +223,24 @@ export function openDatabase(path: string) {
       definition              TEXT NOT NULL,
       created_at              INTEGER NOT NULL,
       created_by              TEXT
+    );
+
+    -- One row per mod this portal installed. The file list is what makes an
+    -- uninstall exact rather than a guess, and the scan report is kept so an
+    -- operator can see later what was known at the time it went in.
+    CREATE TABLE IF NOT EXISTS installed_mods (
+      server_id    TEXT NOT NULL,
+      source       TEXT NOT NULL,
+      mod_id       TEXT NOT NULL,
+      mod_name     TEXT NOT NULL,
+      version      TEXT NOT NULL,
+      sha256       TEXT NOT NULL,
+      directory    TEXT NOT NULL,
+      files        TEXT NOT NULL,
+      report       TEXT,
+      installed_at INTEGER NOT NULL,
+      installed_by TEXT NOT NULL,
+      PRIMARY KEY (server_id, source, mod_id)
     );
 
     CREATE TABLE IF NOT EXISTS app_settings (
@@ -242,6 +316,25 @@ export function openDatabase(path: string) {
       'INSERT INTO managed_servers (id, definition, created_at, created_by) VALUES (?, ?, ?, ?)',
     ),
     deleteManaged: db.prepare('DELETE FROM managed_servers WHERE id = ?'),
+
+    listMods: db.prepare(
+      'SELECT * FROM installed_mods WHERE server_id = ? ORDER BY mod_name'
+    ),
+    getMod: db.prepare(
+      'SELECT * FROM installed_mods WHERE server_id = ? AND source = ? AND mod_id = ?'
+    ),
+    insertMod: db.prepare(
+      `INSERT INTO installed_mods
+         (server_id, source, mod_id, mod_name, version, sha256, directory, files, report, installed_at, installed_by)
+       VALUES (@serverId, @source, @modId, @modName, @version, @sha256, @directory, @files, @report, @installedAt, @installedBy)
+       ON CONFLICT(server_id, source, mod_id) DO UPDATE SET
+         version = excluded.version, sha256 = excluded.sha256, directory = excluded.directory,
+         files = excluded.files, report = excluded.report,
+         installed_at = excluded.installed_at, installed_by = excluded.installed_by`
+    ),
+    deleteMod: db.prepare(
+      'DELETE FROM installed_mods WHERE server_id = ? AND source = ? AND mod_id = ?'
+    ),
 
     getSetting: db.prepare('SELECT value FROM app_settings WHERE key = ?'),
     setSetting: db.prepare(
@@ -345,6 +438,39 @@ export function openDatabase(path: string) {
 
     removeManagedServer(id: string) {
       st.deleteManaged.run(id);
+    },
+
+    listInstalledMods(serverId: string): InstalledModRow[] {
+      return (st.listMods.all(serverId) as unknown as RawModRow[]).map(toModRow);
+    },
+
+    getInstalledMod(serverId: string, source: string, modId: string): InstalledModRow | null {
+      const row = st.getMod.get(serverId, source, modId) as RawModRow | undefined;
+      return row ? toModRow(row) : null;
+    },
+
+    recordInstalledMod(row: {
+      serverId: string;
+      source: string;
+      modId: string;
+      modName: string;
+      version: string;
+      sha256: string;
+      directory: string;
+      files: string[];
+      report: unknown;
+      installedBy: string;
+    }) {
+      st.insertMod.run({
+        ...row,
+        files: JSON.stringify(row.files),
+        report: JSON.stringify(row.report ?? null),
+        installedAt: Date.now(),
+      });
+    },
+
+    forgetInstalledMod(serverId: string, source: string, modId: string) {
+      st.deleteMod.run(serverId, source, modId);
     },
 
     /** Small encrypted key/value store for integration credentials. */

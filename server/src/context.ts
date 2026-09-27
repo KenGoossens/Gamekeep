@@ -12,6 +12,7 @@ import type { MetricsCollector } from './metrics.js';
 import type { SettingsManager } from './settings.js';
 import type { createFileBrowser } from './files.js';
 import type { HealthReporter } from './health.js';
+import type { ModInstaller } from './mods/install.js';
 import type { Sessions } from './auth/session.js';
 import type { SetupGuard } from './auth/setup.js';
 import type { LoginThrottle } from './auth/ratelimit.js';
@@ -35,6 +36,8 @@ export interface AppContext {
   metrics: MetricsCollector;
   settings: SettingsManager;
   files: ReturnType<typeof createFileBrowser>;
+  /** Downloads, inspects and installs game server mods. */
+  mods: ModInstaller;
   /** Read-only status of every connection the portal depends on. */
   health: HealthReporter;
   sessions: Sessions;

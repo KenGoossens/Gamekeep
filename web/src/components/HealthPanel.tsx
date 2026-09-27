@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, type CheckState, type HealthCheck, type HealthReport } from '../api.ts';
+import {
+  api,
+  type CheckState,
+  type HealthCheck,
+  type HealthReport,
+  type ScannerSettings as ScannerSettingsType,
+} from '../api.ts';
 
 /**
  * Everything this portal depends on, in one place.
@@ -64,6 +70,117 @@ function Row({ check }: { check: HealthCheck }) {
         ) : null}
       </div>
     </details>
+  );
+}
+
+/**
+ * Where the malware scanners are configured.
+ *
+ * Kept beside the status panel rather than on the mod screen: it is a property
+ * of this portal, not of any one game server, and an operator installing a mod
+ * should find it already decided.
+ */
+export function ScannerSettings() {
+  const [current, setCurrent] = useState<ScannerSettingsType | null>(null);
+  const [key, setKey] = useState('');
+  const [host, setHost] = useState('');
+  const [port, setPort] = useState('3310');
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.scanners().then(
+      (s) => {
+        setCurrent(s);
+        setHost(s.clamavHost);
+        setPort(String(s.clamavPort));
+      },
+      () => setNote('Could not read the scanner settings.'),
+    );
+  }, []);
+
+  if (!current) return null;
+
+  async function save() {
+    setBusy(true);
+    setNote(null);
+    try {
+      await api.saveScanners({
+        virustotalApiKey: key.trim() || undefined,
+        clamavHost: host.trim(),
+        clamavPort: Number(port) || 3310,
+      });
+      setCurrent(await api.scanners());
+      setKey('');
+      setNote('Saved.');
+    } catch {
+      setNote('Could not save.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const any = current.virustotal || Boolean(current.clamavHost);
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Malware scanning</h2>
+        <span className={`pill ${any ? 'ok' : 'warn'}`}>
+          <span className="dot" />
+          {any ? 'configured' : 'none'}
+        </span>
+      </div>
+
+      <p className="notes">
+        Used when a mod is downloaded, before anything is written. Neither of these can tell you a
+        mod is safe — a mod is code that runs inside your game server. What they give is the
+        multi-engine opinion on those exact bytes.
+      </p>
+
+      <label className="field">
+        <span>
+          VirusTotal API key{current.virustotal ? ' — set; leave empty to keep it' : ' (optional)'}
+        </span>
+        <input
+          type="password"
+          value={key}
+          autoComplete="off"
+          placeholder={current.virustotal ? '••••••••' : 'From your VirusTotal account'}
+          onChange={(e) => setKey(e.target.value)}
+        />
+      </label>
+      <p className="hint">
+        Looked up by hash, so the file itself is never uploaded anywhere. A free account is enough.
+      </p>
+
+      <label className="field">
+        <span>ClamAV host (optional)</span>
+        <input
+          type="text"
+          value={host}
+          autoComplete="off"
+          placeholder="clamav"
+          onChange={(e) => setHost(e.target.value)}
+        />
+      </label>
+      <label className="field">
+        <span>ClamAV port</span>
+        <input type="text" value={port} onChange={(e) => setPort(e.target.value)} />
+      </label>
+      <p className="hint">
+        A clamd instance reachable from this container. The file is streamed to it; nothing leaves
+        your network.
+      </p>
+
+      {note ? <p className="hint ok">{note}</p> : null}
+
+      <div className="actions">
+        <button type="button" className="btn-primary" disabled={busy} onClick={() => void save()}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </section>
   );
 }
 

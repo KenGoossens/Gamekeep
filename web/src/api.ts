@@ -171,6 +171,74 @@ export interface RouterStatus {
   config: Record<string, string>;
 }
 
+export interface ModSummary {
+  source: string;
+  id: string;
+  name: string;
+  summary: string;
+  author: string;
+  url: string;
+  deprecated: boolean;
+}
+
+export interface Finding {
+  id: string;
+  label: string;
+  state: 'pass' | 'warn' | 'fail' | 'unknown';
+  summary: string;
+  detail?: string;
+}
+
+export interface InstallPlan {
+  source: string;
+  modId: string;
+  modName: string;
+  version: string;
+  sha256: string;
+  sizeBytes: number;
+  targetDirectory: string;
+  fileCount: number;
+  archive: { files: number; totalBytes: number; peakRatio: number; extensions: Record<string, number> };
+  scans: Array<{ scanner: string; label: string; state: string; summary: string; detail?: string }>;
+  findings: Finding[];
+  /** False when something refused outright; such a plan cannot be installed. */
+  installable: boolean;
+  /** True when it may proceed, but the operator is accepting a stated risk. */
+  needsAcknowledgement: boolean;
+}
+
+export interface InstalledMod {
+  source: string;
+  modId: string;
+  modName: string;
+  version: string;
+  sha256: string;
+  files: string[];
+  installedAt: number;
+  installedBy: string;
+}
+
+export interface ModStatus {
+  supported: boolean;
+  reason?: string;
+  source?: {
+    id: string;
+    label: string;
+    searchable: boolean;
+    lookupHint: string;
+    loader: { id: string; label: string } | null;
+  };
+  running?: boolean;
+  installed: InstalledMod[];
+  scannerConfigured: boolean;
+}
+
+export interface ScannerSettings {
+  virustotal: boolean;
+  clamavHost: string;
+  clamavPort: number;
+}
+
 export type CheckState = 'ok' | 'warn' | 'bad' | 'off' | 'unknown';
 
 export interface HealthCheck {
@@ -359,6 +427,31 @@ export const api = {
     if (!response.ok) throw new ApiError(response.status, body as Record<string, unknown>);
     return body as { path: string; bytes: number; replaced: boolean };
   },
+
+  mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
+  searchMods: (serverId: string, q: string) =>
+    request<{ results: ModSummary[] }>(
+      `/api/servers/${serverId}/mods/search?q=${encodeURIComponent(q)}`,
+    ),
+  inspectMod: (serverId: string, mod: string, version?: string) =>
+    request<{ plan: InstallPlan; mod: ModSummary }>(`/api/servers/${serverId}/mods/inspect`, {
+      ...json({ mod, version }),
+      method: 'POST',
+    }),
+  installMod: (serverId: string, mod: string, version: string, acknowledge: boolean) =>
+    request<{ installed: true; plan: InstallPlan; files: number }>(
+      `/api/servers/${serverId}/mods/install`,
+      { ...json({ mod, version, acknowledge }), method: 'POST' },
+    ),
+  removeMod: (serverId: string, source: string, modId: string) =>
+    request<{ removed: true }>(
+      `/api/servers/${serverId}/mods/${encodeURIComponent(source)}/${encodeURIComponent(modId)}`,
+      { method: 'DELETE' },
+    ),
+
+  scanners: () => request<ScannerSettings>('/api/integrations/scanners'),
+  saveScanners: (body: { virustotalApiKey?: string; clamavHost?: string; clamavPort?: number }) =>
+    request<{ ok: true }>('/api/integrations/scanners', { ...json(body), method: 'PUT' }),
 
   health: (refresh = false) =>
     request<HealthReport>(`/api/system/health${refresh ? '?refresh=1' : ''}`),

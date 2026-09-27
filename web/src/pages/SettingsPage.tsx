@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api, type RouterStatus } from '../api.ts';
-import { HealthPanel } from '../components/HealthPanel.tsx';
+import { HealthPanel, ScannerSettings } from '../components/HealthPanel.tsx';
 
 /**
  * Owner-only. The router connection is optional: without it the portal still
@@ -34,6 +34,7 @@ export function SettingsPage() {
         <p>Connections this portal uses. Only the owner can change these.</p>
       </div>
       <HealthPanel />
+      <ScannerSettings />
     </>
   );
 

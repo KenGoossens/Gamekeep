@@ -19,6 +19,7 @@ import { createMetricsCollector } from './metrics.js';
 import { createSettingsManager } from './settings.js';
 import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
+import { createModInstaller } from './mods/install.js';
 import { createSessions } from './auth/session.js';
 import { createSetupGuard } from './auth/setup.js';
 import { createLoginThrottle } from './auth/ratelimit.js';
@@ -33,6 +34,7 @@ import { registerCatalogRoutes } from './routes/catalog.js';
 import { registerManageRoutes } from './routes/manage.js';
 import { registerNetworkRoutes } from './routes/network.js';
 import { registerSystemRoutes } from './routes/system.js';
+import { registerModRoutes } from './routes/mods.js';
 import type { AppContext } from './context.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -58,6 +60,7 @@ async function main() {
   const metrics = createMetricsCollector(docker, registry, gameQuery, db);
   const settings = createSettingsManager(docker);
   const files = createFileBrowser(docker);
+  const mods = createModInstaller(docker);
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
@@ -78,6 +81,7 @@ async function main() {
     metrics,
     settings,
     files,
+    mods,
     health,
     sessions,
     setup,
@@ -143,6 +147,7 @@ async function main() {
   registerManageRoutes(app, ctx);
   registerNetworkRoutes(app, ctx);
   registerSystemRoutes(app, ctx);
+  registerModRoutes(app, ctx);
 
   if (existsSync(join(WEB_ROOT, 'index.html'))) {
     await app.register(fastifyStatic, { root: WEB_ROOT });

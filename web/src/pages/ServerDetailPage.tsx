@@ -17,10 +17,11 @@ import { MetricsTab } from '../components/MetricsTab.tsx';
 import { SettingsTab } from '../components/SettingsTab.tsx';
 import { FilesTab } from '../components/FilesTab.tsx';
 import { NetworkTab } from '../components/NetworkTab.tsx';
+import { ModsTab } from '../components/ModsTab.tsx';
 import { Modal } from '../components/Modal.tsx';
 import { WorldCard } from '../components/WorldCard.tsx';
 
-type Tab = 'overview' | 'metrics' | 'settings' | 'files' | 'network';
+type Tab = 'overview' | 'metrics' | 'settings' | 'files' | 'mods' | 'network';
 
 const POLL_IDLE_MS = 5000;
 const POLL_BUSY_MS = 2000;
@@ -177,6 +178,7 @@ export function ServerDetailPage({
               ? ([
                   ['settings', 'Settings', true],
                   ['files', 'Files', true],
+                    ['mods', 'Mods', true],
                   ['network', 'Network', false],
                 ] as Array<[Tab, string, boolean]>)
               : []),
@@ -244,6 +246,15 @@ export function ServerDetailPage({
             <h2>Reachability</h2>
           </div>
           <NetworkTab serverId={server.id} isOwner={isOwner} />
+        </section>
+      ) : null}
+
+      {tab === 'mods' && canOperate ? (
+        <section className="card">
+          <div className="card-head">
+            <h2>Mods</h2>
+          </div>
+          <ModsTab serverId={server.id} />
         </section>
       ) : null}
 
