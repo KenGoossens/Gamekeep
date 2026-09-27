@@ -761,3 +761,109 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
   display: block; font-style: normal; color: var(--muted);
   font-size: 0.8rem; margin-top: 2px;
 }
+
+/* ---- command centre -----------------------------------------------------
+   Dense and readable from a distance: the numbers that answer "is anything
+   wrong" are large and first, history sits under them. Panels glow faintly
+   rather than shouting, so the data stays the brightest thing on screen.  */
+.command-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.command-head > div:first-child { flex: 1; min-width: 14rem; }
+
+.statbar {
+  display: grid; gap: 12px; margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.stat {
+  position: relative; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+/* A thin lit edge rather than a coloured panel: the value stays the signal. */
+.stat::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: 2px;
+  background: var(--faint);
+}
+.stat-ok::before { background: var(--ok); }
+.stat-warn::before { background: var(--warn); }
+.stat-bad::before { background: var(--bad); }
+
+.stat-value {
+  font-size: 2.1rem; font-weight: 650; line-height: 1.05; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; color: var(--text);
+}
+.stat-label {
+  font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted);
+}
+.stat-sub { font-size: 0.78rem; color: var(--faint); }
+
+.jobstrip { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ---- the fleet ---- */
+.fleet {
+  display: grid; gap: 12px; margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.fleet-tile {
+  position: relative; display: block; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 14px 16px 12px;
+  color: inherit; text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.fleet-tile:hover { border-color: var(--border); background: var(--surface-2); }
+/* The series colour, so a tile and its line in the charts are the same thing. */
+.fleet-bar { position: absolute; inset: 0 0 auto 0; height: 2px; opacity: 0.85; }
+
+.fleet-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.fleet-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--faint); }
+.fleet-ok { color: var(--ok); }
+.fleet-warn { color: var(--warn); }
+.fleet-bad { color: var(--bad); }
+.fleet-dot.fleet-ok { background: var(--ok); }
+.fleet-dot.fleet-warn { background: var(--warn); }
+.fleet-dot.fleet-bad { background: var(--bad); }
+.fleet-name {
+  font-weight: 600; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* State is a word as well as a colour, always. */
+.fleet-state { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; flex: none; }
+
+.fleet-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 0; }
+.fleet-facts dt {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint);
+}
+.fleet-facts dd {
+  margin: 0; font-size: 0.95rem; font-variant-numeric: tabular-nums; color: var(--text);
+}
+
+.chartgrid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+
+/* ---- activity feed ---- */
+.feed { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 2px; }
+.feed li {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 7px 0; border-top: 1px solid var(--border-soft); font-size: 0.86rem;
+}
+.feed li:first-child { border-top: 0; }
+.feed-result {
+  flex: none; width: 6.4rem; font-size: 0.7rem; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--faint);
+}
+.feed-success { color: var(--ok); }
+.feed-unconfirmed, .feed-cooldown, .feed-busy { color: var(--warn); }
+.feed-failure { color: var(--bad); }
+.feed-body { flex: 1; min-width: 0; }
+.feed-body em {
+  display: block; font-style: normal; color: var(--muted);
+  font-size: 0.8rem; margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.feed-when { flex: none; color: var(--faint); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 560px) {
+  .stat-value { font-size: 1.7rem; }
+  .fleet { grid-template-columns: 1fr; }
+}

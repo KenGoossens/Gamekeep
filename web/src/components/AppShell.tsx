@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { api, canOperate, type Me } from '../api.ts';
-import { linkProps } from '../router.ts';
+import { linkProps, type Route } from '../router.ts';
 
 interface Props {
   me: Me;
-  current: 'servers' | 'server' | 'activity' | 'users' | 'catalog' | 'settings';
+  // Taken from the router rather than repeated here, so adding a page cannot
+  // leave the shell and the routes disagreeing about what exists.
+  current: Route['page'];
   onSignedOut: () => void;
   children: ReactNode;
 }
@@ -12,6 +14,7 @@ interface Props {
 export function AppShell({ me, current, onSignedOut, children }: Props) {
   const tabs = [
     { href: '/', label: 'Servers', key: 'servers' },
+    { href: '/dashboard', label: 'Dashboard', key: 'dashboard' },
     { href: '/activity', label: 'Activity', key: 'activity' },
     ...(canOperate(me.role) ? [{ href: '/catalog', label: 'Add server', key: 'catalog' }] : []),
     ...(me.role === 'owner'

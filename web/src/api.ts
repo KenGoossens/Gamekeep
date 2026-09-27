@@ -171,6 +171,43 @@ export interface RouterStatus {
   config: Record<string, string>;
 }
 
+export interface DashboardServer {
+  id: string;
+  displayName: string;
+  state: string;
+  running: boolean;
+  uptimeSeconds: number | null;
+  health: string | null;
+  players: { online: number; max: number | null } | null;
+  cpuPercent: number | null;
+  memBytes: number | null;
+  memLimit: number | null;
+  accent: string | null;
+}
+
+export interface Dashboard {
+  generatedAt: number;
+  windowMs: number;
+  servers: DashboardServer[];
+  series: Array<{
+    id: string;
+    label: string;
+    points: Array<{ ts: number; cpu: number; mem: number; players: number | null }>;
+  }>;
+  totals: { servers: number; running: number; players: number; capacity: number };
+  outcomes: Record<string, number>;
+  activeJobs: Array<{ serverId: string; phase: string; message: string; actor: string | null }>;
+  recent: Array<{
+    id: number;
+    ts: number;
+    username: string;
+    serverId: string | null;
+    action: string;
+    result: string;
+    detail: string | null;
+  }>;
+}
+
 export interface ModSummary {
   source: string;
   id: string;
@@ -444,6 +481,9 @@ export const api = {
     if (!response.ok) throw new ApiError(response.status, body as Record<string, unknown>);
     return body as { path: string; bytes: number; replaced: boolean };
   },
+
+  dashboard: (windowMs: number) =>
+    request<Dashboard>(`/api/dashboard?window=`),
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
   searchMods: (serverId: string, q: string) =>

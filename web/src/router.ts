@@ -24,12 +24,13 @@ export function navigate(to: string) {
 }
 
 export interface Route {
-  page: 'servers' | 'server' | 'activity' | 'users' | 'catalog' | 'settings';
+  page: 'dashboard' | 'servers' | 'server' | 'activity' | 'users' | 'catalog' | 'settings';
   serverId?: string;
 }
 
 export function parseRoute(path: string): Route {
   const parts = path.split('/').filter(Boolean);
+  if (parts[0] === 'dashboard') return { page: 'dashboard' };
   if (parts[0] === 'activity') return { page: 'activity' };
   if (parts[0] === 'users') return { page: 'users' };
   if (parts[0] === 'catalog') return { page: 'catalog' };

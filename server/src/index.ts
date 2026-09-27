@@ -20,6 +20,7 @@ import { createSettingsManager } from './settings.js';
 import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
 import { createModInstaller } from './mods/install.js';
+import { createHelperRunner } from './docker/helper.js';
 import { createSessions } from './auth/session.js';
 import { createSetupGuard } from './auth/setup.js';
 import { createLoginThrottle } from './auth/ratelimit.js';
@@ -35,6 +36,7 @@ import { registerManageRoutes } from './routes/manage.js';
 import { registerNetworkRoutes } from './routes/network.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerModRoutes } from './routes/mods.js';
+import { registerDashboardRoutes } from './routes/dashboard.js';
 import type { AppContext } from './context.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -148,6 +150,7 @@ async function main() {
   registerNetworkRoutes(app, ctx);
   registerSystemRoutes(app, ctx);
   registerModRoutes(app, ctx);
+  registerDashboardRoutes(app, ctx);
 
   if (existsSync(join(WEB_ROOT, 'index.html'))) {
     await app.register(fastifyStatic, { root: WEB_ROOT });
@@ -170,6 +173,13 @@ async function main() {
       'No built frontend found. Run "npm run build" in web/, or use the Vite dev server.',
     );
   }
+
+  // Helpers left behind by a previous life of this process: see helper.ts.
+  void createHelperRunner(docker)
+    .sweepOrphans()
+    .then((n) => {
+      if (n > 0) app.log.warn({ removed: n }, 'removed orphaned helper containers');
+    });
 
   sessions.startSweeper();
   metrics.start();

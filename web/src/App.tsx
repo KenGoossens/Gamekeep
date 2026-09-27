@@ -8,6 +8,7 @@ import { ChangePasswordScreen } from './components/ChangePasswordScreen.tsx';
 import { ServersPage } from './pages/ServersPage.tsx';
 import { ServerDetailPage } from './pages/ServerDetailPage.tsx';
 import { ActivityPage } from './pages/ActivityPage.tsx';
+import { DashboardPage } from './pages/DashboardPage.tsx';
 import { UsersPage } from './pages/UsersPage.tsx';
 import { CatalogPage } from './pages/CatalogPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
@@ -111,6 +112,7 @@ export function App() {
           isOwner={me.role === 'owner'}
         />
       ) : null}
+      {route.page === 'dashboard' ? <DashboardPage /> : null}
       {route.page === 'activity' ? <ActivityPage /> : null}
       {route.page === 'users' && me.role === 'owner' ? <UsersPage me={me} /> : null}
       {route.page === 'catalog' && canOperate(me.role) ? <CatalogPage /> : null}

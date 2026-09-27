@@ -13,6 +13,16 @@ import type { DockerClient } from './client.js';
  * and is removed immediately afterwards.
  */
 
+/**
+ * Marks a container as one of ours, so an orphan can be recognised later.
+ *
+ * Orphans happen: the helper is removed in a finally block, but a finally
+ * cannot run if the process is killed first -- a redeploy, a restart, an OOM
+ * -- and the container is then left stopped on the host with a random name,
+ * looking like something the operator deployed by mistake.
+ */
+const HELPER_LABEL = 'org.gamekeep.helper';
+
 export class HelperError extends Error {
   constructor(
     message: string,
@@ -78,6 +88,7 @@ export function createHelperRunner(dockerClient: DockerClient) {
       Entrypoint: [],
       Cmd: cmd,
       User: 'root',
+      Labels: { [HELPER_LABEL]: '1' },
       HostConfig: {
         VolumesFrom: [container],
         // It touches a filesystem; it has no business reaching anything.
@@ -123,7 +134,28 @@ export function createHelperRunner(dockerClient: DockerClient) {
     return body.toString('utf8');
   }
 
-  return { run, runDetached, ownImage };
+  /**
+   * Removes helpers left behind by an earlier life of this process. Run at
+   * boot, because that is exactly when the previous one was killed.
+   */
+  async function sweepOrphans(): Promise<number> {
+    let removed = 0;
+    try {
+      const orphans = await docker.listContainers({
+        all: true,
+        filters: { label: [`=1`] },
+      });
+      for (const orphan of orphans) {
+        await docker.getContainer(orphan.Id).remove({ force: true }).catch(() => {});
+        removed++;
+      }
+    } catch {
+      // A sweep that cannot run is not worth failing the boot over.
+    }
+    return removed;
+  }
+
+  return { run, runDetached, ownImage, sweepOrphans };
 }
 
 export type HelperRunner = ReturnType<typeof createHelperRunner>;
