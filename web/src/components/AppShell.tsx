@@ -26,7 +26,7 @@ export function AppShell({ me, current, onSignedOut, children }: Props) {
     <div className="shell">
       <nav className="nav">
         <a {...linkProps('/')} className="brand">
-          <span className="mark" aria-hidden="true" />
+          <img className="mark" src="/logo.png" alt="" width={26} height={26} />
           Gamekeep
         </a>
 

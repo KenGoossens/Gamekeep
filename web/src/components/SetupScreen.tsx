@@ -41,6 +41,7 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
   return (
     <div className="login">
       <form className="card wide-card" onSubmit={submit}>
+        <img className="brandmark" src="/logo.png" alt="" width={64} height={64} />
         <h1>Set up Gamekeep</h1>
         <p>
           No accounts exist yet. Create the administrator account — it can add everyone else

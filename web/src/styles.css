@@ -1,15 +1,20 @@
 :root {
-  --bg: #0a0b0f;
-  --bg-raised: #101218;
-  --surface: #14161e;
-  --surface-2: #1b1e28;
-  --border: #252938;
-  --border-soft: #1e2130;
-  --text: #eef0f6;
-  --muted: #9aa3ba;
-  --faint: #6b7590;
-  --accent: #7c9cff;
-  --accent-soft: rgba(124, 156, 255, 0.14);
+  --bg: #090e1c;
+  --bg-raised: #0e1426;
+  --surface: #121a30;
+  --surface-2: #1a2440;
+  --border: #273252;
+  --border-soft: #1d2740;
+  --text: #eef1f8;
+  --muted: #9aa5c4;
+  --faint: #6b779c;
+
+  /* The logo's sweep, measured rather than guessed. */
+  --accent: #7c6cf2;
+  --accent-cyan: #49c9f7;
+  --accent-violet: #c856ed;
+  --accent-soft: rgba(124, 108, 242, 0.16);
+
   --ok: #4ade80;
   --warn: #fbbf24;
   --bad: #f87171;
@@ -41,8 +46,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(to right, rgba(148, 170, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 170, 255, 0.055) 1px, transparent 1px);
+    linear-gradient(to right, rgba(73, 201, 247, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(73, 201, 247, 0.06) 1px, transparent 1px);
   background-size: 44px 44px;
   -webkit-mask-image: radial-gradient(ellipse 120% 80% at 50% -10%, #000 35%, transparent 100%);
   mask-image: radial-gradient(ellipse 120% 80% at 50% -10%, #000 35%, transparent 100%);
@@ -58,7 +63,10 @@ body::after {
   width: min(110vw, 1100px);
   height: 70vh;
   transform: translateX(-50%);
-  background: radial-gradient(ellipse at center, rgba(124, 156, 255, 0.13), transparent 65%);
+  /* Cyan on the left, violet on the right: the logo's own arc, spread wide. */
+  background:
+    radial-gradient(ellipse 60% 100% at 32% 40%, rgba(73, 201, 247, 0.13), transparent 70%),
+    radial-gradient(ellipse 60% 100% at 68% 40%, rgba(200, 86, 237, 0.13), transparent 70%);
   filter: blur(20px);
   pointer-events: none;
   z-index: 0;
@@ -93,10 +101,10 @@ body::after {
   gap: 9px;
 }
 .brand .mark {
-  width: 22px; height: 22px;
-  border-radius: 7px;
-  background: linear-gradient(135deg, var(--accent), #b98cff);
-  box-shadow: 0 0 18px rgba(124, 156, 255, 0.5);
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  display: block;
+  box-shadow: 0 0 20px rgba(124, 108, 242, 0.35);
 }
 
 .navlinks { display: flex; gap: 4px; }
@@ -287,8 +295,8 @@ button {
   transition: background 0.15s, opacity 0.15s, border-color 0.15s, color 0.15s;
 }
 button:disabled { cursor: not-allowed; opacity: 0.5; }
-.btn-primary { background: var(--accent); color: #0a0f1f; }
-.btn-primary:hover:not(:disabled) { background: #9ab2ff; }
+.btn-primary { background: var(--accent); color: #0b0f20; }
+.btn-primary:hover:not(:disabled) { background: #948af5; }
 .btn-ghost { background: transparent; color: var(--muted); border-color: var(--border); }
 .btn-ghost:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
 .btn-danger { background: var(--bad); color: #2b0b0b; }
@@ -363,7 +371,7 @@ button.danger:hover:not(:disabled) { color: var(--bad); border-color: var(--bad)
 /* ---- one-time temporary password ---- */
 .handout {
   margin: 14px 0; padding: 15px; border-radius: 12px;
-  background: var(--accent-soft); border: 1px solid rgba(124, 156, 255, 0.34);
+  background: var(--accent-soft); border: 1px solid rgba(124, 108, 242, 0.34);
 }
 .handout p { margin: 0 0 10px; font-size: 0.9rem; }
 .handout .row { display: flex; gap: 8px; margin-top: 12px; }
@@ -608,3 +616,13 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
 
 .uploadlabel { display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap; }
 .uploadlabel:has(input:disabled) { opacity: 0.55; cursor: not-allowed; }
+
+/* The logo on the sign-in and setup screens, above the title. */
+.brandmark {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  margin: 0 0 16px;
+  box-shadow: 0 8px 28px -8px rgba(124, 108, 242, 0.5);
+}
