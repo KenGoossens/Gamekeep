@@ -92,9 +92,22 @@ export async function dataRootsOf(
 
 /** Confines a path to whichever mount it belongs to, or refuses it. */
 export function resolveInsideAny(roots: string[], requested: string): string {
+  /*
+   * A path that names one of the mounts belongs to that mount and to no other.
+   * Without deciding that first, the mounts are simply tried in order and the
+   * earliest one swallows the path as if it were relative: asking for
+   * /serverdata/steamcmd while /serverdata/serverfiles sorts first quietly
+   * yields /serverdata/serverfiles/serverdata/steamcmd, which exists nowhere.
+   * The trailing slash matters -- /data must not claim /database.
+   */
+  const owner = roots.find((r) => requested === r || requested.startsWith(`${r}/`));
+  // Traversal out of the owning mount is refused here rather than retried
+  // against the others, so ".." can never walk from one mount into another.
+  if (owner) return resolveInside(owner, requested.slice(owner.length));
+
   for (const root of roots) {
     try {
-      return resolveInside(root, requested.startsWith(root) ? requested.slice(root.length) : requested);
+      return resolveInside(root, requested);
     } catch {
       // Try the next mount.
     }
@@ -105,19 +118,8 @@ export function resolveInsideAny(roots: string[], requested: string): string {
 export function createFileBrowser(dockerClient: DockerClient) {
   const { docker } = dockerClient;
 
-  /**
-   * Runs a command in the container with an argv array -- never a shell string
-   * -- so a path can never be read as a command.
-   */
-  async function run(container: string, cmd: string[]): Promise<string> {
-    const exec = await docker.getContainer(container).exec({
-      Cmd: cmd,
-      AttachStdout: true,
-      AttachStderr: true,
-      User: 'root',
-    });
-    const stream = await exec.start({ hijack: true, stdin: false });
-
+  /** Collects stdout from a multiplexed Docker stream, discarding stderr. */
+  async function collect(stream: NodeJS.ReadableStream): Promise<Buffer> {
     const stdout = new PassThrough();
     const stderr = new PassThrough();
     docker.modem.demuxStream(stream, stdout, stderr);
@@ -130,12 +132,86 @@ export function createFileBrowser(dockerClient: DockerClient) {
       stream.on('error', reject);
       setTimeout(() => resolve(), 20_000).unref();
     });
+    return Buffer.concat(chunks);
+  }
 
-    const info = await exec.inspect();
-    if (info.ExitCode && info.ExitCode !== 0) {
+  /**
+   * This portal's own image, cached. Borrowed as a shell for the helper below
+   * purely because it is certain to be present -- naming any other image would
+   * mean a pull, and pulling in order to list a directory is absurd.
+   */
+  let selfImage: string | null = null;
+  async function ownImage(): Promise<string> {
+    if (selfImage) return selfImage;
+    // Docker sets the hostname to the container id unless told otherwise.
+    const { hostname } = await import('node:os');
+    const info = await docker.getContainer(hostname()).inspect();
+    selfImage = info.Image;
+    return selfImage;
+  }
+
+  /**
+   * Lists a directory of a container that is stopped.
+   *
+   * Docker cannot exec into a stopped container, and the Files tab is only
+   * available *while* a server is stopped -- so the obvious approach is the
+   * one that never works here. A throwaway container borrowing the target's
+   * volumes sees exactly the same directories, needs no network, and is gone
+   * a second later.
+   */
+  async function runDetached(container: string, cmd: string[]): Promise<string> {
+    const helper = await docker.createContainer({
+      Image: await ownImage(),
+      Entrypoint: [],
+      Cmd: cmd,
+      User: 'root',
+      HostConfig: {
+        VolumesFrom: [container],
+        // It reads a directory listing; it has no business reaching anything.
+        NetworkMode: 'none',
+        AutoRemove: false,
+      },
+    });
+
+    try {
+      const stream = await helper.attach({ stream: true, stdout: true, stderr: true });
+      const output = collect(stream);
+      await helper.start();
+      const [{ StatusCode }, body] = await Promise.all([helper.wait(), output]);
+      if (StatusCode !== 0) {
+        throw new FileError('Could not read that path.', 'read-failed');
+      }
+      return body.toString('utf8');
+    } finally {
+      // Removed whatever happened, so a failed listing cannot leave litter
+      // behind on the host.
+      await helper.remove({ force: true }).catch(() => {});
+    }
+  }
+
+  /**
+   * Runs a command against the container's filesystem with an argv array --
+   * never a shell string -- so a path can never be read as a command.
+   */
+  async function run(container: string, cmd: string[]): Promise<string> {
+    const target = docker.getContainer(container);
+    const info = await target.inspect();
+    if (!info.State?.Running) return runDetached(container, cmd);
+
+    const exec = await target.exec({
+      Cmd: cmd,
+      AttachStdout: true,
+      AttachStderr: true,
+      User: 'root',
+    });
+    const stream = await exec.start({ hijack: true, stdin: false });
+    const body = await collect(stream);
+
+    const result = await exec.inspect();
+    if (result.ExitCode && result.ExitCode !== 0) {
       throw new FileError('Could not read that path.', 'read-failed');
     }
-    return Buffer.concat(chunks).toString('utf8');
+    return body.toString('utf8');
   }
 
   /** Parses `ls -lA`, which both busybox and GNU coreutils produce. */
