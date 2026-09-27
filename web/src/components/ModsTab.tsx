@@ -45,6 +45,8 @@ export function ModsTab({ serverId }: { serverId: string }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ModSummary[] | null>(null);
   const [hidden, setHidden] = useState(0);
+  const [uploadToken, setUploadToken] = useState<string | null>(null);
+  const [uploadName, setUploadName] = useState('');
   const [plan, setPlan] = useState<InstallPlan | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,14 +97,41 @@ export function ModsTab({ serverId }: { serverId: string }) {
     }
   }
 
+  /**
+   * Uploads a file and shows the same report a repository mod gets. The bytes
+   * wait on the server until the operator decides, so a change of mind after
+   * reading the report does not mean sending 40 MB again.
+   */
+  async function upload(file: File) {
+    setBusy('upload');
+    setError(null);
+    setNote(null);
+    setResults(null);
+    setPlan(null);
+    try {
+      const result = await api.uploadMod(serverId, file, uploadName);
+      setUploadToken(result.token);
+      setPlan(result.plan);
+    } catch (err) {
+      setError(explain(err, 'Could not read that file.'));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function install(acknowledge: boolean) {
     if (!plan) return;
     setBusy('install');
     setError(null);
     try {
-      const result = await api.installMod(serverId, plan.modId, plan.version, acknowledge);
+      // An uploaded mod installs by its staging token; there is no repository
+      // to ask for it a second time.
+      const result = uploadToken
+        ? await api.installUploadedMod(serverId, uploadToken, acknowledge)
+        : await api.installMod(serverId, plan.modId, plan.version, acknowledge);
       setNote(`Installed ${plan.modName} ${plan.version} — ${result.files} files written.`);
       setPlan(null);
+        setUploadToken(null);
       setResults(null);
       await load();
     } catch (err) {
@@ -214,6 +243,37 @@ export function ModsTab({ serverId }: { serverId: string }) {
         </p>
       ) : null}
 
+
+      {/* The repository is the safer route and stays first, but most mods can
+          simply be downloaded from their own site, and for anything the
+          repository does not carry this is the only way. */}
+      <h3 className="subhead">Or upload one yourself</h3>
+      <div className="seedrow">
+        <input
+          className="modsearch"
+          value={uploadName}
+          placeholder="Name for the mod folder (optional — taken from the filename)"
+          onChange={(e) => setUploadName(e.target.value)}
+        />
+        <label className="btn-ghost small uploadbtn">
+          {busy === 'upload' ? 'Checking…' : 'Choose a file…'}
+          <input
+            type="file"
+            accept=".zip,.jar,.smod"
+            disabled={busy !== null}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Reset so choosing the same file twice still fires a change.
+              e.target.value = '';
+              if (file) void upload(file);
+            }}
+          />
+        </label>
+      </div>
+      <p className="hint">
+        A .zip, .jar or .smod, up to 192 MB. It gets the same checks as one from the repository,
+        except the one that cannot be done: there is no published hash to prove where it came from.
+      </p>
       {note ? <p className="hint ok">{note}</p> : null}
       {error ? <p className="hint bad">{error}</p> : null}
 
@@ -277,7 +337,14 @@ export function ModsTab({ serverId }: { serverId: string }) {
                     ? 'Install anyway'
                     : 'Install'}
             </button>
-            <button type="button" className="btn-ghost" onClick={() => setPlan(null)}>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                setUploadToken(null);
+                setPlan(null);
+              }}
+            >
               Cancel
             </button>
           </div>

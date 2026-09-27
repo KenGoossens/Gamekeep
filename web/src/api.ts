@@ -589,6 +589,23 @@ export const api = {
       ...json({ mod, version }),
       method: 'POST',
     }),
+  uploadMod: (serverId: string, file: File, name: string) => {
+    const form = new FormData();
+    // The name field must come first: the server reads fields as they arrive,
+    // and anything after the file part would not be seen in time.
+    if (name.trim()) form.append('name', name.trim());
+    form.append('file', file);
+    return request<{ token: string; plan: InstallPlan }>(
+      `/api/servers/${encodeURIComponent(serverId)}/mods/upload`,
+      { method: 'POST', body: form },
+    );
+  },
+  installUploadedMod: (serverId: string, token: string, acknowledge: boolean) =>
+    request<{ installed: true; plan: InstallPlan; files: number }>(
+      `/api/servers/${encodeURIComponent(serverId)}/mods/upload/${encodeURIComponent(token)}`,
+      { ...json({ acknowledge }), method: 'POST' },
+    ),
+
   installMod: (serverId: string, mod: string, version: string, acknowledge: boolean) =>
     request<{ installed: true; plan: InstallPlan; files: number }>(
       `/api/servers/${serverId}/mods/install`,

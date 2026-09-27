@@ -954,3 +954,7 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
   padding: 6px 0; font-size: 0.86rem; cursor: pointer;
 }
 .eventrow input { margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+
+/* A file input that looks like the buttons beside it. */
+.uploadbtn { position: relative; overflow: hidden; cursor: pointer; }
+.uploadbtn input[type='file'] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

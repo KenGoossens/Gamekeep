@@ -364,40 +364,39 @@ export function createModInstaller(dockerClient: DockerClient) {
     }
     return body;
   }
-
   /**
-   * Everything that can be judged without writing anything. The returned plan
-   * carries the downloaded bytes' hash, so the install that follows can prove
-   * it is committing what was inspected.
+   * Everything that can be judged once the bytes are in hand, wherever they
+   * came from. Shared between a repository download and an upload so the two
+   * cannot drift into checking different things -- the upload path is the one
+   * with no publisher behind it, and so the one that needs these most.
    */
-  async function prepare(options: {
-    source: ModSource;
-    mod: { id: string; name: string; deprecated?: boolean };
-    version: ModVersion;
+  async function judge(options: {
+    body: Buffer;
     layout: GameLayout;
-    installed: InstalledState;
     scanners: ScannerConfig;
-  }): Promise<{ plan: InstallPlan; body: Buffer; entries: ZipEntry[] }> {
-    const { source, mod, version, layout, installed, scanners } = options;
-
-    const body = await download(version.downloadUrl);
+    sourceId: string;
+    modId: string;
+    modName: string;
+    version: string;
+    filename: string;
+    /** Decided by the caller: integrity, maintenance, dependencies. */
+    extra: Finding[];
+  }): Promise<{ plan: InstallPlan; entries: ZipEntry[] }> {
+    const { body, layout, scanners, extra } = options;
     const sha256 = sha256Of(body);
+    const findings: Finding[] = [...extra];
 
-    const findings: Finding[] = [integrityFinding(version.hash, body)];
-
-    // The closest thing either repository offers to "is this still looked
-    // after". It is not a vulnerability feed -- no such thing exists for game
-    // mods -- but an abandoned mod is where unfixed problems accumulate.
-    if (mod.deprecated) {
-      findings.push({
-        id: 'maintenance',
-        label: 'Maintenance',
-        state: 'warn',
-        summary: 'The author marked this mod deprecated.',
-        detail:
-          'It is no longer maintained, so anything wrong with it will stay wrong. Check the mod page for a successor.',
-      });
-    }
+    const base = {
+      source: options.sourceId,
+      modId: options.modId,
+      modName: options.modName,
+      version: options.version,
+      sha256,
+      sizeBytes: body.length,
+      targetDirectory: layout.directory(options.modId),
+      installMode: layout.install,
+      filename: options.filename,
+    };
 
     // Read and judge the archive before anything else touches it.
     let entries: ZipEntry[];
@@ -415,18 +414,9 @@ export function createModInstaller(dockerClient: DockerClient) {
     } catch (err) {
       const archiveError = err instanceof ArchiveError ? err : null;
       return {
-        body,
         entries: [],
         plan: {
-          source: source.id,
-          modId: mod.id,
-          modName: mod.name,
-          version: version.version,
-          sha256,
-          sizeBytes: body.length,
-          targetDirectory: layout.directory(mod.id),
-          installMode: layout.install,
-          filename: artefactName(version, mod.id),
+          ...base,
           fileCount: 0,
           archive: { entries: 0, files: 0, totalBytes: 0, compressedBytes: 0, peakRatio: 0, extensions: {} },
           scans: [],
@@ -448,33 +438,137 @@ export function createModInstaller(dockerClient: DockerClient) {
 
     const scans = await runScanners(body, sha256, scanners);
     findings.push(scanFinding(scans));
-    findings.push(contentFinding(archive, layout, artefactName(version, mod.id)));
-    findings.push(...compatibilityFindings(version, source, installed));
-
-    const failed = findings.some((f) => f.state === 'fail');
-    const uncertain = findings.some((f) => f.state === 'warn' || f.state === 'unknown');
+    findings.push(contentFinding(archive, layout, options.filename));
 
     return {
-      body,
       entries,
       plan: {
-        source: source.id,
-        modId: mod.id,
-        modName: mod.name,
-        version: version.version,
-        sha256,
-        sizeBytes: body.length,
-        targetDirectory: layout.directory(mod.id),
-        installMode: layout.install,
-        filename: artefactName(version, mod.id),
+        ...base,
         fileCount: archive.files,
         archive,
         scans,
         findings,
-        installable: !failed,
-        needsAcknowledgement: uncertain,
+        installable: !findings.some((f) => f.state === 'fail'),
+        needsAcknowledgement: findings.some((f) => f.state === 'warn' || f.state === 'unknown'),
       },
     };
+  }
+
+
+  /**
+   * Everything that can be judged without writing anything. The returned plan
+   * carries the downloaded bytes' hash, so the install that follows can prove
+   * it is committing what was inspected.
+   */
+  async function prepare(options: {
+    source: ModSource;
+    mod: { id: string; name: string; deprecated?: boolean };
+    version: ModVersion;
+    layout: GameLayout;
+    installed: InstalledState;
+    scanners: ScannerConfig;
+  }): Promise<{ plan: InstallPlan; body: Buffer; entries: ZipEntry[] }> {
+    const { source, mod, version, layout, installed, scanners } = options;
+
+    const body = await download(version.downloadUrl);
+    const extra: Finding[] = [integrityFinding(version.hash, body)];
+
+    // The closest thing either repository offers to "is this still looked
+    // after". It is not a vulnerability feed -- no such thing exists for game
+    // mods -- but an abandoned mod is where unfixed problems accumulate.
+    if (mod.deprecated) {
+      extra.push({
+        id: 'maintenance',
+        label: 'Maintenance',
+        state: 'warn',
+        summary: 'The author marked this mod deprecated.',
+        detail:
+          'It is no longer maintained, so anything wrong with it will stay wrong. Check the mod page for a successor.',
+      });
+    }
+    extra.push(...compatibilityFindings(version, source, installed));
+
+    const { plan, entries } = await judge({
+      body,
+      layout,
+      scanners,
+      sourceId: source.id,
+      modId: mod.id,
+      modName: mod.name,
+      version: version.version,
+      filename: artefactName(version, mod.id),
+      extra,
+    });
+    return { plan, body, entries };
+  }
+
+  /**
+   * The same judgement for a file the operator uploaded themselves.
+   *
+   * Most mods can simply be downloaded from their own site, and for a game
+   * whose repository this portal does not speak, that is the only way. What
+   * cannot be done here is prove where the file came from: there is no
+   * publisher hash to compare against, and the report says so plainly rather
+   * than leaving an operator to assume the same checks ran.
+   */
+  async function prepareUpload(options: {
+    filename: string;
+    body: Buffer;
+    modId: string;
+    modName: string;
+    layout: GameLayout;
+    loader: { id: string; label: string } | null;
+    installed: InstalledState;
+    scanners: ScannerConfig;
+  }): Promise<{ plan: InstallPlan; entries: ZipEntry[] }> {
+    const extra: Finding[] = [
+      {
+        id: 'integrity',
+        label: 'Origin',
+        state: 'unknown',
+        summary: 'Uploaded by hand, so there is nothing to check it against.',
+        detail:
+          'A mod from a repository can be proven to be exactly what its author published. This one cannot — only that the archive is well-formed and what the scanners make of it.',
+      },
+    ];
+
+    if (options.loader) {
+      extra.push(
+        options.installed.loaderPresent
+          ? { id: 'loader', label: options.loader.label, state: 'pass', summary: 'Installed on this server.' }
+          : {
+              id: 'loader',
+              label: options.loader.label,
+              state: 'fail',
+              summary: `${options.loader.label} is not installed, so this mod would never load.`,
+            },
+      );
+    }
+
+    /*
+     * An uploaded archive declares no dependencies, so nothing can be checked
+     * for them. Said out loud, because its absence would otherwise look like
+     * a clean bill of health.
+     */
+    extra.push({
+      id: 'dependencies',
+      label: 'Dependencies',
+      state: 'unknown',
+      summary: 'An uploaded file lists none, so none were checked.',
+      detail: 'If this mod needs others, install those too or it will fail to load.',
+    });
+
+    return judge({
+      body: options.body,
+      layout: options.layout,
+      scanners: options.scanners,
+      sourceId: 'upload',
+      modId: options.modId,
+      modName: options.modName,
+      version: 'uploaded',
+      filename: options.filename,
+      extra,
+    });
   }
 
   /**
@@ -630,7 +724,7 @@ export function createModInstaller(dockerClient: DockerClient) {
     await helpers.run(server.container, ['rm', '-rf', '--', safe(installed.directory)]);
   }
 
-  return { prepare, commit, remove, exists };
+  return { prepare, prepareUpload, commit, remove, exists };
 }
 
 export type ModInstaller = ReturnType<typeof createModInstaller>;

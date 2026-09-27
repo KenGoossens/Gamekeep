@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
 import type { ServerConfig } from '../config.js';
@@ -5,7 +6,10 @@ import { originOf } from '../auth/origin.js';
 import { decryptSecret, encryptSecret } from '../secrets.js';
 import { dataRootsOf } from '../files.js';
 import { getSource, sourceForGame, ModSourceError, type ModSource } from '../mods/sources.js';
-import { layoutFor, type InstalledState } from '../mods/install.js';
+import { layoutFor, type InstalledState, type InstallPlan } from '../mods/install.js';
+
+/** A server mod is rarely larger than this, and it is held in memory. */
+const MAX_UPLOAD_BYTES = 192 * 1024 * 1024;
 import { gameByQueryType } from '../games.js';
 import type { ScannerConfig } from '../mods/scan.js';
 import '../mods/ficsit.js';
@@ -375,6 +379,172 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   });
 
+
+  /*
+   * An uploaded mod is held here between the inspection and the decision, so
+   * the operator reads the report without having to send the file twice. Kept
+   * in memory deliberately: it is short-lived, and writing someone's upload to
+   * disk before it has been judged is how a staging directory becomes a place
+   * unchecked archives accumulate.
+   */
+  const staged = new Map<
+    string,
+    { body: Buffer; entries: unknown[]; plan: unknown; serverId: string; userId: string; at: number }
+  >();
+  const STAGE_TTL_MS = 10 * 60_000;
+  /** Each is up to the upload limit, so very few may wait at once. */
+  const MAX_STAGED = 3;
+
+  function sweepStaged(): void {
+    const cutoff = Date.now() - STAGE_TTL_MS;
+    for (const [token, entry] of staged) if (entry.at < cutoff) staged.delete(token);
+  }
+
+  app.post<{ Params: { id: string } }>(
+    '/api/servers/:id/mods/upload',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const found = await context(request.params.id);
+      if (!found.ok) return reply.code(found.error.code).send(found.error.body);
+
+      sweepStaged();
+      if (staged.size >= MAX_STAGED) {
+        return reply
+          .code(429)
+          .send({ error: 'too-many-pending', message: 'Finish or abandon a pending upload first.' });
+      }
+
+      const part = await request.file({ limits: { fileSize: MAX_UPLOAD_BYTES } });
+      if (!part) return reply.code(400).send({ error: 'no-file' });
+
+      let body: Buffer;
+      try {
+        body = await part.toBuffer();
+      } catch {
+        return reply.code(413).send({
+          error: 'too-large',
+          message: `That file is larger than ${Math.round(MAX_UPLOAD_BYTES / 1048576)} MB.`,
+        });
+      }
+
+      // The name decides the directory the mod lands in, so it is sanitised
+      // rather than trusted; the client may suggest one, the filename is the
+      // fallback.
+      const suggested = String((part.fields?.name as { value?: unknown } | undefined)?.value ?? '');
+      const base = (suggested || part.filename || 'mod').replace(/\.(zip|jar|smod)$/i, '');
+      const modId = base.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 64) || 'mod';
+
+      try {
+        const { plan, entries } = await mods.prepareUpload({
+          filename: part.filename || `${modId}.zip`,
+          body,
+          modId,
+          modName: base.slice(0, 80),
+          layout: found.layout,
+          loader: found.source.loader,
+          installed: await installedState(found.server, found.source),
+          scanners: scannerConfig(),
+        });
+
+        const token = randomUUID();
+        staged.set(token, {
+          body,
+          entries,
+          plan,
+          serverId: found.server.id,
+          userId: user.id,
+          at: Date.now(),
+        });
+        return reply.send({ token, plan });
+      } catch (err) {
+        const f = fail(err);
+        return reply.code(f.code).send(f.body);
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string; token: string }; Body: { acknowledge?: boolean } }>(
+    '/api/servers/:id/mods/upload/:token',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const found = await context(request.params.id);
+      if (!found.ok) return reply.code(found.error.code).send(found.error.body);
+
+      const status = await docker.getStatus(found.server);
+      if (status.running) {
+        return reply.code(409).send({
+          error: 'server-running',
+          message: 'Stop the server before changing which mods it loads.',
+        });
+      }
+
+      sweepStaged();
+      const entry = staged.get(request.params.token);
+      // Bound to the uploader and the server it was inspected against: a
+      // token is not a licence to install someone else's file anywhere.
+      if (!entry || entry.userId !== user.id || entry.serverId !== found.server.id) {
+        return reply.code(404).send({
+          error: 'expired',
+          message: 'That upload is no longer waiting. Upload the file again.',
+        });
+      }
+
+      const plan = entry.plan as InstallPlan;
+      if (!plan.installable) return reply.code(422).send({ error: 'refused', plan });
+      if (plan.needsAcknowledgement && !request.body?.acknowledge) {
+        return reply.code(428).send({ error: 'needs-acknowledgement', plan });
+      }
+
+      try {
+        const root = await dataRoot(found.server);
+        const files = await mods.commit(found.server, root, plan, entry.body, entry.entries as never);
+
+        db.recordInstalledMod({
+          serverId: found.server.id,
+          source: 'upload',
+          modId: plan.modId,
+          modName: plan.modName,
+          version: plan.version,
+          sha256: plan.sha256,
+          directory: plan.targetDirectory,
+          files,
+          report: { findings: plan.findings, scans: plan.scans, archive: plan.archive },
+          installedBy: user.username,
+        });
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: found.server.id,
+          action: 'mod-install',
+          result: 'success',
+          detail: `Uploaded ${plan.modName} (${files.length} files, sha256 ${plan.sha256.slice(0, 16)}…)${
+            plan.needsAcknowledgement ? ' — installed over warnings' : ''
+          }`,
+          ...originOf(request),
+        });
+        notify.send({
+          kind: 'mod-installed',
+          server: {
+            name: found.server.displayName,
+            id: found.server.id,
+            steamAppId: found.server.steamAppId,
+            iconUrl: found.server.iconUrl,
+          },
+          actor: { username: user.username, role: user.role },
+          detail: `${plan.modName} (uploaded by hand)`,
+        });
+
+        return reply.send({ installed: true, plan, files: files.length });
+      } catch (err) {
+        const f = fail(err);
+        return reply.code(f.code).send(f.body);
+      } finally {
+        staged.delete(request.params.token);
+      }
+    },
+  );
   app.delete<{ Params: { id: string; source: string; modId: string } }>(
     '/api/servers/:id/mods/:source/:modId',
     operator,
