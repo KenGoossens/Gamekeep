@@ -4,7 +4,7 @@ import type { AppContext } from '../context.js';
 import { canOperate } from '../db.js';
 
 export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { registry, actions, cooldown, db, guard, docker, gameQuery } = ctx;
+  const { registry, actions, cooldown, db, guard, docker, gameQuery, notify } = ctx;
 
   // A settled job writes its own audit row: the outcome is only known once the
   // container has actually come back (or failed to).
@@ -24,6 +24,21 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
       ip: job.actorIp,
       userAgent: job.actorUserAgent,
     });
+
+    /*
+     * Only the outcomes worth interrupting someone for. A clean restart is
+     * the system working, and a channel that pings for those gets muted.
+     */
+    if (job.phase !== 'done') {
+      notify.send({
+        kind: job.containerRestarted ? 'restart-unconfirmed' : 'restart-failed',
+        server: registry.get(job.serverId)?.displayName ?? job.serverId,
+        actor: job.actorUsername,
+        detail: job.containerRestarted
+          ? 'The container came back, but the game never answered.'
+          : (job.error ?? undefined),
+      });
+    }
   });
 
   app.post<{ Params: { id: string } }>(

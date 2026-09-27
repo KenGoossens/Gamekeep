@@ -171,6 +171,12 @@ export interface RouterStatus {
   config: Record<string, string>;
 }
 
+export interface NotifySettings {
+  configured: boolean;
+  events: string[];
+  available: Array<{ kind: string; label: string }>;
+}
+
 export interface LogFile {
   path: string;
   label: string;
@@ -220,7 +226,7 @@ export interface DashboardServer {
   running: boolean;
   uptimeSeconds: number | null;
   health: string | null;
-  players: { online: number; max: number | null } | null;
+  players: { online: number; max: number | null; names: string[] } | null;
   cpuPercent: number | null;
   memBytes: number | null;
   memLimit: number | null;
@@ -523,6 +529,15 @@ export const api = {
     if (!response.ok) throw new ApiError(response.status, body as Record<string, unknown>);
     return body as { path: string; bytes: number; replaced: boolean };
   },
+
+  notifications: () => request<NotifySettings>('/api/integrations/notifications'),
+  saveNotifications: (webhook: string | undefined, events: string[]) =>
+    request<{ configured: true; events: string[] }>('/api/integrations/notifications', {
+      ...json({ webhook, events }),
+      method: 'PUT',
+    }),
+  disableNotifications: () =>
+    request<{ configured: false }>('/api/integrations/notifications', { method: 'DELETE' }),
 
   logFiles: (serverId: string) =>
     request<{ files: LogFile[] }>(`/api/servers/${encodeURIComponent(serverId)}/logs/files`),

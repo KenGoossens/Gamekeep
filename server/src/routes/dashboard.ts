@@ -22,7 +22,7 @@ export interface DashboardServer {
   uptimeSeconds: number | null;
   health: string | null;
   /** max is null for games whose query does not report a limit. */
-  players: { online: number; max: number | null } | null;
+  players: { online: number; max: number | null; names: string[] } | null;
   cpuPercent: number | null;
   memBytes: number | null;
   memLimit: number | null;
@@ -60,7 +60,16 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: AppContext) {
             running: status.running,
             uptimeSeconds: status.uptimeSeconds,
             health: status.health,
-            players: players ? { online: players.online, max: players.max } : null,
+            players: players
+              ? {
+                  online: players.online,
+                  max: players.max,
+                  // Names, not just a count: "2 online" tells you less than
+                  // "Bart and Arek are on", and it is what makes the social
+                  // side of this visible at all.
+                  names: (players.names ?? []).slice(0, 12),
+                }
+              : null,
             // Only meaningful while the container runs; a stopped server's
             // last sample is history, not a reading.
             cpuPercent: status.running ? (latest?.cpuPercent ?? null) : null,

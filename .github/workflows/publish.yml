@@ -1,0 +1,74 @@
+name: Build and publish the container image
+
+# The Unraid template points at ghcr.io/kengoossens/gamekeep:latest, so until
+# something pushes that image the template is a dead link for anyone who finds
+# this repository.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  # So the image can be rebuilt on a fresh base layer without a code change.
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Everything this needs, and nothing else: GITHUB_TOKEN is scoped per
+      # job, so no long-lived registry credential has to exist anywhere.
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Type-check the server
+        working-directory: server
+        run: |
+          npm ci
+          npx tsc --noEmit
+
+      - name: Type-check and build the frontend
+        working-directory: web
+        run: |
+          npm ci
+          npx tsc -b --noEmit
+          npm run build
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Work out the tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # latest tracks main; a vX.Y.Z tag also publishes X.Y.Z and X.Y, so
+          # anyone who wants to pin can.
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # The layer cache lives in the registry, so a rebuild that only
+          # changed the frontend does not reinstall the server's dependencies.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

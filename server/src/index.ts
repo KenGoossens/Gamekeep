@@ -21,6 +21,8 @@ import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
 import { createModInstaller } from './mods/install.js';
 import { createHelperRunner } from './docker/helper.js';
+import { createNotifier } from './notify.js';
+import { createWatcher } from './watch.js';
 import { createSessions } from './auth/session.js';
 import { createSetupGuard } from './auth/setup.js';
 import { createLoginThrottle } from './auth/ratelimit.js';
@@ -39,6 +41,7 @@ import { registerModRoutes } from './routes/mods.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
+import { registerNotifyRoutes, readNotifyConfig } from './routes/notify.js';
 import type { AppContext } from './context.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -64,6 +67,13 @@ async function main() {
   const metrics = createMetricsCollector(docker, registry, gameQuery, db);
   const settings = createSettingsManager(docker);
   const files = createFileBrowser(docker);
+  const notify = createNotifier({
+    publicUrl: env.PUBLIC_URL,
+    readConfig: () => readNotifyConfig({ db, env }),
+    // Console rather than app.log: the services are built before Fastify is,
+    // and a failed notification is not worth reordering the boot for.
+    onError: (message) => console.warn(`[Gamekeep] ${message}`),
+  });
   const mods = createModInstaller(docker);
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
@@ -85,6 +95,7 @@ async function main() {
     metrics,
     settings,
     files,
+    notify,
     mods,
     health,
     sessions,
@@ -155,6 +166,7 @@ async function main() {
   registerDashboardRoutes(app, ctx);
   registerLogRoutes(app, ctx);
   registerAccessRoutes(app, ctx);
+  registerNotifyRoutes(app, ctx);
 
   if (existsSync(join(WEB_ROOT, 'index.html'))) {
     await app.register(fastifyStatic, { root: WEB_ROOT });
@@ -187,6 +199,13 @@ async function main() {
 
   sessions.startSweeper();
   metrics.start();
+  createWatcher({
+    registry,
+    docker,
+    actions,
+    notify,
+    lastActionAt: (id) => db.lastServerActionAt(id),
+  }).start();
 
   // Fetched in the background: a slow or blocked Steam CDN must not hold up
   // the portal, and a missing image only costs a lettered tile.

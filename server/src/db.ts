@@ -401,6 +401,15 @@ export function openDatabase(path: string) {
        WHERE server_id = ? AND result IN ('success', 'unconfirmed')
          AND action IN ('restart', 'pull-recreate')`,
     ),
+    /*
+     * Any deliberate action, including a stop -- which the one above must not
+     * count, since a stop should not start a restart cooldown. Used to tell a
+     * server someone switched off from one that fell over.
+     */
+    lastServerAction: db.prepare(
+      `SELECT MAX(ts) AS ts FROM audit_log
+       WHERE server_id = ? AND action IN ('restart', 'pull-recreate', 'start', 'stop')`,
+    ),
   };
 
   return {
@@ -680,6 +689,11 @@ export function openDatabase(path: string) {
      */
     lastSuccessfulActionAt(serverId: string): number | null {
       const row = st.lastSuccessfulAction.get(serverId) as { ts: number | null } | undefined;
+      return row?.ts ?? null;
+    },
+
+    lastServerActionAt(serverId: string): number | null {
+      const row = st.lastServerAction.get(serverId) as { ts: number | null } | undefined;
       return row?.ts ?? null;
     },
   };

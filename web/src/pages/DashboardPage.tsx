@@ -76,7 +76,15 @@ function Stat({
 }
 
 /** One server, with just enough to decide whether to open it. */
-function ServerTile({ server, colour }: { server: DashboardServer; colour: string }) {
+function ServerTile({
+  server,
+  colour,
+  detailed,
+}: {
+  server: DashboardServer;
+  colour: string;
+  detailed: boolean;
+}) {
   const tone = server.running ? (server.health === 'unhealthy' ? 'warn' : 'ok') : 'bad';
   return (
     <a className="fleet-tile" {...linkProps(`/servers/${server.id}`)}>
@@ -97,20 +105,31 @@ function ServerTile({ server, colour }: { server: DashboardServer; colour: strin
           <dt>Uptime</dt>
           <dd>{uptime(server.uptimeSeconds)}</dd>
         </div>
-        <div>
-          <dt>CPU</dt>
-          <dd>{server.cpuPercent === null ? '—' : `${server.cpuPercent.toFixed(0)}%`}</dd>
-        </div>
-        <div>
-          <dt>Memory</dt>
-          <dd>{bytes(server.memBytes)}</dd>
-        </div>
+        {/* CPU and memory are an operator's business; to everyone else they
+            are numbers they cannot act on. */}
+        {detailed ? (
+          <>
+            <div>
+              <dt>CPU</dt>
+              <dd>{server.cpuPercent === null ? '—' : `${server.cpuPercent.toFixed(0)}%`}</dd>
+            </div>
+            <div>
+              <dt>Memory</dt>
+              <dd>{bytes(server.memBytes)}</dd>
+            </div>
+          </>
+        ) : null}
       </dl>
+
+      {/* Who is actually on, which is what most people opened this to see. */}
+      {server.players && server.players.names.length > 0 ? (
+        <p className="fleet-players">{server.players.names.join(', ')}</p>
+      ) : null}
     </a>
   );
 }
 
-export function DashboardPage() {
+export function DashboardPage({ canOperate }: { canOperate: boolean }) {
   const [data, setData] = useState<Dashboard | null>(null);
   const [windowMs, setWindowMs] = useState(6 * 3_600_000);
   const [error, setError] = useState<string | null>(null);
@@ -203,6 +222,8 @@ export function DashboardPage() {
           label="Players online"
           sub={totals.capacity > 0 ? `of ${totals.capacity} slots` : 'no limit reported'}
         />
+        {canOperate ? (
+          <>
         <Stat
           value={String(outcomes.success ?? 0)}
           label="Clean restarts"
@@ -215,6 +236,8 @@ export function DashboardPage() {
           sub={unconfirmed > 0 ? `${unconfirmed} came back but stayed silent` : 'none'}
           tone={unconfirmed + failures > 0 ? 'bad' : 'plain'}
         />
+          </>
+        ) : null}
       </section>
 
       {data.activeJobs.length > 0 ? (
@@ -237,6 +260,7 @@ export function DashboardPage() {
               key={server.id}
               server={server}
               colour={colourOf.get(server.id) ?? SERIES_COLOURS[0]!}
+              detailed={canOperate}
             />
           ))}
       </section>
@@ -249,6 +273,7 @@ export function DashboardPage() {
         />
       </section>
 
+      {canOperate ? (
       <div className="chartgrid">
         <section className="card">
           <TimeChart
@@ -264,7 +289,9 @@ export function DashboardPage() {
         </section>
       </div>
 
-      {data.series.length > MAX_SERIES ? (
+      ) : null}
+
+      {canOperate && data.series.length > MAX_SERIES ? (
         <p className="hint">
           Charts show the first {MAX_SERIES} servers; beyond that the lines stop being readable.
           Open a server for its own history.

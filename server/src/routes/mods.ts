@@ -25,7 +25,7 @@ import '../mods/modrinth.js';
 const SCANNER_KEY = 'scanners';
 
 export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { registry, docker, db, env, guard, mods } = ctx;
+  const { registry, docker, db, env, guard, mods, notify } = ctx;
   const operator = { preHandler: guard.requireOperator };
   const owner = { preHandler: guard.requireOwner };
 
@@ -327,6 +327,13 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
         ...originOf(request),
       });
 
+
+      notify.send({
+        kind: 'mod-installed',
+        server: found.server.displayName,
+        actor: user.username,
+        detail: `${summary.name} ${version.version}`,
+      });
       return reply.send({ installed: true, plan, files: files.length });
     } catch (err) {
       const f = fail(err);

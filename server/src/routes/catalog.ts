@@ -79,7 +79,7 @@ ${configs.join('\n')}
 }
 
 export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { catalog, deployer, registry, db, guard, env, artwork } = ctx;
+  const { catalog, deployer, registry, db, guard, env, artwork, notify } = ctx;
   const operator = { preHandler: guard.requireOperator };
 
   app.get<{ Querystring: { q?: string; refresh?: string } }>(
@@ -295,6 +295,13 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
         ...originOf(request),
       });
 
+
+      notify.send({
+        kind: 'deployed',
+        server: name,
+        actor: user.username,
+        detail: `${found.name} by ${found.publisher}`,
+      });
       return reply.code(201).send({
         serverId,
         container: plan.containerName,

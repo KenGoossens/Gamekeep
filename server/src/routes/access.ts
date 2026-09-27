@@ -23,7 +23,7 @@ interface Stored {
 }
 
 export function registerAccessRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { db, env, guard } = ctx;
+  const { db, env, guard, notify } = ctx;
   const owner = { preHandler: guard.requireOwner };
   const operator = { preHandler: guard.requireOperator };
 
@@ -178,6 +178,11 @@ export function registerAccessRoutes(app: FastifyInstance, ctx: AppContext) {
           result: 'success',
           detail: `Added ${email.toLowerCase()} to Cloudflare Access policy "${policy.name}"`,
           ...originOf(request),
+        });
+        notify.send({
+          kind: 'access-granted',
+          actor: user.username,
+          detail: `${email.toLowerCase()} may now reach the portal`,
         });
         return reply.send({ policy });
       } catch (err) {
