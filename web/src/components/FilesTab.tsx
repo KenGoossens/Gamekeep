@@ -212,8 +212,10 @@ export function FilesTab({ serverId }: { serverId: string }) {
                 📄 {entry.name}
               </button>
             ) : (
+              // Carries the same icon as an editable file, dimmed: without it
+              // these rows start at a different x and the column looks ragged.
               <span className="filelink muted" title="Not a text file this editor will open">
-                {entry.name}
+                📄 {entry.name}
               </span>
             )}
             <span className="when">{entry.kind === 'file' ? bytes(entry.size) : ''}</span>
