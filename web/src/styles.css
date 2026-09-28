@@ -419,6 +419,28 @@ button:disabled,
   margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-soft);
 }
 .addrow input { flex: 1; min-width: 10rem; width: auto; }
+/* ---- schedules ---- */
+.addrow select {
+  font: inherit; color: var(--text);
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.addrow select:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.daypick { display: inline-flex; gap: 5px; flex-wrap: wrap; }
+.daypick button {
+  font: inherit; font-size: 0.78rem; padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-raised);
+  color: var(--muted); cursor: pointer;
+}
+.daypick button.on {
+  background: var(--accent-soft); border-color: rgba(124, 108, 242, 0.5);
+  color: var(--text);
+}
+.sched-when { font-size: 0.8rem; color: var(--faint); }
+
 .checkline {
   display: inline-flex; align-items: center; gap: 7px;
   color: var(--muted); font-size: 0.89rem; white-space: nowrap;

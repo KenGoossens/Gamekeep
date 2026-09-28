@@ -31,7 +31,72 @@ export type AuditAction =
   | 'user-disabled'
   | 'user-enabled'
   | 'password-changed'
-  | 'password-reset';
+  | 'password-reset'
+  | 'schedule-created'
+  | 'schedule-changed'
+  | 'schedule-removed';
+
+
+export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';
+
+export interface ScheduleRow {
+  id: string;
+  serverId: string;
+  name: string;
+  action: ScheduleAction;
+  /** 'HH:MM' in the portal's own time zone. */
+  time: string;
+  /** Days of the week, 0 = Sunday. Empty means every day. */
+  days: number[];
+  skipOccupied: boolean;
+  enabled: boolean;
+  createdAt: number;
+  createdBy: string | null;
+  nextRunAt: number | null;
+  lastRunAt: number | null;
+  lastResult: string | null;
+}
+
+interface RawScheduleRow {
+  id: string;
+  server_id: string;
+  name: string;
+  action: string;
+  time_of_day: string;
+  days: string;
+  skip_occupied: number;
+  enabled: number;
+  created_at: number;
+  created_by: string | null;
+  next_run_at: number | null;
+  last_run_at: number | null;
+  last_result: string | null;
+}
+
+function toScheduleRow(raw: RawScheduleRow): ScheduleRow {
+  let days: number[] = [];
+  try {
+    const parsed = JSON.parse(raw.days) as unknown;
+    if (Array.isArray(parsed)) days = parsed.filter((d): d is number => Number.isInteger(d));
+  } catch {
+    // An unparsable day list behaves as "every day" rather than never firing.
+  }
+  return {
+    id: raw.id,
+    serverId: raw.server_id,
+    name: raw.name,
+    action: raw.action as ScheduleAction,
+    time: raw.time_of_day,
+    days,
+    skipOccupied: raw.skip_occupied === 1,
+    enabled: raw.enabled === 1,
+    createdAt: raw.created_at,
+    createdBy: raw.created_by,
+    nextRunAt: raw.next_run_at,
+    lastRunAt: raw.last_run_at,
+    lastResult: raw.last_result,
+  };
+}
 
 export type AuditResult =
   | 'success'
@@ -280,6 +345,33 @@ export function openDatabase(path: string) {
       PRIMARY KEY (server_id, source, mod_id)
     );
 
+    /*
+     * One row per scheduled action. Times are HH:MM in the portal's own time
+     * zone -- the scheduler is the only thing that evaluates them, so its
+     * clock is the one that counts, and the API says which zone that is
+     * rather than leaving people to guess. next_run_at is precomputed so the
+     * ticker is one indexed comparison, and it is recomputed from "now" at
+     * boot: a run missed while the portal was down is skipped, because a
+     * 05:00 restart firing at 14:00 is worse than not firing at all.
+     */
+    CREATE TABLE IF NOT EXISTS schedules (
+      id            TEXT PRIMARY KEY,
+      server_id     TEXT NOT NULL,
+      name          TEXT NOT NULL,
+      action        TEXT NOT NULL,
+      time_of_day   TEXT NOT NULL,
+      days          TEXT NOT NULL,
+      skip_occupied INTEGER NOT NULL DEFAULT 1,
+      enabled       INTEGER NOT NULL DEFAULT 1,
+      created_at    INTEGER NOT NULL,
+      created_by    TEXT,
+      next_run_at   INTEGER,
+      last_run_at   INTEGER,
+      last_result   TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_schedules_server ON schedules (server_id);
+    CREATE INDEX IF NOT EXISTS idx_schedules_due ON schedules (enabled, next_run_at);
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -411,6 +503,31 @@ export function openDatabase(path: string) {
       'DELETE FROM installed_mods WHERE server_id = ? AND source = ? AND mod_id = ?'
     ),
 
+    listSchedules: db.prepare('SELECT * FROM schedules WHERE server_id = ? ORDER BY time_of_day'),
+    allSchedules: db.prepare('SELECT * FROM schedules ORDER BY server_id, time_of_day'),
+    dueSchedules: db.prepare(
+      'SELECT * FROM schedules WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?',
+    ),
+    getSchedule: db.prepare('SELECT * FROM schedules WHERE id = ?'),
+    countSchedules: db.prepare('SELECT COUNT(*) AS n FROM schedules WHERE server_id = ?'),
+    insertSchedule: db.prepare(
+      `INSERT INTO schedules
+         (id, server_id, name, action, time_of_day, days, skip_occupied, enabled, created_at, created_by, next_run_at)
+       VALUES (@id, @serverId, @name, @action, @time, @days, @skipOccupied, @enabled, @createdAt, @createdBy, @nextRunAt)`,
+    ),
+    updateSchedule: db.prepare(
+      `UPDATE schedules SET name = @name, action = @action, time_of_day = @time, days = @days,
+         skip_occupied = @skipOccupied, enabled = @enabled, next_run_at = @nextRunAt
+       WHERE id = @id`,
+    ),
+    recordScheduleRun: db.prepare(
+      'UPDATE schedules SET last_run_at = @lastRunAt, last_result = @lastResult, next_run_at = @nextRunAt WHERE id = @id',
+    ),
+    noteScheduleResult: db.prepare('UPDATE schedules SET last_result = ? WHERE id = ?'),
+    setScheduleNext: db.prepare('UPDATE schedules SET next_run_at = ? WHERE id = ?'),
+    deleteSchedule: db.prepare('DELETE FROM schedules WHERE id = ?'),
+    deleteSchedulesFor: db.prepare('DELETE FROM schedules WHERE server_id = ?'),
+
     getSetting: db.prepare('SELECT value FROM app_settings WHERE key = ?'),
     setSetting: db.prepare(
       'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
@@ -522,6 +639,98 @@ export function openDatabase(path: string) {
 
     removeManagedServer(id: string) {
       st.deleteManaged.run(id);
+    },
+
+    listSchedules(serverId: string): ScheduleRow[] {
+      return (st.listSchedules.all(serverId) as unknown as RawScheduleRow[]).map(toScheduleRow);
+    },
+
+    allSchedules(): ScheduleRow[] {
+      return (st.allSchedules.all() as unknown as RawScheduleRow[]).map(toScheduleRow);
+    },
+
+    dueSchedules(now: number): ScheduleRow[] {
+      return (st.dueSchedules.all(now) as unknown as RawScheduleRow[]).map(toScheduleRow);
+    },
+
+    getSchedule(id: string): ScheduleRow | null {
+      const raw = st.getSchedule.get(id) as RawScheduleRow | undefined;
+      return raw ? toScheduleRow(raw) : null;
+    },
+
+    countSchedules(serverId: string): number {
+      return Number((st.countSchedules.get(serverId) as { n: number }).n);
+    },
+
+    addSchedule(row: {
+      id: string;
+      serverId: string;
+      name: string;
+      action: ScheduleAction;
+      time: string;
+      days: number[];
+      skipOccupied: boolean;
+      enabled: boolean;
+      createdBy: string | null;
+      nextRunAt: number | null;
+    }) {
+      st.insertSchedule.run({
+        id: row.id,
+        serverId: row.serverId,
+        name: row.name,
+        action: row.action,
+        time: row.time,
+        days: JSON.stringify(row.days),
+        skipOccupied: row.skipOccupied ? 1 : 0,
+        enabled: row.enabled ? 1 : 0,
+        createdAt: Date.now(),
+        createdBy: row.createdBy,
+        nextRunAt: row.nextRunAt,
+      });
+    },
+
+    updateSchedule(row: {
+      id: string;
+      name: string;
+      action: ScheduleAction;
+      time: string;
+      days: number[];
+      skipOccupied: boolean;
+      enabled: boolean;
+      nextRunAt: number | null;
+    }) {
+      st.updateSchedule.run({
+        id: row.id,
+        name: row.name,
+        action: row.action,
+        time: row.time,
+        days: JSON.stringify(row.days),
+        skipOccupied: row.skipOccupied ? 1 : 0,
+        enabled: row.enabled ? 1 : 0,
+        nextRunAt: row.nextRunAt,
+      });
+    },
+
+    recordScheduleRun(id: string, run: { lastRunAt: number; lastResult: string; nextRunAt: number | null }) {
+      st.recordScheduleRun.run({ id, ...run });
+    },
+
+    /** Updates only the outcome text, once a run's job has settled. */
+    noteScheduleResult(id: string, result: string) {
+      st.noteScheduleResult.run(result, id);
+    },
+
+    /** Moves only the next run, leaving the last run's history alone. */
+    setScheduleNextRun(id: string, nextRunAt: number | null) {
+      st.setScheduleNext.run(nextRunAt, id);
+    },
+
+    removeSchedule(id: string) {
+      st.deleteSchedule.run(id);
+    },
+
+    removeSchedulesFor(serverId: string) {
+      st.deleteSchedulesFor.run(serverId);
     },
 
     listInstalledMods(serverId: string): InstalledModRow[] {

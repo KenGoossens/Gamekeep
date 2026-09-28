@@ -388,6 +388,40 @@ export interface WorkshopList {
   lookupError: string | null;
 }
 
+export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';
+
+export interface Schedule {
+  id: string;
+  name: string;
+  action: ScheduleAction;
+  /** 'HH:MM' in the portal's time zone. */
+  time: string;
+  /** Days of the week, 0 = Sunday. Empty means every day. */
+  days: number[];
+  skipOccupied: boolean;
+  enabled: boolean;
+  nextRunAt: number | null;
+  lastRunAt: number | null;
+  lastResult: string | null;
+}
+
+export interface ScheduleList {
+  schedules: Schedule[];
+  actions: ScheduleAction[];
+  /** The zone the portal's clock runs in -- what "05:00" actually means. */
+  timezone: string;
+  serverTime: string;
+}
+
+export interface ScheduleInput {
+  name?: string;
+  action: ScheduleAction;
+  time: string;
+  days: number[];
+  skipOccupied: boolean;
+  enabled?: boolean;
+}
+
 export interface ScannerSettings {
   virustotal: boolean;
   clamavHost: string;
@@ -652,6 +686,24 @@ export const api = {
     request<Dashboard>(`/api/dashboard?window=`),
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
+
+  schedules: (serverId: string) =>
+    request<ScheduleList>(`/api/servers/${encodeURIComponent(serverId)}/schedules`),
+  createSchedule: (serverId: string, input: ScheduleInput) =>
+    request<{ schedule: Schedule }>(`/api/servers/${encodeURIComponent(serverId)}/schedules`, {
+      ...json(input),
+      method: 'POST',
+    }),
+  updateSchedule: (serverId: string, scheduleId: string, input: Partial<ScheduleInput>) =>
+    request<{ schedule: Schedule }>(
+      `/api/servers/${encodeURIComponent(serverId)}/schedules/${encodeURIComponent(scheduleId)}`,
+      { ...json(input), method: 'PATCH' },
+    ),
+  deleteSchedule: (serverId: string, scheduleId: string) =>
+    request<{ removed: string }>(
+      `/api/servers/${encodeURIComponent(serverId)}/schedules/${encodeURIComponent(scheduleId)}`,
+      { method: 'DELETE' },
+    ),
 
   workshop: (serverId: string) =>
     request<WorkshopList>(`/api/servers/${encodeURIComponent(serverId)}/workshop`),

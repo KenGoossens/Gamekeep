@@ -14,6 +14,7 @@ import type { createFileBrowser } from './files.js';
 import type { HealthReporter } from './health.js';
 import type { ModInstaller } from './mods/install.js';
 import type { WorkshopDeclarations } from './mods/declare.js';
+import type { Scheduler } from './schedule.js';
 import type { Notifier } from './notify.js';
 import type { Sessions } from './auth/session.js';
 import type { SetupGuard } from './auth/setup.js';
@@ -44,6 +45,8 @@ export interface AppContext {
   mods: ModInstaller;
   /** Steam Workshop mods, which are declared in config rather than installed. */
   workshop: WorkshopDeclarations;
+  /** Actions that run themselves at a set time. */
+  scheduler: Scheduler;
   /** Read-only status of every connection the portal depends on. */
   health: HealthReporter;
   sessions: Sessions;

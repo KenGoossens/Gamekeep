@@ -21,6 +21,7 @@ import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
 import { createModInstaller } from './mods/install.js';
 import { createWorkshopDeclarations } from './mods/declare.js';
+import { createScheduler } from './schedule.js';
 import { createHelperRunner } from './docker/helper.js';
 import { createNotifier } from './notify.js';
 import { createWatcher } from './watch.js';
@@ -40,6 +41,7 @@ import { registerNetworkRoutes } from './routes/network.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerModRoutes } from './routes/mods.js';
 import { registerWorkshopRoutes } from './routes/workshop.js';
+import { registerScheduleRoutes } from './routes/schedules.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
@@ -78,6 +80,15 @@ async function main() {
   });
   const mods = createModInstaller(docker);
   const workshop = createWorkshopDeclarations(docker);
+  const scheduler = createScheduler({
+    db,
+    registry,
+    actions,
+    docker,
+    gameQuery,
+    // Console for the same reason the notifier uses it: built before Fastify.
+    log: (message) => console.log(`[Gamekeep] ${message}`),
+  });
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
@@ -101,6 +112,7 @@ async function main() {
     notify,
     mods,
     workshop,
+    scheduler,
     health,
     sessions,
     setup,
@@ -168,6 +180,7 @@ async function main() {
   registerSystemRoutes(app, ctx);
   registerModRoutes(app, ctx);
   registerWorkshopRoutes(app, ctx);
+  registerScheduleRoutes(app, ctx);
   registerDashboardRoutes(app, ctx);
   registerLogRoutes(app, ctx);
   registerAccessRoutes(app, ctx);
@@ -204,6 +217,7 @@ async function main() {
 
   sessions.startSweeper();
   metrics.start();
+  scheduler.start();
   createWatcher({
     registry,
     docker,

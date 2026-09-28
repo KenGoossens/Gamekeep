@@ -68,7 +68,10 @@ export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQu
   /** Finished jobs linger so the UI can read the final phase after completion. */
   const finished = new Map<string, Job>();
   /** Set by the route layer so a settled job can be written to the audit log. */
-  let onSettled: ((job: Job) => void) | undefined;
+  // A list, not a slot: the routes report to the audit log and Discord, and
+  // the scheduler separately records the outcome on its own row. The second
+  // subscriber must not silently replace the first.
+  const onSettled: Array<(job: Job) => void> = [];
 
   function getJob(jobId: unknown): Job | undefined {
     if (typeof jobId !== 'string') return undefined;
@@ -451,14 +454,20 @@ export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQu
         job.finishedAt = Date.now();
         dockerClient.invalidate(server);
         retire(job);
-        onSettled?.(job);
+        for (const listener of onSettled) {
+          try {
+            listener(job);
+          } catch {
+            // One listener's failure must not starve the others.
+          }
+        }
       });
 
     return { ok: true, job };
   }
 
   function setOnSettled(fn: (job: Job) => void) {
-    onSettled = fn;
+    onSettled.push(fn);
   }
 
   return { start, getJob, activeJobFor, setOnSettled };

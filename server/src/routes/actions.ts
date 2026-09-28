@@ -11,7 +11,8 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
   // container has actually come back (or failed to).
   actions.setOnSettled((job) => {
     db.audit({
-      userId: job.actorUserId,
+      // Empty when the actor was a schedule rather than a person.
+      userId: job.actorUserId || null,
       username: job.actorUsername,
       serverId: job.serverId,
       action: job.action,

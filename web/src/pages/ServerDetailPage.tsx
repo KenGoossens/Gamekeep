@@ -19,9 +19,10 @@ import { FilesTab } from '../components/FilesTab.tsx';
 import { NetworkTab } from '../components/NetworkTab.tsx';
 import { ModsTab } from '../components/ModsTab.tsx';
 import { LogsTab } from '../components/LogsTab.tsx';
+import { ScheduleTab } from '../components/ScheduleTab.tsx';
 import { WorldCard } from '../components/WorldCard.tsx';
 
-type Tab = 'overview' | 'metrics' | 'logs' | 'settings' | 'files' | 'mods' | 'network';
+type Tab = 'overview' | 'metrics' | 'logs' | 'settings' | 'files' | 'mods' | 'network' | 'schedule';
 
 const POLL_IDLE_MS = 5000;
 const POLL_BUSY_MS = 2000;
@@ -185,6 +186,7 @@ export function ServerDetailPage({
                   ['files', 'Files', true],
                   ['mods', 'Mods', true],
                   ['network', 'Network', false],
+                  ['schedule', 'Schedule', false],
                 ] as Array<[Tab, string, boolean]>)
               : []),
           ] as Array<[Tab, string, boolean]>
@@ -250,6 +252,15 @@ export function ServerDetailPage({
             <h2>Reachability</h2>
           </div>
           <NetworkTab serverId={server.id} isOwner={isOwner} />
+        </section>
+      ) : null}
+
+      {tab === 'schedule' && canOperate ? (
+        <section className="card">
+          <div className="card-head">
+            <h2>Schedule</h2>
+          </div>
+          <ScheduleTab serverId={server.id} />
         </section>
       ) : null}
 

@@ -387,6 +387,31 @@ seconds and finishes the moment the game replies. One number for every game
 meant slow games reported healthy restarts as failures. Set
 `restartTimeoutSeconds` on a server only to override the registry for that one.
 
+## Schedules
+
+**Schedule → operator level.** A standing instruction per server: restart, stop
+or start at a set time on set days. The classic use is a nightly restart at
+05:00, when the memory leak has had its day.
+
+Deliberately not cron — a time and week days are the entire vocabulary the job
+needs. Three rules keep a schedule from doing damage on its own:
+
+- **It never turns a stopped server back on.** Someone stopped that server on
+  purpose; a restart schedule skips until someone starts it again. Starting is
+  its own schedule action for whoever really wants it.
+- **"Skip when players are online"** (the default) asks the game itself at the
+  moment of truth, not a cached count.
+- **A missed run stays missed.** If the portal was down at 05:00, the restart
+  does not fire at whatever time the portal comes back — it waits for the next
+  05:00.
+
+Runs go through the same machinery as a button press: two-stage verification,
+cooldown, audit log and Discord all apply, with the schedule named as the
+actor. Times run on the portal's own clock, and the tab says which time zone
+that is — a container without `TZ` set runs in UTC, which you want to know
+before 05:00, not after. Set `TZ` (e.g. `Europe/Brussels`) on the Gamekeep
+container to change it.
+
 ## Restart or update?
 
 `updateStrategy: "restart"` (the default) stops and starts the container. For most
