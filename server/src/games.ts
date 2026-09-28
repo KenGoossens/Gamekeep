@@ -39,6 +39,16 @@ export interface GameProfile {
   /** GameDig's id for this game, used for the player count. */
   query: string;
   /**
+   * How long this game may take to answer after a restart, in seconds.
+   *
+   * A ceiling, not a wait: the verifier polls every two seconds and returns
+   * the moment the game replies. Set too low it gives up on a healthy server
+   * that is still loading its world, which is reported as unconfirmed and
+   * looks like a fault. These are measured values from real servers rather
+   * than one number applied to every game.
+   */
+  startupSeconds?: number;
+  /**
    * Other ids the same game is known by. GameDig accepts several spellings
    * per game and a hand-written servers.json may use any of them, so a
    * registry that only knew the canonical one would fail to recognise servers
@@ -87,6 +97,7 @@ export const GAMES: GameProfile[] = [
     key: 'valheim',
     label: 'Valheim',
     query: 'valheim',
+    startupSeconds: 300,
     match: [/valheim/i],
     mods: thunderstore('valheim'),
   },
@@ -94,6 +105,8 @@ export const GAMES: GameProfile[] = [
     key: 'satisfactory',
     label: 'Satisfactory',
     query: 'satisfactory',
+    // The slowest of the four measured here: a large factory takes a while.
+    startupSeconds: 420,
     match: [/satisfactory/i],
     mods: {
       source: 'ficsit',
@@ -107,6 +120,7 @@ export const GAMES: GameProfile[] = [
     key: 'minecraft-bedrock',
     label: 'Minecraft (Bedrock)',
     query: 'minecraftbe',
+    startupSeconds: 240,
     aliases: ['mbe', 'mcbe', 'minecraftped', 'mcpe', 'bedrock'],
     // Listed before the Java pattern: "minecraftbedrockserver" contains both.
     match: [/bedrock/i, /minecraftbe/i],
@@ -153,6 +167,7 @@ export const GAMES: GameProfile[] = [
     key: 'enshrouded',
     label: 'Enshrouded',
     query: 'enshrouded',
+    startupSeconds: 360,
     match: [/enshrouded/i],
     modsUnavailable: 'Enshrouded has no mod support, so there is nothing to install.',
   },

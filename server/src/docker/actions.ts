@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { connect } from 'node:net';
 import type Dockerode from 'dockerode';
 import type { ServerConfig } from '../config.js';
 import type { DockerClient } from './client.js';
@@ -164,6 +165,91 @@ export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQu
   }
 
   /**
+   * The weaker check, for a game this portal does not know how to query.
+   *
+   * A deployed server whose game is not in the registry has no query block,
+   * and the job used to finish the moment the container was up -- reporting a
+   * restart as successful without having heard from the game at all. This at
+   * least waits until something accepts a connection on one of the ports the
+   * server publishes, which is a long way short of "the game answered" but a
+   * long way past "the process exists".
+   *
+   * TCP only. A UDP port cannot be probed without speaking the game's own
+   * protocol, which is the thing we do not know here.
+   */
+  async function verifyPortListening(
+    server: ServerConfig,
+    job: Job,
+    deadline: number,
+  ): Promise<void> {
+    let ports: number[] = [];
+    try {
+      const info = await docker.getContainer(server.container).inspect();
+      /*
+       * The ports actually published, not the image's EXPOSE. An image
+       * declares whatever its author thought it might use; the bindings are
+       * what this server was deployed to serve on. Testing against a
+       * container built from this portal's own image found it inheriting
+       * EXPOSE 8080 and waiting for a port nothing would ever open.
+       */
+      ports = Object.keys(info.HostConfig?.PortBindings ?? {})
+        .filter((spec) => spec.endsWith('/tcp'))
+        .map((spec) => Number(spec.split('/')[0]))
+        .filter((p) => Number.isInteger(p) && p > 0);
+    } catch {
+      // Cannot read the container: nothing to probe, and verifyContainer has
+      // already established it is running.
+    }
+
+    if (ports.length === 0) {
+      // Said rather than passed over in silence: the restart is as verified as
+      // it is going to get, and the operator should know that is not much.
+      job.message = 'Container is up; this game cannot be checked any further';
+      return;
+    }
+
+    job.message = 'Container is up, waiting for the game port to open';
+
+    while (Date.now() < deadline) {
+      dockerClient.invalidate(server);
+      const status = await dockerClient.getStatus(server);
+      if (!status.running) {
+        throw new Error(
+          `The container started but then stopped again (exit code ${status.exitCode ?? 'unknown'}). Check its log in Unraid.`,
+        );
+      }
+
+      for (const port of ports) {
+        if (await portAccepts(server.container, port)) return;
+      }
+
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      job.message = `Container is up, waiting for the game port to open (${remaining}s left)`;
+      await sleep(2000);
+    }
+
+    throw new Error(
+      `The container is running, but nothing is listening on ${ports.join(', ')} after ` +
+        `${server.restartTimeoutSeconds}s. It may still be starting; raise restartTimeoutSeconds ` +
+        `for this server if that is normal for it.`,
+    );
+  }
+
+  /** One short connection attempt, resolved either way rather than throwing. */
+  function portAccepts(host: string, port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = connect({ host, port });
+      const done = (ok: boolean) => {
+        socket.destroy();
+        resolve(ok);
+      };
+      socket.setTimeout(2000, () => done(false));
+      socket.once('connect', () => done(true));
+      socket.once('error', () => done(false));
+    });
+  }
+
+  /**
    * Stage 2: the game itself answers a query.
    *
    * A running container is not a running game. A crashed game server can sit
@@ -177,7 +263,7 @@ export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQu
     deadline: number,
   ): Promise<void> {
     const query = server.query;
-    if (!query) return;
+    if (!query) return verifyPortListening(server, job, deadline);
 
     job.message = 'Container is up, waiting for the game to respond';
 

@@ -286,7 +286,10 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
         container: plan.containerName,
         iconUrl: parsed.icon ?? undefined,
         cooldownSeconds: 300,
-        restartTimeoutSeconds: 300,
+        // How long this game is actually given to come back, rather than one
+        // number for every game: too short reports a healthy server that is
+        // still loading as unconfirmed, which reads as a fault.
+        restartTimeoutSeconds: game?.startupSeconds ?? 300,
         query:
           game && ports.length > 0
             ? // The container name, not the host's address: the server shares
