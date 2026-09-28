@@ -3,6 +3,7 @@ import type { AppContext } from '../context.js';
 import { originOf } from '../auth/origin.js';
 import { decryptSecret, encryptSecret } from '../secrets.js';
 import { coveredBy, requiredForwards, UnifiError } from '../unifi.js';
+import { gameByQueryType, missingPorts, type GamePort } from '../games.js';
 import { buildProvider, listProviders, type RouterProvider } from '../router/provider.js';
 import { createPublicAddressLookup } from '../network/publicip.js';
 import '../router/unifi-provider.js';
@@ -18,6 +19,41 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, docker, db, env, guard } = ctx;
   const publicIp = createPublicAddressLookup();
   const owner = { preHandler: guard.requireOwner };
+
+  /**
+   * Ports the game needs that this container never published.
+   *
+   * Forwarding can only ever act on what a container publishes, so a port the
+   * template forgot is invisible to it -- the rules look complete and
+   * multiplayer still does not work. This compares against the game registry
+   * instead, and is the only check here that can see an absence.
+   */
+  async function gaps(server: { container: string; query?: { type: string } }): Promise<{
+    known: boolean;
+    missing: GamePort[];
+  }> {
+    const game = gameByQueryType(server.query?.type);
+    if (!game) return { known: false, missing: [] };
+
+    let bindings: Record<string, unknown> = {};
+    try {
+      const info = await docker.docker.getContainer(server.container).inspect();
+      bindings = info.HostConfig?.PortBindings ?? {};
+    } catch {
+      // A container that cannot be inspected is reported elsewhere; here it
+      // just means we cannot say, which is not the same as "nothing missing".
+      return { known: false, missing: [] };
+    }
+
+    const published = Object.entries(bindings)
+      .filter(([, value]) => Array.isArray(value) && value.length > 0)
+      .map(([key]) => {
+        const [port, protocol] = key.split('/');
+        return { port: Number(port), protocol: protocol === 'udp' ? ('udp' as const) : ('tcp' as const) };
+      });
+
+    return { known: true, missing: missingPorts(game, published) };
+  }
   const operator = { preHandler: guard.requireOperator };
 
   /** Decrypts the stored connection, or null when no router is connected. */
@@ -130,6 +166,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
 
       const current = loadRouter();
       const needed = await requiredForwards(docker, server);
+      const unpublished = await gaps(server);
       const to = target();
       // What to actually give a friend. Looked up alongside the rules rather
       // than on its own, so the address and the ports it belongs to arrive
@@ -145,6 +182,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
           needed,
           rules: [],
           missing: needed,
+          unpublished,
         });
       }
 
@@ -152,7 +190,15 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
         const rules = await current.provider.list();
         const missing = needed.filter((n) => !rules.some((r) => coveredBy(r, n, to)));
         const mine = rules.filter((r) => r.fwd === to && needed.some((n) => coveredBy(r, n, to)));
-        return reply.send({ configured: true, target: to, publicAddress, needed, rules: mine, missing });
+        return reply.send({
+          configured: true,
+          target: to,
+          publicAddress,
+          needed,
+          rules: mine,
+          missing,
+          unpublished,
+        });
       } catch (err) {
         const f = failure(err);
         return reply.code(f.status).send(f.body);

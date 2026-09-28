@@ -448,6 +448,16 @@ export interface PortForwardState {
   needed: RequiredForward[];
   missing: RequiredForward[];
   rules: PortForwardRule[];
+  /**
+   * Ports the game needs that the container never published, which no amount
+   * of forwarding can fix. `known` is false when the game is not in the
+   * registry — "we checked and it is fine" and "we cannot say" must not look
+   * the same.
+   */
+  unpublished: {
+    known: boolean;
+    missing: Array<{ port: number; protocol: 'tcp' | 'udp'; purpose: string; required: boolean }>;
+  };
 }
 
 export interface UnifiStatus {

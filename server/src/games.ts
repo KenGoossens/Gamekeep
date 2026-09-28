@@ -63,6 +63,49 @@ export interface WorkshopLayout {
   note: string;
 }
 
+/**
+ * A port a game actually needs, as opposed to one its container happens to
+ * publish.
+ *
+ * These are two different questions and the portal only ever answered the
+ * second. Reading a container's published ports tells you what to forward; it
+ * cannot tell you what is missing, because a template that forgot a port looks
+ * exactly like a game that does not need one. Project Zomboid was deployed
+ * with only 16261 because that is all its Unraid template declared, and
+ * multiplayer silently did not work: the server was up, the status was green,
+ * and nobody could join.
+ *
+ * Every entry below was looked up against the game's own documentation rather
+ * than recalled, and each says what it carries so a firewall rule can be
+ * written from it.
+ */
+export interface GamePort {
+  port: number;
+  protocol: 'tcp' | 'udp';
+  /** What travels over it, in words. */
+  purpose: string;
+  /**
+   * False for ports the game runs perfectly well without -- RCON, a web
+   * dashboard, an IPv6 twin. Only required ports are added to a deployment
+   * that missed them, and only required ones are reported as a gap. Several of
+   * the optional ones are administrative and should never face the internet.
+   */
+  required: boolean;
+}
+
+const udp = (port: number, purpose: string, required = true): GamePort => ({
+  port,
+  protocol: 'udp',
+  purpose,
+  required,
+});
+const tcp = (port: number, purpose: string, required = true): GamePort => ({
+  port,
+  protocol: 'tcp',
+  purpose,
+  required,
+});
+
 export interface GameProfile {
   key: string;
   label: string;
@@ -99,6 +142,12 @@ export interface GameProfile {
    * profile that matches wins, so narrow patterns are listed before broad ones.
    */
   match: RegExp[];
+  /**
+   * The ports this game needs. An empty array is a statement, not a gap: it
+   * means the game genuinely needs none, which is true of the ones that route
+   * players through Steam's relay.
+   */
+  ports?: GamePort[];
   mods?: ModLayout;
   /** Set instead of `mods` for the games that fetch their own from Steam. */
   workshop?: WorkshopLayout;
@@ -140,6 +189,10 @@ export const GAMES: GameProfile[] = [
     query: 'valheim',
     steamAppId: 892970,
     startupSeconds: 300,
+    ports: [
+      udp(2456, 'Game traffic'),
+      udp(2457, 'Steam query, which is what puts it in the server browser'),
+    ],
     match: [/valheim/i],
     mods: thunderstore('valheim'),
   },
@@ -150,6 +203,9 @@ export const GAMES: GameProfile[] = [
     steamAppId: 526870,
     // The slowest of the four measured here: a large factory takes a while.
     startupSeconds: 420,
+    // Since 1.0 everything runs over 7777, but it needs both protocols
+    // there -- a UDP-only forward leaves clients unable to finish joining.
+    ports: [udp(7777, 'Game traffic'), tcp(7777, 'Server API and joining')],
     match: [/satisfactory/i],
     mods: {
       source: 'ficsit',
@@ -166,6 +222,10 @@ export const GAMES: GameProfile[] = [
     startupSeconds: 240,
     aliases: ['mbe', 'mcbe', 'minecraftped', 'mcpe', 'bedrock'],
     // Listed before the Java pattern: "minecraftbedrockserver" contains both.
+    ports: [
+      udp(19132, 'Game traffic'),
+      udp(19133, 'The same thing over IPv6', false),
+    ],
     match: [/bedrock/i, /minecraftbe/i],
     modsUnavailable:
       'Bedrock add-ons come as .mcpack or .mcaddon files and there is no open repository to fetch them from — the Marketplace is closed. Add them by hand from the Files tab.',
@@ -177,6 +237,11 @@ export const GAMES: GameProfile[] = [
     // Vanilla answers in under a minute; a Forge or Fabric pack generating
     // chunks for a new world is what needs the rest of this.
     startupSeconds: 480,
+    ports: [
+      tcp(25565, 'Game traffic, and the ping that shows the player count'),
+      udp(25565, 'Query, and only when enable-query is set', false),
+      tcp(25575, 'RCON. Never forward this one to the internet', false),
+    ],
     match: [/minecraft/i, /papermc/i, /spigot/i, /forge/i, /fabric/i],
     mods: {
       source: 'modrinth',
@@ -195,6 +260,10 @@ export const GAMES: GameProfile[] = [
     steamAppId: 1604030,
     // Runs under Wine, which costs it a minute before the game even starts.
     startupSeconds: 300,
+    ports: [
+      udp(9876, 'Game traffic'),
+      udp(9877, 'Steam query'),
+    ],
     match: [/v[\s_-]?rising/i],
     mods: thunderstore('v-rising'),
   },
@@ -205,6 +274,10 @@ export const GAMES: GameProfile[] = [
     steamAppId: 1966720,
     // A small game with no world to load.
     startupSeconds: 180,
+    // No dedicated server exists: a host plays the game and the others join
+    // through Steam. There is nothing to forward, which is different from
+    // nothing being known.
+    ports: [],
     match: [/lethal[\s_-]?company/i],
     mods: thunderstore('lethal-company'),
   },
@@ -214,6 +287,8 @@ export const GAMES: GameProfile[] = [
     query: 'riskofrain2',
     steamAppId: 632360,
     startupSeconds: 180,
+    // Peer-to-peer through Steam, like Lethal Company.
+    ports: [],
     match: [/risk[\s_-]?of[\s_-]?rain/i],
     mods: thunderstore('riskofrain2'),
   },
@@ -223,6 +298,10 @@ export const GAMES: GameProfile[] = [
     query: 'enshrouded',
     steamAppId: 1203620,
     startupSeconds: 360,
+    ports: [
+      udp(15636, 'Game traffic'),
+      udp(15637, 'Steam query'),
+    ],
     match: [/enshrouded/i],
     modsUnavailable: 'Enshrouded has no mod support, so there is nothing to install.',
   },
@@ -234,6 +313,11 @@ export const GAMES: GameProfile[] = [
     // Palworld logs that it is ready a minute or two before it actually binds
     // its port, so the poll has to outlast its own optimism.
     startupSeconds: 360,
+    ports: [
+      udp(8211, 'Game traffic'),
+      udp(27015, 'Steam query, needed only to appear in the community list', false),
+      tcp(8212, 'REST admin API, if enabled. Keep it off the internet', false),
+    ],
     match: [/palworld/i],
     modsUnavailable:
       'Palworld mods are distributed by hand rather than through a repository. Add them from the Files tab.',
@@ -250,6 +334,15 @@ export const GAMES: GameProfile[] = [
      * unconfirmed for exactly this reason.
      */
     startupSeconds: 900,
+    /*
+     * Both are required and only the first is ever in a template, which is
+     * exactly how this server ended up unjoinable: 16261 alone leaves the
+     * server visible with no working connection path for players.
+     */
+    ports: [
+      udp(16261, 'Game traffic and Steam discovery'),
+      udp(16262, 'The channel players actually connect over'),
+    ],
     match: [/zomboid/i],
     workshop: {
       // The file is named after the server, so it is found rather than
@@ -276,6 +369,12 @@ export const GAMES: GameProfile[] = [
      */
     startupSeconds: 1200,
     aliases: ['ark', 'arksa', 'asa'],
+    ports: [
+      udp(7777, 'Game traffic'),
+      udp(7778, 'Raw socket, which ARK uses alongside the game port'),
+      udp(27015, 'Steam query'),
+      tcp(27020, 'RCON, if enabled. Keep it off the internet', false),
+    ],
     match: [/ark[\s_:-]*survival[\s_-]*evolved/i, /\base[\s_-]?docker\b/i],
     workshop: {
       directory: 'Config/LinuxServer',
@@ -295,13 +394,42 @@ export const GAMES: GameProfile[] = [
     steamAppId: 252490,
     // A wipe regenerates the map, which is most of this.
     startupSeconds: 900,
+    ports: [
+      udp(28015, 'Game traffic'),
+      udp(28017, 'Server browser queries'),
+      tcp(28016, 'RCON. Keep it off the internet', false),
+      tcp(28082, 'Rust+ companion app', false),
+    ],
     match: [/\brust\b/i],
     modsUnavailable:
       'Rust plugins need the Oxide/uMod loader, which patches the server binary on update rather than dropping in a file.',
   },
   // Generates its world on first boot.
-  { key: '7d2d', label: '7 Days to Die', query: '7d2d', startupSeconds: 600, steamAppId: 251570, match: [/7[\s_-]?days/i] },
-  { key: 'terraria', label: 'Terraria', query: 'terraria', startupSeconds: 180, steamAppId: 105600, match: [/terraria/i] },
+  {
+    key: '7d2d',
+    label: '7 Days to Die',
+    query: '7d2d',
+    startupSeconds: 600,
+    steamAppId: 251570,
+    ports: [
+      tcp(26900, 'Game traffic'),
+      udp(26900, 'Game traffic'),
+      udp(26901, 'Steam query'),
+      udp(26902, 'Second game channel'),
+      tcp(8080, 'Web dashboard. Keep it off the internet', false),
+      tcp(8081, 'Telnet. Keep it off the internet', false),
+    ],
+    match: [/7[\s_-]?days/i],
+  },
+  {
+    key: 'terraria',
+    label: 'Terraria',
+    query: 'terraria',
+    startupSeconds: 180,
+    steamAppId: 105600,
+    ports: [tcp(7777, 'Game traffic')],
+    match: [/terraria/i],
+  },
   {
     key: 'factorio',
     label: 'Factorio',
@@ -309,15 +437,61 @@ export const GAMES: GameProfile[] = [
     steamAppId: 427520,
     // Genuinely fast, even on a large save.
     startupSeconds: 120,
+    // UDP only: forwarding TCP 34197 does nothing at all.
+    ports: [udp(34197, 'Game traffic')],
     match: [/factorio/i],
     modsUnavailable:
       'Factorio has an official mod portal API, but downloading from it needs the username and token of an account that owns the game — a credential this portal deliberately does not hold. Add mods from the Files tab.',
   },
   // Another Workshop-list game: mods are fetched during start.
-  { key: 'conanexiles', label: 'Conan Exiles', query: 'conanexiles', startupSeconds: 900, steamAppId: 440900, match: [/conan/i] },
-  { key: 'spaceengineers', label: 'Space Engineers', query: 'spaceengineers', startupSeconds: 420, steamAppId: 244850, match: [/space[\s_-]?engineers/i] },
-  { key: 'soulmask', label: 'Soulmask', query: 'soulmask', startupSeconds: 420, steamAppId: 2646460, match: [/soulmask/i] },
-  { key: 'corekeeper', label: 'Core Keeper', query: 'corekeeper', startupSeconds: 240, steamAppId: 1621690, match: [/core[\s_-]?keeper/i] },
+  {
+    key: 'conanexiles',
+    label: 'Conan Exiles',
+    query: 'conanexiles',
+    startupSeconds: 900,
+    steamAppId: 440900,
+    ports: [
+      udp(7777, 'Game traffic'),
+      udp(7778, 'Raw socket'),
+      udp(27015, 'Steam query'),
+    ],
+    match: [/conan/i],
+  },
+  {
+    key: 'spaceengineers',
+    label: 'Space Engineers',
+    query: 'spaceengineers',
+    startupSeconds: 420,
+    steamAppId: 244850,
+    ports: [udp(27016, 'Game traffic')],
+    match: [/space[\s_-]?engineers/i],
+  },
+  {
+    key: 'soulmask',
+    label: 'Soulmask',
+    query: 'soulmask',
+    startupSeconds: 420,
+    steamAppId: 2646460,
+    ports: [
+      udp(8777, 'Game traffic'),
+      udp(27015, 'Steam query'),
+    ],
+    match: [/soulmask/i],
+  },
+  {
+    key: 'corekeeper',
+    label: 'Core Keeper',
+    query: 'corekeeper',
+    startupSeconds: 240,
+    steamAppId: 1621690,
+    /*
+     * Nothing by default: it reaches players through Steam's relay, so an
+     * outbound connection is all it needs. Setting a port switches it to
+     * direct connections, which is the operator's choice and their forward.
+     */
+    ports: [],
+    match: [/core[\s_-]?keeper/i],
+  },
 ];
 
 /**
@@ -328,6 +502,28 @@ export const GAMES: GameProfile[] = [
 export function identifyGame(name: string, image: string): GameProfile | null {
   const haystack = `${name} ${image}`;
   return GAMES.find((profile) => profile.match.some((pattern) => pattern.test(haystack))) ?? null;
+}
+
+/**
+ * Ports this game needs that the container does not publish.
+ *
+ * The gap between what a game requires and what its Unraid template happened
+ * to declare. Only required ports count: an absent RCON port is a choice, and
+ * reporting it would teach people to ignore this.
+ *
+ * Returns an empty list both when nothing is missing and when the game is not
+ * in the registry -- the caller is told which case it is by whether the
+ * profile was found, because "I checked and it is fine" and "I have no idea"
+ * must not look the same in the UI.
+ */
+export function missingPorts(
+  game: GameProfile | null | undefined,
+  published: Iterable<{ port: number; protocol: 'tcp' | 'udp' }>,
+): GamePort[] {
+  if (!game?.ports?.length) return [];
+  const have = new Set<string>();
+  for (const p of published) have.add(`${p.port}/${p.protocol}`);
+  return game.ports.filter((p) => p.required && !have.has(`${p.port}/${p.protocol}`));
 }
 
 export function gameByQueryType(queryType: string | undefined): GameProfile | null {

@@ -3,6 +3,7 @@ import { chown, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type Dockerode from 'dockerode';
 import type { CatalogApp, ParsedTemplate } from './catalog.js';
+import { identifyGame } from './games.js';
 import type { DockerClient } from './docker/client.js';
 
 /**
@@ -52,6 +53,8 @@ export interface DeployPlan {
   binds: string[];
   portBindings: Record<string, Array<{ HostPort: string }>>;
   exposed: Record<string, Record<string, never>>;
+  /** Ports the game registry supplied because the template had not. */
+  addedPorts: string[];
 }
 
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,31}$/;
@@ -225,6 +228,29 @@ export function planDeployment(
     portBindings[key] = [{ HostPort: String(host) }];
   }
 
+  /*
+   * Ports the game needs that the template never declared.
+   *
+   * A template is written by whoever packaged the image, and several of them
+   * list only the first port -- Project Zomboid's declares 16261 and not
+   * 16262, so a server deployed from it came up looking healthy and nobody
+   * could join. The registry knows what the game actually needs, so the gap is
+   * closed here rather than discovered by a friend who cannot connect.
+   *
+   * Added on the same port number on the host, and skipped rather than forced
+   * if the operator already bound that number themselves: their choice wins.
+   */
+  const game = identifyGame(app.name, template.repository);
+  const addedPorts: string[] = [];
+  for (const needed of game?.ports ?? []) {
+    if (!needed.required) continue;
+    const key = `${needed.port}/${needed.protocol}`;
+    if (portBindings[key]) continue;
+    exposed[key] = {};
+    portBindings[key] = [{ HostPort: String(needed.port) }];
+    addedPorts.push(`${key} (${needed.purpose})`);
+  }
+
   const usedTargets = new Set(binds.map((b) => b.split(':')[1]));
   for (const path of extra.paths) {
     const container = path.container.trim();
@@ -256,6 +282,8 @@ export function planDeployment(
     binds,
     portBindings,
     exposed,
+    /** Said out loud in the deploy log, so nothing is added silently. */
+    addedPorts,
   };
 }
 

@@ -50,8 +50,9 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
 
   if (!state) return <p className="empty">{error ?? 'Loading…'}</p>;
 
-  const { needed, missing, rules, configured, target, publicAddress } = state;
+  const { needed, missing, rules, configured, target, publicAddress, unpublished } = state;
   const isMissing = (port: string) => missing.some((m) => m.port === port);
+  const absent = unpublished?.missing ?? [];
 
   return (
     <>
@@ -84,6 +85,44 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
           ? `This is your router's address as ${publicAddress.source} sees it. Most home connections keep it for a long time, but it is not guaranteed to stay — check here if friends suddenly cannot connect.`
           : `Could not be looked up${publicAddress.error ? `: ${publicAddress.error}` : ''}.`}
       </p>
+
+      {/*
+        Said above the forwarding list, because it is the one problem
+        forwarding cannot solve. The list below only ever shows ports the
+        container publishes; a port the template forgot is simply absent from
+        it, so everything looks complete while players still cannot join.
+      */}
+      {absent.length > 0 ? (
+        <div className="hint bad">
+          <p>
+            This container does not publish{' '}
+            {absent.map((p, i) => (
+              <span key={`${p.port}-${p.protocol}`}>
+                {i > 0 ? ', ' : ''}
+                <code>
+                  {p.port}/{p.protocol}
+                </code>
+              </span>
+            ))}
+            , which this game needs. Forwarding cannot reach a port the container never opened —
+            the server will look healthy and players will not be able to join.
+          </p>
+          <ul>
+            {absent.map((p) => (
+              <li key={`why-${p.port}-${p.protocol}`}>
+                <code>
+                  {p.port}/{p.protocol}
+                </code>{' '}
+                — {p.purpose}
+              </li>
+            ))}
+          </ul>
+          <p>
+            Add it in Unraid under this container’s port mappings, or redeploy it: Gamekeep now
+            fills in ports a template leaves out.
+          </p>
+        </div>
+      ) : null}
 
       <ul className="filelist">
         {needed.map((n) => {

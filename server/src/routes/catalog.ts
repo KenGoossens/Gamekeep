@@ -245,6 +245,14 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
       );
 
       const steps: string[] = [];
+
+      // Said before anything is created, because adding a port the operator
+      // did not ask for should never be silent -- even when it is the port
+      // that makes the game work.
+      for (const added of plan.addedPorts) {
+        steps.push(`Added ${added}, which ${found.name} needs and the template omitted`);
+      }
+
       // Before anything is created: a container on a network the portal
       // cannot reach is worse than no container.
       await deployer.ensureNetwork(env.GAME_NETWORK, (message) => {

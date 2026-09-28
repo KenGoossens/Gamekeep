@@ -331,6 +331,31 @@ Ports that look administrative — a web console, RCON — are flagged and never
 pre-selected. Forwarding a game port lets people play; forwarding a web console
 puts an admin interface on the internet.
 
+### Ports the container never opened
+
+Forwarding can only act on ports a container publishes, which means it is blind
+to the one failure that matters most: a template that declared too few. Project
+Zomboid needs UDP 16261 **and** 16262, its Unraid template declares only 16261,
+and a server deployed from it came up green with multiplayer quietly broken.
+
+So `server/src/games.ts` records what each game actually needs, looked up
+against the game's own documentation rather than recalled. Two things use it:
+
+- **Deploying** fills in required ports a template left out, and says so in the
+  deploy log rather than adding them silently. A mapping you set yourself is
+  never overridden.
+- **The Network tab** compares an existing container against the registry and
+  says outright when a port is absent — which no forwarding rule can fix.
+
+A game with no ports listed at all is a statement too: Core Keeper, Lethal
+Company and Risk of Rain 2 reach players through Steam, and genuinely need
+none. A game that is not in the registry says it cannot tell, which is not the
+same as saying everything is fine.
+
+This deliberately is not looked up at runtime by a model. A port number is a
+stable fact with a source, and a hallucinated one breaks multiplayer silently —
+the server starts, the status is green, and only your friends find out.
+
 ### Connecting a router
 
 **Settings → Router**, as owner. UniFi is supported today; the integration is a
