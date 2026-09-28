@@ -304,6 +304,34 @@ export function openDatabase(path: string) {
     CREATE INDEX IF NOT EXISTS idx_audit_server ON audit_log (server_id, action, result, ts DESC);
   `);
 
+  /*
+   * Deployed servers used to have their restart timeout copied in from the
+   * game registry at deploy time. That froze it: correcting a game's startup
+   * time afterwards left every existing server on the old number, which is
+   * how Project Zomboid kept reporting healthy restarts as unconfirmed on a
+   * timeout of 300s while its mods were still downloading. Dropping the field
+   * hands the decision back to the registry, where it is now read on every
+   * restart. Nothing is lost: no part of the UI ever set this, so every value
+   * in here is a copy rather than an operator's choice.
+   */
+  for (const row of db.prepare('SELECT id, definition FROM managed_servers').all() as {
+    id: string;
+    definition: string;
+  }[]) {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(row.definition);
+    } catch {
+      continue; // Left alone rather than dropped; the registry ignores it.
+    }
+    if (!('restartTimeoutSeconds' in parsed)) continue;
+    delete parsed.restartTimeoutSeconds;
+    db.prepare('UPDATE managed_servers SET definition = ? WHERE id = ?').run(
+      JSON.stringify(parsed),
+      row.id,
+    );
+  }
+
   const st = {
     countUsers: db.prepare('SELECT COUNT(*) AS n FROM users'),
     countOwners: db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'owner' AND disabled = 0"),

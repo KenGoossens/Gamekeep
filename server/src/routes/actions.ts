@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { originOf } from '../auth/origin.js';
 import type { AppContext } from '../context.js';
 import { canOperate } from '../db.js';
-import type { EventKind } from '../notify.js';
+import { notifyServer, type EventKind } from '../notify.js';
 
 export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, actions, cooldown, db, guard, docker, gameQuery, notify } = ctx;
@@ -46,14 +46,7 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
     const server = registry.get(job.serverId);
     notify.send({
       kind,
-      server: server
-        ? {
-            name: server.displayName,
-            id: server.id,
-            steamAppId: server.steamAppId,
-            iconUrl: server.iconUrl,
-          }
-        : { name: job.serverId },
+      server: server ? notifyServer(server) : { name: job.serverId },
       actor: {
         username: job.actorUsername,
         // Looked up now rather than captured with the job: a role can change

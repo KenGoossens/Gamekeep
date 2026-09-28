@@ -127,7 +127,21 @@ export const serverSchema = z.object({
     .optional(),
   updateStrategy: z.enum(['restart', 'pull-recreate']).default('restart'),
   cooldownSeconds: z.number().int().min(0).max(86400).default(300),
-  restartTimeoutSeconds: z.number().int().min(10).max(900).default(90),
+  /*
+   * How long a restart may take before it is reported as unconfirmed.
+   *
+   * Optional, and left unset for almost every server: the real value comes
+   * from the game registry, which knows that ARK reinstalls its Workshop mods
+   * on every start and that Factorio does not. This used to be copied into
+   * each server at deploy time, which froze whatever the registry said that
+   * day -- Project Zomboid kept reporting healthy restarts as unconfirmed
+   * because its record still held the old fallback of 300s. Set this only to
+   * override the registry for one particular server.
+   *
+   * It is a deadline, not a wait: the verifier polls every two seconds and
+   * returns the moment the game answers.
+   */
+  restartTimeoutSeconds: z.number().int().min(10).max(2400).optional(),
   notes: z.string().optional(),
 });
 

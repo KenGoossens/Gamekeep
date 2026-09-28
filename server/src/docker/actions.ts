@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { connect } from 'node:net';
 import type Dockerode from 'dockerode';
 import type { ServerConfig } from '../config.js';
+import { gameByQueryType } from '../games.js';
 import type { DockerClient } from './client.js';
 import type { GameQuery } from '../query/gamedig.js';
 
@@ -44,6 +45,21 @@ export type StartOutcome = { ok: true; job: Job } | { ok: false; reason: 'busy';
 const JOB_RETENTION_MS = 10 * 60 * 1000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * How long this server gets to come back.
+ *
+ * A per-server override wins; otherwise the game registry decides, because it
+ * is the one place that knows a given game's real startup cost. The final 300
+ * covers a deployed server whose game the registry does not recognise.
+ */
+function timeoutFor(server: ServerConfig): number {
+  return (
+    server.restartTimeoutSeconds ??
+    gameByQueryType(server.query?.type)?.startupSeconds ??
+    300
+  );
+}
 
 export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQuery) {
   const { docker } = dockerClient;
@@ -160,7 +176,7 @@ export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQu
       await sleep(2000);
     }
     throw new Error(
-      `The container did not come back within ${server.restartTimeoutSeconds}s. Check its log in Unraid.`,
+      `The container did not come back within ${timeoutFor(server)}s. Check its log in Unraid.`,
     );
   }
 
@@ -230,7 +246,7 @@ export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQu
 
     throw new Error(
       `The container is running, but nothing is listening on ${ports.join(', ')} after ` +
-        `${server.restartTimeoutSeconds}s. It may still be starting; raise restartTimeoutSeconds ` +
+        `${timeoutFor(server)}s. It may still be starting; raise restartTimeoutSeconds ` +
         `for this server if that is normal for it.`,
     );
   }
@@ -291,14 +307,14 @@ export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQu
 
     throw new Error(
       `The container is running, but the game is not answering on ${query.host}:${query.port} after ` +
-        `${server.restartTimeoutSeconds}s. A large world can take longer than that to load, so it may ` +
+        `${timeoutFor(server)}s. A large world can take longer than that to load, so it may ` +
         `still be coming up. Check again shortly, or raise restartTimeoutSeconds for this server.`,
     );
   }
 
   async function verify(server: ServerConfig, job: Job): Promise<void> {
     job.phase = 'verifying';
-    const deadline = Date.now() + server.restartTimeoutSeconds * 1000;
+    const deadline = Date.now() + timeoutFor(server) * 1000;
 
     await verifyContainer(server, job, deadline);
     // From here the restart itself has worked, whatever the game does next.

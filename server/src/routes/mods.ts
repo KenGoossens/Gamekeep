@@ -12,6 +12,7 @@ import { layoutFor, type InstalledState, type InstallPlan } from '../mods/instal
 /** A server mod is rarely larger than this, and it is held in memory. */
 const MAX_UPLOAD_BYTES = 192 * 1024 * 1024;
 import { gameByQueryType } from '../games.js';
+import { notifyServer } from '../notify.js';
 import type { ScannerConfig } from '../mods/scan.js';
 import '../mods/ficsit.js';
 import '../mods/thunderstore.js';
@@ -355,12 +356,7 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
 
       notify.send({
         kind: 'mod-installed',
-        server: {
-          name: found.server.displayName,
-          id: found.server.id,
-          steamAppId: found.server.steamAppId,
-          iconUrl: found.server.iconUrl,
-        },
+        server: notifyServer(found.server),
         actor: { username: user.username, role: user.role },
         detail: `${summary.name} ${version.version}`,
       });
@@ -543,12 +539,7 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
         });
         notify.send({
           kind: 'mod-installed',
-          server: {
-            name: found.server.displayName,
-            id: found.server.id,
-            steamAppId: found.server.steamAppId,
-            iconUrl: found.server.iconUrl,
-          },
+          server: notifyServer(found.server),
           actor: { username: user.username, role: user.role },
           detail: `${plan.modName} (uploaded by hand)`,
         });

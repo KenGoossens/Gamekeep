@@ -39,6 +39,15 @@ export interface GameProfile {
   /** GameDig's id for this game, used for the player count. */
   query: string;
   /**
+   * The game's Steam app id, used for its store artwork.
+   *
+   * Notifications carry a banner, and Discord sizes an embed to its contents:
+   * one with a picture is full width and one without shrinks to its text, so
+   * a feed of them looked ragged. Knowing the id here means every Steam game
+   * gets its real capsule art rather than a per-server field nobody fills in.
+   */
+  steamAppId?: number;
+  /**
    * How long this game may take to answer after a restart, in seconds.
    *
    * A ceiling, not a wait: the verifier polls every two seconds and returns
@@ -97,6 +106,7 @@ export const GAMES: GameProfile[] = [
     key: 'valheim',
     label: 'Valheim',
     query: 'valheim',
+    steamAppId: 892970,
     startupSeconds: 300,
     match: [/valheim/i],
     mods: thunderstore('valheim'),
@@ -105,6 +115,7 @@ export const GAMES: GameProfile[] = [
     key: 'satisfactory',
     label: 'Satisfactory',
     query: 'satisfactory',
+    steamAppId: 526870,
     // The slowest of the four measured here: a large factory takes a while.
     startupSeconds: 420,
     match: [/satisfactory/i],
@@ -131,6 +142,9 @@ export const GAMES: GameProfile[] = [
     key: 'minecraft',
     label: 'Minecraft (Java)',
     query: 'minecraft',
+    // Vanilla answers in under a minute; a Forge or Fabric pack generating
+    // chunks for a new world is what needs the rest of this.
+    startupSeconds: 480,
     match: [/minecraft/i, /papermc/i, /spigot/i, /forge/i, /fabric/i],
     mods: {
       source: 'modrinth',
@@ -146,6 +160,9 @@ export const GAMES: GameProfile[] = [
     key: 'vrising',
     label: 'V Rising',
     query: 'vrising',
+    steamAppId: 1604030,
+    // Runs under Wine, which costs it a minute before the game even starts.
+    startupSeconds: 300,
     match: [/v[\s_-]?rising/i],
     mods: thunderstore('v-rising'),
   },
@@ -153,6 +170,9 @@ export const GAMES: GameProfile[] = [
     key: 'lethalcompany',
     label: 'Lethal Company',
     query: 'lethalcompany',
+    steamAppId: 1966720,
+    // A small game with no world to load.
+    startupSeconds: 180,
     match: [/lethal[\s_-]?company/i],
     mods: thunderstore('lethal-company'),
   },
@@ -160,6 +180,8 @@ export const GAMES: GameProfile[] = [
     key: 'riskofrain2',
     label: 'Risk of Rain 2',
     query: 'riskofrain2',
+    steamAppId: 632360,
+    startupSeconds: 180,
     match: [/risk[\s_-]?of[\s_-]?rain/i],
     mods: thunderstore('riskofrain2'),
   },
@@ -167,6 +189,7 @@ export const GAMES: GameProfile[] = [
     key: 'enshrouded',
     label: 'Enshrouded',
     query: 'enshrouded',
+    steamAppId: 1203620,
     startupSeconds: 360,
     match: [/enshrouded/i],
     modsUnavailable: 'Enshrouded has no mod support, so there is nothing to install.',
@@ -175,6 +198,10 @@ export const GAMES: GameProfile[] = [
     key: 'palworld',
     label: 'Palworld',
     query: 'palworld',
+    steamAppId: 1623730,
+    // Palworld logs that it is ready a minute or two before it actually binds
+    // its port, so the poll has to outlast its own optimism.
+    startupSeconds: 360,
     match: [/palworld/i],
     modsUnavailable:
       'Palworld mods are distributed by hand rather than through a repository. Add them from the Files tab.',
@@ -183,6 +210,14 @@ export const GAMES: GameProfile[] = [
     key: 'projectzomboid',
     label: 'Project Zomboid',
     query: 'projectzomboid',
+    steamAppId: 108600,
+    /*
+     * Workshop mods are downloaded on the start *after* they are added to the
+     * config, and that download finishes before the server answers a query.
+     * The default 300s reported three healthy restarts in a row as
+     * unconfirmed for exactly this reason.
+     */
+    startupSeconds: 900,
     match: [/zomboid/i],
     modsUnavailable:
       'Project Zomboid mods live on the Steam Workshop, which needs a Steam account that owns the game — the server downloads them itself once you list the mod ids in its settings.',
@@ -191,6 +226,14 @@ export const GAMES: GameProfile[] = [
     key: 'arkse',
     label: 'ARK: Survival Evolved',
     query: 'arkse',
+    steamAppId: 346110,
+    /*
+     * The slowest server here by a wide margin: ARK redownloads and extracts
+     * its entire Workshop mod list on every start, then loads a large map.
+     * Twenty minutes is a ceiling for a first boot with mods, not a typical
+     * restart -- the verifier still returns the moment the game answers.
+     */
+    startupSeconds: 1200,
     aliases: ['ark', 'arksa', 'asa'],
     match: [/ark[\s_:-]*survival[\s_-]*evolved/i, /\base[\s_-]?docker\b/i],
     modsUnavailable:
@@ -200,24 +243,32 @@ export const GAMES: GameProfile[] = [
     key: 'rust',
     label: 'Rust',
     query: 'rust',
+    steamAppId: 252490,
+    // A wipe regenerates the map, which is most of this.
+    startupSeconds: 900,
     match: [/\brust\b/i],
     modsUnavailable:
       'Rust plugins need the Oxide/uMod loader, which patches the server binary on update rather than dropping in a file.',
   },
-  { key: '7d2d', label: '7 Days to Die', query: '7d2d', match: [/7[\s_-]?days/i] },
-  { key: 'terraria', label: 'Terraria', query: 'terraria', match: [/terraria/i] },
+  // Generates its world on first boot.
+  { key: '7d2d', label: '7 Days to Die', query: '7d2d', startupSeconds: 600, steamAppId: 251570, match: [/7[\s_-]?days/i] },
+  { key: 'terraria', label: 'Terraria', query: 'terraria', startupSeconds: 180, steamAppId: 105600, match: [/terraria/i] },
   {
     key: 'factorio',
     label: 'Factorio',
     query: 'factorio',
+    steamAppId: 427520,
+    // Genuinely fast, even on a large save.
+    startupSeconds: 120,
     match: [/factorio/i],
     modsUnavailable:
       'Factorio has an official mod portal API, but downloading from it needs the username and token of an account that owns the game — a credential this portal deliberately does not hold. Add mods from the Files tab.',
   },
-  { key: 'conanexiles', label: 'Conan Exiles', query: 'conanexiles', match: [/conan/i] },
-  { key: 'spaceengineers', label: 'Space Engineers', query: 'spaceengineers', match: [/space[\s_-]?engineers/i] },
-  { key: 'soulmask', label: 'Soulmask', query: 'soulmask', match: [/soulmask/i] },
-  { key: 'corekeeper', label: 'Core Keeper', query: 'corekeeper', match: [/core[\s_-]?keeper/i] },
+  // Another Workshop-list game: mods are fetched during start.
+  { key: 'conanexiles', label: 'Conan Exiles', query: 'conanexiles', startupSeconds: 900, steamAppId: 440900, match: [/conan/i] },
+  { key: 'spaceengineers', label: 'Space Engineers', query: 'spaceengineers', startupSeconds: 420, steamAppId: 244850, match: [/space[\s_-]?engineers/i] },
+  { key: 'soulmask', label: 'Soulmask', query: 'soulmask', startupSeconds: 420, steamAppId: 2646460, match: [/soulmask/i] },
+  { key: 'corekeeper', label: 'Core Keeper', query: 'corekeeper', startupSeconds: 240, steamAppId: 1621690, match: [/core[\s_-]?keeper/i] },
 ];
 
 /**

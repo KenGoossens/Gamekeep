@@ -1,8 +1,7 @@
 import type { ActionRunner } from './docker/actions.js';
 import type { DockerClient } from './docker/client.js';
-import type { Notifier } from './notify.js';
+import { notifyServer, type Notifier } from './notify.js';
 import type { ServerRegistry } from './registry.js';
-import type { ServerConfig } from './config.js';
 
 /**
  * Noticing that a server fell over.
@@ -25,15 +24,11 @@ const INTERVAL_MS = 30_000;
  */
 const GRACE_MS = 3 * 60_000;
 
-/** The bits a notification needs to show the game rather than just name it. */
-function art(server: ServerConfig) {
-  return {
-    name: server.displayName,
-    id: server.id,
-    steamAppId: server.steamAppId,
-    iconUrl: server.iconUrl,
-  };
-}
+/**
+ * The bits a notification needs to show the game rather than just name it.
+ * Shared with every other sender so no two of them drift apart.
+ */
+const art = notifyServer;
 
 export function createWatcher(deps: {
   registry: ServerRegistry;

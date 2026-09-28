@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
 import { originOf } from '../auth/origin.js';
 import { decryptSecret, encryptSecret } from '../secrets.js';
-import { ALL_EVENTS, DEFAULT_EVENTS, type NotifyConfig } from '../notify.js';
+import { ALL_EVENTS, DEFAULT_EVENTS, notifyServer, type NotifyConfig } from '../notify.js';
 
 /**
  * Where notifications go. Owner-only: a webhook URL is a credential, and
@@ -85,14 +85,7 @@ export function registerNotifyRoutes(app: FastifyInstance, ctx: AppContext) {
         const sample = ctx.registry.list()[0];
         await notify.test(
           webhook,
-          sample
-            ? {
-                name: sample.displayName,
-                id: sample.id,
-                steamAppId: sample.steamAppId,
-                iconUrl: sample.iconUrl,
-              }
-            : undefined,
+          sample ? notifyServer(sample) : undefined,
         );
       } catch (err) {
         return reply.code(502).send({ error: 'unreachable', message: (err as Error).message });

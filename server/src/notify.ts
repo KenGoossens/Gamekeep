@@ -11,6 +11,9 @@
  * working, and a channel that pings for those is a channel people mute.
  */
 
+import type { ServerConfig } from './config.js';
+import { gameByQueryType } from './games.js';
+
 export type EventKind =
   | 'restarted'
   | 'started'
@@ -54,6 +57,23 @@ export interface NotifyServer {
   id?: string;
   steamAppId?: number | null;
   iconUrl?: string | null;
+}
+
+/**
+ * The bits of a server a notification needs to show the game, not just name it.
+ *
+ * One builder instead of the same four lines repeated at each call site, so a
+ * new kind of notification cannot quietly ship without artwork.
+ */
+export function notifyServer(server: ServerConfig): NotifyServer {
+  return {
+    name: server.displayName,
+    id: server.id,
+    // A per-server id wins, but hardly anyone sets one: the game registry
+    // knows the id for every game the portal recognises.
+    steamAppId: server.steamAppId ?? gameByQueryType(server.query?.type)?.steamAppId,
+    iconUrl: server.iconUrl,
+  };
 }
 
 /**
@@ -132,24 +152,37 @@ const QUIET_MS = 10 * 60_000;
 
 const STEAM_CDN = 'https://cdn.cloudflare.steamstatic.com/steam/apps';
 const ICON_CDN = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png';
+/*
+ * The fallback banner, at the same 616x353 as a Steam capsule.
+ *
+ * Discord sizes an embed to its contents, so one carrying a picture came out
+ * full width while one without shrank to fit its text -- a channel of them
+ * looked ragged. Every embed carries an image of the same shape now, so they
+ * are all the same size and the colour alone says what happened.
+ *
+ * Served from jsDelivr rather than from this portal: Discord fetches the image
+ * itself, and it cannot get past Cloudflare Access.
+ */
+const BANNER =
+  'https://cdn.jsdelivr.net/gh/KenGoossens/Gamekeep@main/web/public/notification-banner.png';
 
-/** The wide banner and the transparent logo, when the game is on Steam. */
+/** A banner the width of the embed, plus the game logo when Steam has one. */
 function artworkFor(server: NotifyServer | undefined): {
   image?: { url: string };
   thumbnail?: { url: string };
 } {
-  if (!server) return {};
-
-  if (server.steamAppId) {
+  if (server?.steamAppId) {
     return {
       image: { url: `${STEAM_CDN}/${server.steamAppId}/capsule_616x353.jpg` },
       thumbnail: { url: `${STEAM_CDN}/${server.steamAppId}/logo.png` },
     };
   }
 
-  // Not on Steam: the same icon the portal draws on its own tiles.
-  const icon = server.iconUrl ?? (server.id ? `${ICON_CDN}/${encodeURIComponent(server.id)}.png` : null);
-  return icon ? { thumbnail: { url: icon } } : {};
+  // Not on Steam, or not about a server at all: the house banner holds the
+  // embed to the same size, and the tile icon still identifies the game.
+  const icon =
+    server?.iconUrl ?? (server?.id ? `${ICON_CDN}/${encodeURIComponent(server.id)}.png` : null);
+  return { image: { url: BANNER }, ...(icon ? { thumbnail: { url: icon } } : {}) };
 }
 
 interface Field {
