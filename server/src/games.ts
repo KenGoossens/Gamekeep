@@ -33,6 +33,36 @@ export interface ModLayout {
   community?: string;
 }
 
+/**
+ * Where a game keeps the list of Steam Workshop mods it fetches for itself.
+ *
+ * A second install model, and a genuinely different one. These games are not
+ * given a mod as a file: they are given a list of Workshop ids in their own
+ * configuration and download the mods through SteamCMD on the next start. So
+ * installing one writes a config line, uninstalling removes it, and neither
+ * takes effect until the server restarts. The portal never holds the code,
+ * which is also why the archive scanners have nothing to look at here.
+ */
+export interface WorkshopLayout {
+  /** The directory holding the config, matched as a suffix of a real path. */
+  directory: string;
+  /** Which file in that directory carries the declarations. */
+  file: RegExp;
+  /** The INI section the keys sit under, for the files that have sections. */
+  section?: string;
+  /** The key listing Workshop ids. */
+  itemsKey: string;
+  /**
+   * A second key listing the publishers' own mod names. Project Zomboid needs
+   * both: `WorkshopItems` is what SteamCMD downloads and `Mods` is what the
+   * game then loads, and a mod declared in only one of them does nothing.
+   */
+  modIdsKey?: string;
+  separator: string;
+  /** Said in the UI, because this model does not behave like a file install. */
+  note: string;
+}
+
 export interface GameProfile {
   key: string;
   label: string;
@@ -70,6 +100,8 @@ export interface GameProfile {
    */
   match: RegExp[];
   mods?: ModLayout;
+  /** Set instead of `mods` for the games that fetch their own from Steam. */
+  workshop?: WorkshopLayout;
   /**
    * Said plainly when a game has mods but no API worth automating, so the UI
    * can explain rather than just refuse.
@@ -219,8 +251,17 @@ export const GAMES: GameProfile[] = [
      */
     startupSeconds: 900,
     match: [/zomboid/i],
-    modsUnavailable:
-      'Project Zomboid mods live on the Steam Workshop, which needs a Steam account that owns the game — the server downloads them itself once you list the mod ids in its settings.',
+    workshop: {
+      // The file is named after the server, so it is found rather than
+      // assumed: the default is servertest.ini but nothing guarantees it.
+      // The other files beside it are .lua, so matching .ini is enough.
+      directory: 'Zomboid/Server',
+      file: /\.ini$/i,
+      itemsKey: 'WorkshopItems',
+      modIdsKey: 'Mods',
+      separator: ';',
+      note: 'Project Zomboid downloads Workshop mods itself on the next start, so this can take several minutes and the mods are not active until then.',
+    },
   },
   {
     key: 'arkse',
@@ -236,8 +277,16 @@ export const GAMES: GameProfile[] = [
     startupSeconds: 1200,
     aliases: ['ark', 'arksa', 'asa'],
     match: [/ark[\s_:-]*survival[\s_-]*evolved/i, /\base[\s_-]?docker\b/i],
-    modsUnavailable:
-      'ARK mods come from the Steam Workshop, which no longer allows anonymous downloads — set the mod ids in the server settings and it fetches them itself.',
+    workshop: {
+      directory: 'Config/LinuxServer',
+      file: /^GameUserSettings\.ini$/i,
+      // Unlike Project Zomboid's flat file, this one has sections and the key
+      // means nothing outside its own.
+      section: 'ServerSettings',
+      itemsKey: 'ActiveMods',
+      separator: ',',
+      note: 'ARK redownloads its whole Workshop list on every start, so expect a long first boot after changing this.',
+    },
   },
   {
     key: 'rust',

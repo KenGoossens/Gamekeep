@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, type InstallPlan, type ModStatus, type ModSummary } from '../api.ts';
 import { Findings } from './Findings.tsx';
+import { WorkshopPanel } from './WorkshopPanel.tsx';
 
 /**
  * Installing mods, with the report shown before anything is written.
@@ -143,6 +144,11 @@ export function ModsTab({ serverId }: { serverId: string }) {
   }
 
   if (!status) return <p className="empty">{error ?? 'Loading…'}</p>;
+
+  // A game whose server fetches its own mods gets a different screen, because
+  // declaring a Workshop id and installing an archive have almost nothing in
+  // common beyond both being called "installing a mod".
+  if (status.mode === 'workshop') return <WorkshopPanel serverId={serverId} />;
 
   if (!status.supported) {
     return (

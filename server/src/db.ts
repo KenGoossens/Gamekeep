@@ -235,11 +235,22 @@ export function openDatabase(path: string) {
       last_login_at        INTEGER
     );
 
+    /*
+     * The last three columns are also added by an ALTER above, for databases
+     * that predate them. They have to be here as well: a fresh install runs
+     * that migration against a table that does not exist yet, skips it, and
+     * then created a sessions table without them -- so the portal died on the
+     * next line with "table sessions has no column named ip". Every existing
+     * database reached this shape by the migration, so the two agree.
+     */
     CREATE TABLE IF NOT EXISTS sessions (
-      id         TEXT PRIMARY KEY,
-      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      created_at INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at   INTEGER NOT NULL,
+      expires_at   INTEGER NOT NULL,
+      ip           TEXT,
+      user_agent   TEXT,
+      last_seen_at INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);

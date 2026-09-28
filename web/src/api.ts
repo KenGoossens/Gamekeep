@@ -331,6 +331,14 @@ export interface InstalledMod {
 
 export interface ModStatus {
   supported: boolean;
+  /**
+   * 'repository' means the portal fetches the mod and installs the files.
+   * 'workshop' means the game fetches its own: the portal writes the id into
+   * the server's config and the mod arrives on the next start. Two different
+   * screens, because they are two different things.
+   */
+  mode?: 'repository' | 'workshop';
+  note?: string;
   reason?: string;
   source?: {
     id: string;
@@ -342,6 +350,42 @@ export interface ModStatus {
   running?: boolean;
   installed: InstalledMod[];
   scannerConfigured: boolean;
+}
+
+export interface WorkshopVerdict {
+  ok: boolean;
+  reasons: string[];
+  warnings: string[];
+}
+
+export interface WorkshopItem {
+  id: string;
+  title: string;
+  authorId: string;
+  authorUrl: string;
+  url: string;
+  appId: number;
+  description: string;
+  previewUrl: string | null;
+  sizeBytes: number | null;
+  updatedAt: string | null;
+  subscriptions: number | null;
+  banned: boolean;
+  banReason: string | null;
+  declaredModIds: string[];
+  verdict?: WorkshopVerdict;
+}
+
+export interface WorkshopList {
+  file: string;
+  running: boolean;
+  note: string;
+  usesModIds: boolean;
+  modIds: string[];
+  items: WorkshopItem[];
+  /** Declared on this server, but Steam has nothing for them any more. */
+  unknown: string[];
+  lookupError: string | null;
 }
 
 export interface ScannerSettings {
@@ -598,6 +642,29 @@ export const api = {
     request<Dashboard>(`/api/dashboard?window=`),
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
+
+  workshop: (serverId: string) =>
+    request<WorkshopList>(`/api/servers/${encodeURIComponent(serverId)}/workshop`),
+  lookupWorkshop: (serverId: string, ref: string) =>
+    request<{
+      item: WorkshopItem;
+      verdict: WorkshopVerdict;
+      alreadyDeclared: boolean;
+      usesModIds: boolean;
+    }>(
+      `/api/servers/${encodeURIComponent(serverId)}/workshop/lookup?ref=${encodeURIComponent(ref)}`,
+    ),
+  declareWorkshop: (serverId: string, reference: string) =>
+    request<{ item: WorkshopItem; message: string }>(
+      `/api/servers/${encodeURIComponent(serverId)}/workshop`,
+      { ...json({ reference }), method: 'POST' },
+    ),
+  undeclareWorkshop: (serverId: string, itemId: string) =>
+    request<{ removed: string; message: string }>(
+      `/api/servers/${encodeURIComponent(serverId)}/workshop/${encodeURIComponent(itemId)}`,
+      { method: 'DELETE' },
+    ),
+
   searchMods: (serverId: string, q: string) =>
     request<{ results: ModSummary[]; hidden: number }>(
       `/api/servers/${serverId}/mods/search?q=${encodeURIComponent(q)}`,

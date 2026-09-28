@@ -20,6 +20,7 @@ import { createSettingsManager } from './settings.js';
 import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
 import { createModInstaller } from './mods/install.js';
+import { createWorkshopDeclarations } from './mods/declare.js';
 import { createHelperRunner } from './docker/helper.js';
 import { createNotifier } from './notify.js';
 import { createWatcher } from './watch.js';
@@ -38,6 +39,7 @@ import { registerManageRoutes } from './routes/manage.js';
 import { registerNetworkRoutes } from './routes/network.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerModRoutes } from './routes/mods.js';
+import { registerWorkshopRoutes } from './routes/workshop.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
@@ -75,6 +77,7 @@ async function main() {
     onError: (message) => console.warn(`[Gamekeep] ${message}`),
   });
   const mods = createModInstaller(docker);
+  const workshop = createWorkshopDeclarations(docker);
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
@@ -97,6 +100,7 @@ async function main() {
     files,
     notify,
     mods,
+    workshop,
     health,
     sessions,
     setup,
@@ -163,6 +167,7 @@ async function main() {
   registerNetworkRoutes(app, ctx);
   registerSystemRoutes(app, ctx);
   registerModRoutes(app, ctx);
+  registerWorkshopRoutes(app, ctx);
   registerDashboardRoutes(app, ctx);
   registerLogRoutes(app, ctx);
   registerAccessRoutes(app, ctx);

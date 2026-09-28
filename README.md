@@ -188,6 +188,33 @@ in their own words rather than showing an empty tab.
 
 Removing a mod deletes exactly the paths recorded when it was installed.
 
+### Steam Workshop games
+
+Project Zomboid and ARK work differently, and get a different screen. Their
+servers collect their own mods: you give them a list of Workshop ids and they
+download them through SteamCMD on the next start. So the portal writes a config
+line rather than a file, and **nothing is downloaded or scanned here, because
+nothing is downloaded here** — the portal never sees the mod's code.
+
+Paste the address of the mod's Workshop page (Steam has no open search without
+an API key, and needing one to add a mod is a worse trade than pasting a link).
+What can be checked, is:
+
+| Check | What it means |
+|---|---|
+| **Right game** | A Workshop item is published against one game, so an ARK mod on a Project Zomboid server is a fact, not a guess. Refused outright. |
+| **Still there** | Items Steam has removed are refused, and ones already on the list that Steam no longer knows are flagged — the server retries that download on every start. |
+| **Age and reach** | When it was last updated and how many people run it. Warnings, never verdicts. |
+
+Project Zomboid keeps two lists — the Workshop ids it downloads and the mod
+names it then loads — and a mod in only one of them does nothing. Gamekeep
+maintains both, reading the mod's name out of its Workshop description the way
+every Project Zomboid mod manager does. If a publisher did not put one there,
+it says so instead of guessing.
+
+Changes need a restart to take effect, and the config is only editable while the
+server is stopped — the same rule as the Files and Settings tabs.
+
 ### Malware scanning
 
 **Settings → Malware scanning**, as owner. Both are optional:
@@ -328,6 +355,13 @@ outcomes, all visible in the activity feed:
 loading a big world, and letting people restart it again is the worst possible
 response. A true failure stays retryable.
 
+How long a game gets is per game, from the registry in `server/src/games.ts` —
+Factorio answers in two minutes and an ARK server reinstalling its Workshop mod
+list can take twenty. It is a deadline, not a wait: the verifier polls every two
+seconds and finishes the moment the game replies. One number for every game
+meant slow games reported healthy restarts as failures. Set
+`restartTimeoutSeconds` on a server only to override the registry for that one.
+
 ## Restart or update?
 
 `updateStrategy: "restart"` (the default) stops and starts the container. For most
@@ -443,14 +477,21 @@ cd web    && npm run typecheck
 ### Adding a game
 
 `server/src/games.ts` is the one place a game is described: its GameDig id, the
-patterns that recognise it in a catalogue, where its mods go, and which
-repository serves them. Adding a game is one entry there.
+patterns that recognise it in a catalogue, its Steam app id, how long it may take
+to start, where its mods go, and which repository serves them. Adding a game is
+one entry there.
 
 ### Adding a mod repository
 
 `server/src/mods/sources.ts` defines the interface; `ficsit.ts`, `modrinth.ts`
 and `thunderstore.ts` are the implementations. A new one is a single file plus an
 entry in `games.ts`.
+
+For a game whose server fetches its own mods, give the profile a `workshop`
+block instead of a `mods` one: which directory holds its config, which file and
+INI section the list lives in, and which key. `server/src/mods/declare.ts` does
+the rest — it searches the container for that file rather than assuming a path,
+and rewrites one line while leaving every comment and unrelated setting alone.
 
 ## Licence
 

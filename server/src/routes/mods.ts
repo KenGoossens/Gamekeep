@@ -130,6 +130,25 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
     const installed = db.listInstalledMods(request.params.id);
 
     if (!found.ok) {
+      /*
+       * A game whose server fetches its own mods from the Steam Workshop is
+       * not unsupported -- it is supported differently, and the tab switches
+       * to the workshop routes rather than saying there is nothing to do.
+       */
+      const server = registry.get(request.params.id);
+      const workshopLayout = gameByQueryType(server?.query?.type)?.workshop;
+      if (server && workshopLayout) {
+        const status = await docker.getStatus(server);
+        return reply.send({
+          supported: true,
+          mode: 'workshop',
+          running: status.running,
+          note: workshopLayout.note,
+          installed: [],
+          scannerConfigured: false,
+        });
+      }
+
       // Still useful: the UI explains why modding is unavailable rather than
       // hiding the tab and leaving the operator guessing.
       return reply.send({
@@ -144,6 +163,7 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
     const config = scannerConfig();
     return reply.send({
       supported: true,
+      mode: 'repository',
       source: {
         id: found.source.id,
         label: found.source.label,

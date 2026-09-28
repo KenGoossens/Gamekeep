@@ -13,6 +13,7 @@ import type { SettingsManager } from './settings.js';
 import type { createFileBrowser } from './files.js';
 import type { HealthReporter } from './health.js';
 import type { ModInstaller } from './mods/install.js';
+import type { WorkshopDeclarations } from './mods/declare.js';
 import type { Notifier } from './notify.js';
 import type { Sessions } from './auth/session.js';
 import type { SetupGuard } from './auth/setup.js';
@@ -41,6 +42,8 @@ export interface AppContext {
   notify: Notifier;
   /** Downloads, inspects and installs game server mods. */
   mods: ModInstaller;
+  /** Steam Workshop mods, which are declared in config rather than installed. */
+  workshop: WorkshopDeclarations;
   /** Read-only status of every connection the portal depends on. */
   health: HealthReporter;
   sessions: Sessions;
