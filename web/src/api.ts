@@ -62,7 +62,11 @@ export interface JobView {
   error: string | null;
 }
 
+export type ServerAccess = 'owner' | 'operator' | 'member';
+
 export interface GameServer {
+  /** What the signed-in caller may do on this one server. */
+  yourAccess?: ServerAccess;
   id: string;
   displayName: string;
   notes: string | null;
@@ -718,6 +722,17 @@ export const api = {
     request<Dashboard>(`/api/dashboard?window=`),
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
+
+  userAccess: (userId: string) =>
+    request<{
+      role: Role;
+      servers: Array<{ id: string; displayName: string; override: 'operator' | 'member' | 'none' | null }>;
+    }>(`/api/users/${encodeURIComponent(userId)}/access`),
+  setUserAccess: (userId: string, serverId: string, access: 'operator' | 'member' | 'none' | null) =>
+    request<{ serverId: string; override: string | null }>(
+      `/api/users/${encodeURIComponent(userId)}/access`,
+      { ...json({ serverId, access }), method: 'PUT' },
+    ),
 
   sendConsole: (serverId: string, command: string) =>
     request<{ sent: boolean }>(`/api/servers/${encodeURIComponent(serverId)}/console`, {

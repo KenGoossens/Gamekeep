@@ -419,6 +419,17 @@ button:disabled,
   margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-soft);
 }
 .addrow input { flex: 1; min-width: 10rem; width: auto; }
+/* ---- per-server access editor ---- */
+.accessgrid { width: 100%; padding: 8px 0 4px 12px; border-left: 2px solid var(--border-soft); }
+.accessrow { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.accessname { min-width: 12rem; font-size: 0.89rem; }
+.accessname.excepted { color: var(--accent-cyan); font-weight: 600; }
+.accessrow select {
+  font: inherit; font-size: 0.85rem; color: var(--text);
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 6px 9px;
+}
+
 /* ---- typed settings fields ---- */
 .field select {
   width: 100%; font: inherit; color: var(--text);

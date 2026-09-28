@@ -36,7 +36,12 @@ export function registerAuditRoutes(app: FastifyInstance, ctx: AppContext) {
       // failures. Members see only what people did to the servers.
       const full = user.role !== 'member';
       const rows = db.recentAudit(full ? limit : limit * 4);
-      const visible = full ? rows : rows.filter((r) => PUBLIC_ACTIONS.has(r.action));
+      const visible = (full ? rows : rows.filter((r) => PUBLIC_ACTIONS.has(r.action)))
+        // A server someone was excepted from stays out of their feed too --
+        // "ken restarted Valheim" is exactly the existence leak that 'none'
+        // exists to close. Owners are never excepted, so this filters nothing
+        // for them.
+        .filter((r) => !r.serverId || guard.accessFor(user, r.serverId) !== 'none');
 
       return reply.send({
         canSeeDetail: full,

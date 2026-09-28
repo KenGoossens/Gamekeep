@@ -301,5 +301,5 @@ export function registerWorkshopRoutes(app: FastifyInstance, ctx: AppContext) {
 
 /** Kept out of the body above only so the guard is named where it is used. */
 function guardOperator(ctx: AppContext) {
-  return ctx.guard.requireOperator;
+  return ctx.guard.requireServerOperator;
 }

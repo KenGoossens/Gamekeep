@@ -21,8 +21,10 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
   }
 
   const { registry, metrics, settings, files, db, docker, guard } = ctx;
-  const anyone = { preHandler: guard.requireActiveUser };
-  const operator = { preHandler: guard.requireOperator };
+  // Member level, but per server: metrics and the world card are for anyone
+  // who can see the server at all -- which an exception can take away.
+  const anyone = { preHandler: guard.requireServerMember };
+  const operator = { preHandler: guard.requireServerOperator };
 
   /**
    * Refuses a write to a server that is running.

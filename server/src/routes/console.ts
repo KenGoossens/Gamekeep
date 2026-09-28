@@ -23,7 +23,7 @@ export function registerConsoleRoutes(app: FastifyInstance, ctx: AppContext) {
 
   app.post<{ Params: { id: string }; Body: { command?: string } }>(
     '/api/servers/:id/console',
-    { preHandler: guard.requireOperator },
+    { preHandler: guard.requireServerOperator },
     async (request, reply) => {
       const user = request.user!;
       const server = registry.get(request.params.id);

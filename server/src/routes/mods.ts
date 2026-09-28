@@ -32,7 +32,7 @@ const SCANNER_KEY = 'scanners';
 
 export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, docker, db, env, guard, mods, notify } = ctx;
-  const operator = { preHandler: guard.requireOperator };
+  const operator = { preHandler: guard.requireServerOperator };
   const owner = { preHandler: guard.requireOwner };
 
   function scannerConfig(): ScannerConfig {

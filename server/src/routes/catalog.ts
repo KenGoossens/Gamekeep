@@ -371,6 +371,7 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
     // Its schedules go with it: a standing instruction against a server that
     // no longer exists is only ever a source of confusing skip messages.
     db.removeSchedulesFor(id);
+    db.clearServerRoleOverrides(id);
     registry.reload();
     db.audit({
       userId: user.id,

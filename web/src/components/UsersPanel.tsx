@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { UserAccessEditor } from './UserAccessEditor.tsx';
 import { ApiError, api, formatRelative, type Me, type PortalUser, type Role } from '../api.ts';
 
 const ROLE_HELP: Record<Role, string> = {
@@ -22,6 +23,8 @@ export function UsersPanel({ me }: { me: Me }) {
   const [busy, setBusy] = useState(false);
   /** A generated password, shown once, for the admin to pass on. */
   const [handout, setHandout] = useState<{ username: string; password: string } | null>(null);
+  /** Which user's per-server exceptions are unfolded, if any. */
+  const [accessOpen, setAccessOpen] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -110,6 +113,17 @@ export function UsersPanel({ me }: { me: Me }) {
             </span>
 
             <span className="urow-actions">
+              {u.role !== 'owner' ? (
+                <button
+                  type="button"
+                  className="btn-ghost small"
+                  disabled={busy}
+                  aria-expanded={accessOpen === u.id}
+                  onClick={() => setAccessOpen((cur) => (cur === u.id ? null : u.id))}
+                >
+                  {accessOpen === u.id ? 'Close access' : 'Access…'}
+                </button>
+              ) : null}
               <select
                 className="rolepick"
                 value={u.role}
@@ -153,6 +167,7 @@ export function UsersPanel({ me }: { me: Me }) {
                 Delete
               </button>
             </span>
+            {accessOpen === u.id ? <UserAccessEditor userId={u.id} username={u.username} /> : null}
           </li>
         ))}
       </ul>

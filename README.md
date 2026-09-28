@@ -126,6 +126,18 @@ New accounts can only be made member or operator; an owner is made by promoting
 someone afterwards, so a typo cannot hand over the keys. The last owner cannot be
 demoted, disabled or deleted.
 
+### Per-server exceptions
+
+The global role is the rule; the owner can add an exception per server from
+the Users page: make someone **operator of one server** ("sam runs the Valheim
+box"), **member on one** ("ripper can restart it but not reconfigure it"), or
+**hide one entirely**. Hidden means absent: the server is missing from their
+lists, dashboard and activity feed, and its pages answer 404 — not 403,
+because telling someone a hidden server exists is exactly what hiding is for.
+
+Owners cannot be given exceptions. Whoever owns the machine owns every server
+on it, and a row claiming otherwise would only be confusing to honour.
+
 ## Security model
 
 The portal mounts `/var/run/docker.sock`, which is **root-equivalent on the

@@ -101,7 +101,7 @@ async function main() {
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
   const throttle = createLoginThrottle();
-  const guard = createGuard(sessions);
+  const guard = createGuard(sessions, db);
 
   const ctx: AppContext = {
     env,

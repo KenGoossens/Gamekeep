@@ -38,7 +38,8 @@ export type AuditAction =
   | 'backup-created'
   | 'backup-restored'
   | 'backup-removed'
-  | 'console-command';
+  | 'console-command'
+  | 'server-access-changed';
 
 
 export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';
@@ -147,6 +148,9 @@ function toBackupRow(raw: RawBackupRow): BackupRow {
     paths,
   };
 }
+
+/** What a per-server exception may say. 'none' hides the server entirely. */
+export type ServerAccess = 'operator' | 'member' | 'none';
 
 export type AuditResult =
   | 'success'
@@ -439,6 +443,20 @@ export function openDatabase(path: string) {
     );
     CREATE INDEX IF NOT EXISTS idx_backups_server ON backups (server_id, created_at DESC);
 
+    /*
+     * Per-server exceptions to a user's global role. The global role is the
+     * rule; a row here is the exception for one server -- an operator kept
+     * away from one box, or a member trusted to run one. 'none' hides the
+     * server from them entirely. Owners never appear here: whoever owns the
+     * machine is not overridable on it.
+     */
+    CREATE TABLE IF NOT EXISTS server_roles (
+      server_id TEXT NOT NULL,
+      user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role      TEXT NOT NULL,
+      PRIMARY KEY (server_id, user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -602,6 +620,15 @@ export function openDatabase(path: string) {
        VALUES (@id, @serverId, @createdAt, @createdBy, @kind, @file, @sizeBytes, @paths)`,
     ),
     deleteBackup: db.prepare('DELETE FROM backups WHERE id = ?'),
+
+    getServerRole: db.prepare('SELECT role FROM server_roles WHERE server_id = ? AND user_id = ?'),
+    listServerRolesFor: db.prepare('SELECT server_id, role FROM server_roles WHERE user_id = ?'),
+    setServerRole: db.prepare(
+      `INSERT INTO server_roles (server_id, user_id, role) VALUES (?, ?, ?)
+       ON CONFLICT(server_id, user_id) DO UPDATE SET role = excluded.role`,
+    ),
+    clearServerRole: db.prepare('DELETE FROM server_roles WHERE server_id = ? AND user_id = ?'),
+    clearServerRolesFor: db.prepare('DELETE FROM server_roles WHERE server_id = ?'),
 
     getSetting: db.prepare('SELECT value FROM app_settings WHERE key = ?'),
     setSetting: db.prepare(
@@ -840,6 +867,28 @@ export function openDatabase(path: string) {
 
     removeBackup(id: string) {
       st.deleteBackup.run(id);
+    },
+
+    serverRoleOverride(serverId: string, userId: string): ServerAccess | null {
+      const row = st.getServerRole.get(serverId, userId) as { role: string } | undefined;
+      return (row?.role as ServerAccess) ?? null;
+    },
+
+    serverRoleOverridesFor(userId: string): Record<string, ServerAccess> {
+      const rows = st.listServerRolesFor.all(userId) as unknown as Array<{
+        server_id: string;
+        role: string;
+      }>;
+      return Object.fromEntries(rows.map((r) => [r.server_id, r.role as ServerAccess]));
+    },
+
+    setServerRoleOverride(serverId: string, userId: string, role: ServerAccess | null) {
+      if (role === null) st.clearServerRole.run(serverId, userId);
+      else st.setServerRole.run(serverId, userId, role);
+    },
+
+    clearServerRoleOverrides(serverId: string) {
+      st.clearServerRolesFor.run(serverId);
     },
 
     listInstalledMods(serverId: string): InstalledModRow[] {

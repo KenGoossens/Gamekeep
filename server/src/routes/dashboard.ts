@@ -45,7 +45,9 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: AppContext) {
       );
       const since = Date.now() - windowMs;
 
-      const list = registry.list();
+      // The same visibility rule as the server list: hidden means absent,
+      // from the fleet, the charts and the activity alike.
+      const list = registry.list().filter((server) => guard.accessFor(user, server.id) !== 'none');
       const servers: DashboardServer[] = await Promise.all(
         list.map(async (server) => {
           const status = await docker.getStatus(server);

@@ -54,7 +54,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
 
     return { known: true, missing: missingPorts(game, published) };
   }
-  const operator = { preHandler: guard.requireOperator };
+  const operator = { preHandler: guard.requireServerOperator };
 
   /** Decrypts the stored connection, or null when no router is connected. */
   function loadRouter(): { stored: StoredRouter; provider: RouterProvider } | null {

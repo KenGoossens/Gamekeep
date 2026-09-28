@@ -43,7 +43,7 @@ function sseWrite(reply: FastifyReply, event: string, data: string): void {
 export function registerLogRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, docker, db, guard } = ctx;
   const logFiles = createLogFileReader(docker);
-  const operator = { preHandler: guard.requireOperator };
+  const operator = { preHandler: guard.requireServerOperator };
 
   const tailOf = (raw: unknown): number =>
     Math.min(Math.max(Number(raw) || DEFAULT_TAIL, 1), MAX_TAIL);

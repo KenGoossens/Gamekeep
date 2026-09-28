@@ -16,7 +16,7 @@ const view = (u: UserRow) => ({
 });
 
 export function registerUserRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { db, guard } = ctx;
+  const { db, guard, registry } = ctx;
   const owner = { preHandler: guard.requireOwner };
 
   app.get('/api/users', owner, async (_request, reply) =>
@@ -174,6 +174,75 @@ export function registerUserRoutes(app: FastifyInstance, ctx: AppContext) {
    * Owner-only: it names people, where they connected from and what they used,
    * which is information about your friends rather than about the servers.
    */
+  /**
+   * Per-server exceptions to one user's global role.
+   *
+   * Owner work, like everything else about accounts. The rule stays the
+   * global role; a row here is the exception for one server -- "sam runs the
+   * Valheim server" or "ripper stays away from ARK". Owners cannot be given
+   * exceptions: whoever owns the machine owns every server on it.
+   */
+  app.get<{ Params: { id: string } }>(
+    '/api/users/:id/access',
+    owner,
+    async (request, reply) => {
+      const target = db.findById(request.params.id);
+      if (!target) return reply.code(404).send({ error: 'unknown-user' });
+
+      const overrides = db.serverRoleOverridesFor(target.id);
+      return reply.send({
+        role: target.role,
+        servers: registry.list().map((server) => ({
+          id: server.id,
+          displayName: server.displayName,
+          override: overrides[server.id] ?? null,
+        })),
+      });
+    },
+  );
+
+  app.put<{ Params: { id: string }; Body: { serverId?: string; access?: string | null } }>(
+    '/api/users/:id/access',
+    owner,
+    async (request, reply) => {
+      const user = request.user!;
+      const target = db.findById(request.params.id);
+      if (!target) return reply.code(404).send({ error: 'unknown-user' });
+      if (target.role === 'owner') {
+        return reply.code(409).send({
+          error: 'owner-not-overridable',
+          message: 'An owner has every server; there is nothing to except them from.',
+        });
+      }
+
+      const server = registry.get(request.body?.serverId);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const access = request.body?.access ?? null;
+      if (access !== null && !['operator', 'member', 'none'].includes(access)) {
+        return reply.code(400).send({ error: 'bad-access' });
+      }
+      // Storing an "exception" equal to the global role would only mislead
+      // whoever reads the list later; treat it as clearing the exception.
+      const stored = access === target.role ? null : (access as 'operator' | 'member' | 'none' | null);
+      db.setServerRoleOverride(server.id, target.id, stored);
+
+      db.audit({
+        userId: user.id,
+        username: user.username,
+        serverId: server.id,
+        action: 'server-access-changed',
+        result: 'success',
+        detail: stored
+          ? `${target.username} is now ${stored === 'none' ? 'excluded' : stored} on ${server.displayName}`
+          : `${target.username} follows their global role again on ${server.displayName}`,
+        ...originOf(request),
+      });
+
+      return reply.send({ serverId: server.id, override: stored });
+    },
+  );
+
   app.get('/api/sessions', owner, async (request, reply) => {
     const mine = request.user!.sessionId;
     return reply.send({

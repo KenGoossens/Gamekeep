@@ -39,7 +39,7 @@ const POLL_BUSY_MS = 2000;
 
 export function ServerDetailPage({
   serverId,
-  canOperate,
+  canOperate: globalCanOperate,
   isOwner,
 }: {
   serverId: string;
@@ -55,6 +55,14 @@ export function ServerDetailPage({
   const [tab, setTab] = useState<Tab>('overview');
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
+
+  /*
+   * Per server, not global: an exception can make a member the operator of
+   * this one server or keep an operator away from it, and the tabs have to
+   * follow what this server says about this caller. The global role only
+   * bridges the gap until the first response arrives.
+   */
+  const canOperate = server?.yourAccess ? server.yourAccess !== 'member' : globalCanOperate;
 
   useEffect(() => {
     let cancelled = false;

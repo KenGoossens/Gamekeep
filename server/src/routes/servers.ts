@@ -54,8 +54,24 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
     };
   }
 
-  app.get('/api/servers', { preHandler: guard.requireActiveUser }, async (_request, reply) => {
-    const list = await Promise.all(registry.list().map(describe));
+  app.get('/api/servers', { preHandler: guard.requireActiveUser }, async (request, reply) => {
+    const user = request.user!;
+    /*
+     * Servers someone was excepted from are absent, not greyed out: a hidden
+     * server that still shows its name is not hidden. yourAccess rides along
+     * so the UI can size each card's controls to this caller, not to their
+     * global role.
+     */
+    const visible = registry
+      .list()
+      .map((server) => ({ server, access: guard.accessFor(user, server.id) }))
+      .filter(({ access }) => access !== 'none');
+    const list = await Promise.all(
+      visible.map(async ({ server, access }) => ({
+        ...(await describe(server)),
+        yourAccess: access,
+      })),
+    );
     return reply.send({ servers: list });
   });
 
@@ -65,6 +81,10 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
     async (request, reply) => {
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const access = guard.accessFor(request.user!, server.id);
+      // The same answer a wrong id gets: hidden means hidden.
+      if (access === 'none') return reply.code(404).send({ error: 'unknown-server' });
 
       // The detail page shows only this server's own history.
       const history = ctx.db
@@ -77,10 +97,12 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
           username: row.username,
           action: row.action,
           result: row.result,
-          detail: request.user && request.user.role !== 'member' ? row.detail : null,
+          // Per-server: an exception that makes someone operator of this
+          // server also earns them its details.
+          detail: access !== 'member' ? row.detail : null,
         }));
 
-      return reply.send({ server: await describe(server), history });
+      return reply.send({ server: { ...(await describe(server)), yourAccess: access }, history });
     },
   );
 }

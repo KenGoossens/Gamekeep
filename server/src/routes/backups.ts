@@ -15,7 +15,7 @@ import { gameByQueryType } from '../games.js';
  */
 export function registerBackupRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, docker, db, guard, backups } = ctx;
-  const operator = { preHandler: guard.requireOperator };
+  const operator = { preHandler: guard.requireServerOperator };
 
   function fail(reply: FastifyReply, err: unknown) {
     if (err instanceof BackupError) {

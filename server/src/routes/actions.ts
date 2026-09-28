@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { originOf } from '../auth/origin.js';
 import type { AppContext } from '../context.js';
-import { canOperate } from '../db.js';
 import { notifyServer, type EventKind } from '../notify.js';
 
 export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -65,7 +64,9 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
 
   app.post<{ Params: { id: string } }>(
     '/api/servers/:id/restart',
-    { preHandler: guard.requireActiveUser },
+    // Member level, but per server: someone a server is hidden from cannot
+    // restart it, or learn that it exists.
+    { preHandler: guard.requireServerMember },
     async (request, reply) => {
       const user = request.user!;
 
@@ -102,7 +103,9 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
 
       const { remainingSeconds } = cooldown.check(server);
       // Operators and owners may override the cooldown; members may not.
-      if (remainingSeconds > 0 && !canOperate(user.role)) {
+      // Per server: an exception that makes someone operator of this one
+      // grants the bypass here too, and only here.
+      if (remainingSeconds > 0 && guard.accessFor(user, server.id) === 'member') {
         db.audit({
           userId: user.id,
           username: user.username,
@@ -152,7 +155,7 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
   for (const operation of ['start', 'stop'] as const) {
     app.post<{ Params: { id: string } }>(
       `/api/servers/:id/${operation}`,
-      { preHandler: guard.requireOperator },
+      { preHandler: guard.requireServerOperator },
       async (request, reply) => {
         const user = request.user!;
         const server = registry.get(request.params.id);

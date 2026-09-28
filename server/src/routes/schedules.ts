@@ -57,7 +57,7 @@ function publicRow(row: ScheduleRow) {
 
 export function registerScheduleRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, db, guard, scheduler } = ctx;
-  const operator = { preHandler: guard.requireOperator };
+  const operator = { preHandler: guard.requireServerOperator };
 
   function describe(row: { action: string; time: string; days: number[]; name: string }): string {
     const days =
