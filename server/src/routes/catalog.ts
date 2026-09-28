@@ -229,9 +229,16 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
         { name, variables: body.variables ?? {}, ports: body.ports ?? {} },
         env.APPDATA_ROOT,
         env.APPDATA_HOST_ROOT,
+        env.GAME_NETWORK,
       );
 
       const steps: string[] = [];
+      // Before anything is created: a container on a network the portal
+      // cannot reach is worse than no container.
+      await deployer.ensureNetwork(env.GAME_NETWORK, (message) => {
+        steps.push(message);
+        request.log.info({ deploy: plan.containerName }, message);
+      });
       await deployer.create(plan, (message) => {
         steps.push(message);
         request.log.info({ deploy: plan.containerName }, message);
@@ -269,8 +276,12 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
         cooldownSeconds: 300,
         restartTimeoutSeconds: 300,
         query:
-          game && ports.length > 0 && env.LAN_ADDRESS.trim()
-            ? { type: game.query, host: env.LAN_ADDRESS.trim(), port: ports[0] }
+          game && ports.length > 0
+            ? // The container name, not the host's address: the server shares
+              // a network with the portal now, so this resolves directly and
+              // keeps working when the container's IP changes. It also means
+              // the player count no longer depends on LAN_ADDRESS being set.
+              { type: game.query, host: plan.containerName, port: ports[0] }
             : undefined,
         notes: `Deployed from Community Applications (${found.publisher}).`,
       };

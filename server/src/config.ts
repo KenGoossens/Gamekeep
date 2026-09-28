@@ -41,6 +41,19 @@ const envSchema = z.object({
    */
   UNRAID_TEMPLATE_DIR: z.string().default('/unraid-templates'),
   /**
+   * The Docker network deployed game servers join, created and joined by the
+   * portal if it does not exist.
+   *
+   * Not the default bridge, where containers cannot resolve each other by
+   * name -- which is why a deployed server had to be queried through the
+   * host's own address instead of directly. And not, by default, whatever
+   * network the portal itself is on: Docker isolates bridge networks from one
+   * another, so a separate one keeps a game server -- which runs third-party
+   * mod code -- away from a tunnel or reverse proxy sitting beside the portal.
+   * Set it to the portal's own network to keep everything together instead.
+   */
+  GAME_NETWORK: z.string().min(1).default('gamekeep-servers'),
+  /**
    * Publishers allowed to be deployed from Community Applications. Deploying a
    * container is root-equivalent on the host, so this is a trust list, not a
    * convenience filter. Comma-separated; leave unset for the built-in default.

@@ -1,3 +1,4 @@
+import { hostname } from 'node:os';
 import { chown, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type Dockerode from 'dockerode';
@@ -64,6 +65,8 @@ export function planDeployment(
   request: DeployRequest,
   appdataRoot: string,
   appdataHostRoot: string,
+  /** The network the container joins, whatever the template asked for. */
+  gameNetwork: string,
 ): DeployPlan {
   if (!NAME_PATTERN.test(request.name)) {
     throw new DeployError(
@@ -79,6 +82,13 @@ export function planDeployment(
     );
   }
 
+  /*
+   * The template's own choice is checked and then discarded. Refusing host
+   * and none still matters -- a template asking for either is telling you
+   * something -- but what it actually gets is the portal's game network,
+   * because a server on the default bridge cannot be resolved by name and had
+   * to be queried through the host's address instead.
+   */
   const network = template.network.toLowerCase();
   if (network === 'host' || network === 'none') {
     throw new DeployError(
@@ -155,7 +165,7 @@ export function planDeployment(
     appdataPath,
     appdataHostPath,
     createPaths,
-    network: template.network,
+    network: gameNetwork,
     env,
     binds,
     portBindings,
@@ -199,6 +209,47 @@ export function createDeployer(dockerClient: DockerClient) {
         },
       );
     });
+  }
+
+  /**
+   * Makes sure the game network exists and that the portal is on it.
+   *
+   * Both steps are done here rather than asked of whoever installs this:
+   * a deployed server that the portal cannot resolve by name is the bug this
+   * exists to fix, and leaving that to a setup step nobody reads would just
+   * move the bug. A running container can join a network without being
+   * recreated, so the portal attaches itself.
+   */
+  async function ensureNetwork(name: string, onProgress: (message: string) => void): Promise<void> {
+    const networks = await docker.listNetworks({ filters: { name: [name] } });
+    // listNetworks matches on substring, so an exact name still has to be
+    // picked out of what comes back.
+    if (!networks.some((n) => n.Name === name)) {
+      await docker.createNetwork({ Name: name, Driver: 'bridge' });
+      onProgress(`Created the ${name} network`);
+    }
+
+    const self = docker.getContainer(hostname());
+    let attached = false;
+    try {
+      const info = await self.inspect();
+      attached = Object.keys(info.NetworkSettings?.Networks ?? {}).includes(name);
+    } catch {
+      // Not running in a container we can identify: the connect below will
+      // fail too, and its message is the more useful one.
+    }
+
+    if (!attached) {
+      try {
+        await docker.getNetwork(name).connect({ Container: hostname() });
+        onProgress(`Joined the ${name} network`);
+      } catch (err) {
+        throw new DeployError(
+          `Could not join the ${name} network, so the new server would be unreachable: ${(err as Error).message}`,
+          'network-failed',
+        );
+      }
+    }
   }
 
   async function create(plan: DeployPlan, onProgress: (message: string) => void): Promise<string> {
@@ -258,7 +309,7 @@ export function createDeployer(dockerClient: DockerClient) {
     return container.id;
   }
 
-  return { create, usedHostPorts, containerExists };
+  return { create, ensureNetwork, usedHostPorts, containerExists };
 }
 
 export type Deployer = ReturnType<typeof createDeployer>;

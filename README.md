@@ -269,6 +269,26 @@ Host paths from a template are ignored and replaced with ones the portal
 controls, and `ExtraParams` is never applied. The resolved digest is recorded in
 the audit log, because a tag can be moved afterwards.
 
+### Which network a deployed server joins
+
+Its own — `GAME_NETWORK`, created and joined by the portal on the first deploy,
+so there is nothing to set up.
+
+Not the template's choice, which is almost always Docker's default bridge.
+Containers there cannot resolve each other by name, so the portal would have to
+reach a game server through the host's own address and back in, which works
+until the address changes or `LAN_ADDRESS` is wrong. On a shared network the
+player count uses the container name and keeps working.
+
+Separate from the portal's own network by default, because Docker isolates
+bridge networks from one another. A game server runs whatever mod code you
+install on it, and there is no reason for it to be able to reach a tunnel or a
+reverse proxy sitting beside the portal. Set `GAME_NETWORK` to the portal's own
+network if you would rather keep everything together.
+
+Published ports work the same either way, so this changes nothing about how
+players connect.
+
 ## Reaching the game servers
 
 The portal is a web app and goes behind a reverse proxy or a tunnel like any
