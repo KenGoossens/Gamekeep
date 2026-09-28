@@ -5,6 +5,7 @@ import {
   type CatalogApp,
   type CatalogTemplate,
   type DeployReview,
+  type ExtraParameters,
   type Finding,
 } from '../api.ts';
 import { navigate } from '../router.ts';
@@ -132,6 +133,32 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
   const [review, setReview] = useState<DeployReview | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
+  const [extra, setExtra] = useState<ExtraParameters>({ variables: [], ports: [], paths: [] });
+  const extraCount = extra.variables.length + extra.ports.length + extra.paths.length;
+
+  /*
+   * Three small helpers rather than three copies of the same splice. Typed on
+   * the key so a port row cannot be edited as if it were a variable.
+   */
+  function addExtra<K extends keyof ExtraParameters>(key: K, row: ExtraParameters[K][number]) {
+    setExtra((prev) => ({ ...prev, [key]: [...prev[key], row] }));
+  }
+
+  function editExtra<K extends keyof ExtraParameters>(
+    key: K,
+    index: number,
+    patch: Partial<ExtraParameters[K][number]>,
+  ) {
+    setExtra((prev) => ({
+      ...prev,
+      [key]: prev[key].map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    }));
+  }
+
+  function dropExtra<K extends keyof ExtraParameters>(key: K, index: number) {
+    setExtra((prev) => ({ ...prev, [key]: prev[key].filter((_, i) => i !== index) }));
+  }
+
   // Fetched as soon as the form opens, so the operator is reading what this
   // app asks for while they fill in the name rather than after they commit.
   useEffect(() => {
@@ -161,6 +188,7 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
         appId: app.id,
         name,
         acknowledge: Boolean(review?.needsAcknowledgement),
+        extra,
         variables: values,
         ports: Object.fromEntries(
           Object.entries(ports).map(([k, v]) => [k, Number(v)]).filter(([, v]) => Number.isFinite(v)),
@@ -280,6 +308,131 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
           server's own directory. Host paths from the template are ignored on purpose.
         </p>
 
+
+        {/* The same three kinds Unraid's own template editor offers. Paths
+            take a container path and a folder name rather than a host path,
+            so every mount still lands inside this server's own directory. */}
+        <details className="connect">
+          <summary>
+            Add your own variables, ports or folders
+            {extraCount > 0 ? ` (${extraCount})` : ''}
+          </summary>
+
+          <h4 className="subhead">Variables</h4>
+          {extra.variables.map((row, i) => (
+            <div className="seedrow" key={`v${i}`}>
+              <input
+                className="modsearch"
+                value={row.name}
+                placeholder="SERVER_NAME"
+                onChange={(e) => editExtra('variables', i, { name: e.target.value })}
+              />
+              <input
+                className="modsearch"
+                value={row.value}
+                placeholder="value"
+                onChange={(e) => editExtra('variables', i, { value: e.target.value })}
+              />
+              <button
+                type="button"
+                className="btn-ghost small danger"
+                onClick={() => dropExtra('variables', i)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn-ghost small"
+            onClick={() => addExtra('variables', { name: '', value: '' })}
+          >
+            + Variable
+          </button>
+
+          <h4 className="subhead">Ports</h4>
+          {extra.ports.map((row, i) => (
+            <div className="seedrow" key={`p${i}`}>
+              <input
+                className="modsearch"
+                value={row.container || ''}
+                placeholder="container port"
+                inputMode="numeric"
+                onChange={(e) => editExtra('ports', i, { container: Number(e.target.value) || 0 })}
+              />
+              <input
+                className="modsearch"
+                value={row.host || ''}
+                placeholder="host port"
+                inputMode="numeric"
+                onChange={(e) => editExtra('ports', i, { host: Number(e.target.value) || 0 })}
+              />
+              <select
+                className="rolepick"
+                value={row.protocol}
+                onChange={(e) =>
+                  editExtra('ports', i, { protocol: e.target.value as 'tcp' | 'udp' })
+                }
+              >
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+              </select>
+              <button
+                type="button"
+                className="btn-ghost small danger"
+                onClick={() => dropExtra('ports', i)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn-ghost small"
+            onClick={() => addExtra('ports', { container: 0, host: 0, protocol: 'tcp' })}
+          >
+            + Port
+          </button>
+
+          <h4 className="subhead">Folders</h4>
+          {extra.paths.map((row, i) => (
+            <div className="seedrow" key={`d${i}`}>
+              <input
+                className="modsearch"
+                value={row.container}
+                placeholder="/path/inside/the/container"
+                onChange={(e) => editExtra('paths', i, { container: e.target.value })}
+              />
+              <input
+                className="modsearch"
+                value={row.name}
+                placeholder="folder name (optional)"
+                onChange={(e) => editExtra('paths', i, { name: e.target.value })}
+              />
+              <button
+                type="button"
+                className="btn-ghost small danger"
+                onClick={() => dropExtra('paths', i)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn-ghost small"
+            onClick={() => addExtra('paths', { container: '', name: '' })}
+          >
+            + Folder
+          </button>
+
+          <p className="hint">
+            A folder is created inside this server's own directory and mounted at the container
+            path you give. There is no field for a host path on purpose: every mount staying
+            inside that directory is what stops a deployed server reaching the rest of the
+            machine.
+          </p>
+        </details>
         <h3 className="subhead">Before you deploy</h3>
         {reviewError ? <p className="hint bad">{reviewError}</p> : null}
         {!review && !reviewError ? <p className="empty">Checking this app…</p> : null}

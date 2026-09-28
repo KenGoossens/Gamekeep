@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type Dashboard, type DashboardServer } from '../api.ts';
 import { TimeChart, type ChartSeries } from '../components/TimeChart.tsx';
 import { linkProps } from '../router.ts';
+import { byRunningThenName } from '../ordering.ts';
 
 /**
  * The fleet at a glance.
@@ -254,7 +255,12 @@ export function DashboardPage({ canOperate }: { canOperate: boolean }) {
 
       <section className="fleet">
         {[...data.servers]
-          .sort((a, b) => a.displayName.localeCompare(b.displayName))
+          .sort((a, b) =>
+            byRunningThenName(
+              { running: a.running, name: a.displayName },
+              { running: b.running, name: b.displayName },
+            ),
+          )
           .map((server) => (
             <ServerTile
               key={server.id}

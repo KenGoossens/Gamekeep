@@ -978,3 +978,9 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
 .addresses dd { margin: 0; font-size: 1rem; }
 .addresses dd code { font-size: 0.95rem; color: var(--text); }
 .muted-inline { color: var(--faint); }
+
+/* The search sits in the page head, beside the counts. */
+.serversearch { flex: none; width: 15rem; max-width: 100%; }
+
+/* Sub-heading inside a collapsible form section. */
+.connect .subhead { margin: 16px 0 6px; }

@@ -5,6 +5,27 @@ import type Dockerode from 'dockerode';
 import type { CatalogApp, ParsedTemplate } from './catalog.js';
 import type { DockerClient } from './docker/client.js';
 
+/**
+ * Anything the operator adds beyond what the template asked for -- the same
+ * three kinds Unraid's own template editor offers.
+ *
+ * Paths take a container path and a folder name, never a host path. Every
+ * mount a deployed server gets still lands inside that server's own
+ * directory, which is the guarantee the deploy review leans on: a template
+ * cannot ask for /boot or the Docker socket, and neither can a person typing
+ * into this form.
+ */
+export interface ExtraParameters {
+  variables: Array<{ name: string; value: string }>;
+  ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp' }>;
+  paths: Array<{ container: string; name: string }>;
+}
+
+export const NO_EXTRAS: ExtraParameters = { variables: [], ports: [], paths: [] };
+
+/** Env var names as the shell defines them. */
+const VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 export interface DeployRequest {
   /** What the server will be called, and the container name. */
   name: string;
@@ -12,6 +33,8 @@ export interface DeployRequest {
   variables: Record<string, string>;
   /** Host ports keyed by the template's container port target. */
   ports: Record<string, number>;
+  /** Added by the operator on top of the template. */
+  extra?: ExtraParameters;
 }
 
 export interface DeployPlan {
@@ -156,6 +179,69 @@ export function planDeployment(
       exposed[key] = {};
       portBindings[key] = [{ HostPort: String(hostPort) }];
     }
+  }
+
+  /*
+   * The operator's own additions, applied after the template so a deliberate
+   * value wins over a default. Validated the same way the template's own
+   * fields are -- typing something in is not a reason to trust it more.
+   */
+  const extra = request.extra ?? NO_EXTRAS;
+
+  for (const variable of extra.variables) {
+    const name = variable.name.trim();
+    if (!name) continue;
+    if (!VARIABLE_PATTERN.test(name)) {
+      throw new DeployError(
+        `"${name}" is not a valid variable name: letters, digits and underscores, not starting with a digit.`,
+        'invalid-variable',
+      );
+    }
+    // Same as the template path: a newline would forge a second variable.
+    env.push(`${name}=${variable.value.replace(/[\r\n]/g, ' ')}`);
+  }
+
+  for (const port of extra.ports) {
+    const container = Number(port.container);
+    const host = Number(port.host);
+    for (const [label, value] of [
+      ['container', container],
+      ['host', host],
+    ] as const) {
+      if (!Number.isInteger(value) || value < 1 || value > 65535) {
+        throw new DeployError(`${value} is not a usable ${label} port.`, 'invalid-port');
+      }
+    }
+
+    const protocol = port.protocol === 'udp' ? 'udp' : 'tcp';
+    const key = `${container}/${protocol}`;
+    if (portBindings[key]) {
+      throw new DeployError(
+        `Port ${container}/${protocol} is already set by the template.`,
+        'duplicate-port',
+      );
+    }
+    exposed[key] = {};
+    portBindings[key] = [{ HostPort: String(host) }];
+  }
+
+  const usedTargets = new Set(binds.map((b) => b.split(':')[1]));
+  for (const path of extra.paths) {
+    const container = path.container.trim();
+    if (!container) continue;
+    if (!container.startsWith('/') || container.includes('\0')) {
+      throw new DeployError(`"${container}" is not an absolute container path.`, 'invalid-path');
+    }
+    if (usedTargets.has(container)) {
+      throw new DeployError(`${container} is already mounted by the template.`, 'duplicate-path');
+    }
+
+    // A folder name, not a host path: this lands inside the server's own
+    // directory like every other mount, so nothing here can reach the host.
+    const subdirectory = slugify(path.name) || slugify(container) || 'extra';
+    usedTargets.add(container);
+    binds.push(`${join(appdataHostPath, subdirectory)}:${container}`);
+    createPaths.push(join(appdataPath, subdirectory));
   }
 
   return {

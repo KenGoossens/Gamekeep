@@ -2,7 +2,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { originOf } from '../auth/origin.js';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
-import { DeployError, planDeployment, slugify } from '../deploy.js';
+import { DeployError, planDeployment, slugify, type ExtraParameters } from '../deploy.js';
 import { passes, uncertain } from '../findings.js';
 import { reviewImage, reviewTemplate } from '../review/deploy.js';
 import { identifyGame } from '../games.js';
@@ -169,6 +169,7 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
       name?: string;
       variables?: Record<string, string>;
       ports?: Record<string, number>;
+      extra?: ExtraParameters;
       acknowledge?: boolean;
     };
   }>('/api/catalog/deploy', operator, async (request, reply) => {
@@ -226,7 +227,18 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
       const plan = planDeployment(
         found,
         parsed,
-        { name, variables: body.variables ?? {}, ports: body.ports ?? {} },
+        {
+          name,
+          variables: body.variables ?? {},
+          ports: body.ports ?? {},
+          // Shaped defensively: this arrives as JSON and every loop below
+          // assumes arrays.
+          extra: {
+            variables: Array.isArray(body.extra?.variables) ? body.extra.variables : [],
+            ports: Array.isArray(body.extra?.ports) ? body.extra.ports : [],
+            paths: Array.isArray(body.extra?.paths) ? body.extra.paths : [],
+          },
+        },
         env.APPDATA_ROOT,
         env.APPDATA_HOST_ROOT,
         env.GAME_NETWORK,

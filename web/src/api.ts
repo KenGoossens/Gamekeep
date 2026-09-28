@@ -276,6 +276,13 @@ export interface Finding {
   detail?: string;
 }
 
+export interface ExtraParameters {
+  variables: Array<{ name: string; value: string }>;
+  ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp' }>;
+  /** A container path plus a folder name; never a host path. */
+  paths: Array<{ container: string; name: string }>;
+}
+
 export interface ImageFacts {
   digest: string | null;
   createdAt: string | null;
@@ -658,6 +665,7 @@ export const api = {
     name: string;
     variables: Record<string, string>;
     ports: Record<string, number>;
+    extra?: ExtraParameters;
     acknowledge?: boolean;
   }) =>
     request<{ serverId: string; container: string; appdataPath: string; unraidTemplate: string | null }>(
