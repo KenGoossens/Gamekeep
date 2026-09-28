@@ -463,6 +463,21 @@ path here, so try it on a scratch container first.
 
 ## Settings and files
 
+### Typed settings
+
+The game registry gives the variables it recognises a label, a line of
+context and a type — the part of Pterodactyl's egg format worth having. Those
+render as real controls (a toggle, a number field with its range, a dropdown)
+and are validated server-side before anything is recreated: a player limit of
+5000 is refused with the range, not passed to a game that will fail on it
+minutes later with the server already down. Booleans keep whichever spelling
+the image already uses (`true/false`, `1/0`, `yes/no`, `on/off`).
+
+Every other variable still shows as the plain field it always was — a spec is
+a courtesy, never a gate. Adding one is a few lines on the game's entry in
+`server/src/games.ts`.
+
+
 Both are locked while a server runs. Most game servers hold their configuration in
 memory and write it back on shutdown, quietly undoing an edit — so the portal asks
 you to stop first rather than let you lose work.

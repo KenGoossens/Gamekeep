@@ -132,6 +132,16 @@ export interface MetricPoint {
   players: number | null;
 }
 
+export interface SettingSpec {
+  key: string;
+  label: string;
+  help?: string;
+  type: 'text' | 'number' | 'boolean' | 'select';
+  min?: number;
+  max?: number;
+  options?: string[];
+}
+
 export interface SettingField {
   key: string;
   value: string;
@@ -608,7 +618,9 @@ export const api = {
     ),
 
   settings: (id: string) =>
-    request<{ settings: SettingField[] }>(`/api/servers/${encodeURIComponent(id)}/settings`),
+    request<{ settings: SettingField[]; specs?: SettingSpec[] }>(
+      `/api/servers/${encodeURIComponent(id)}/settings`,
+    ),
   applySettings: (id: string, changes: Record<string, string>) =>
     request<{ applied: string[]; steps: string[] }>(
       `/api/servers/${encodeURIComponent(id)}/settings`,

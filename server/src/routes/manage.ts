@@ -1,12 +1,25 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { ServerConfig } from '../config.js';
 import type { AppContext } from '../context.js';
+import { COMMON_SETTINGS, gameByQueryType, type SettingSpec } from '../games.js';
+import { SettingsError } from '../settings.js';
 import { FileError } from '../files.js';
 import { originOf } from '../auth/origin.js';
 import { RETENTION_MS } from '../metrics.js';
 import { readWorld } from '../world.js';
 
 export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
+  /**
+   * The specs that apply to this server: the game's own plus the ones the
+   * ich777 images share, filtered later by which variables actually exist.
+   * The game's spec wins when both name the same key.
+   */
+  function specsFor(server: { query?: { type: string } }): SettingSpec[] {
+    const own = gameByQueryType(server.query?.type)?.settings ?? [];
+    const named = new Set(own.map((spec) => spec.key));
+    return [...own, ...COMMON_SETTINGS.filter((spec) => !named.has(spec.key))];
+  }
+
   const { registry, metrics, settings, files, db, docker, guard } = ctx;
   const anyone = { preHandler: guard.requireActiveUser };
   const operator = { preHandler: guard.requireOperator };
@@ -75,7 +88,9 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
       try {
-        return reply.send({ settings: await settings.read(server) });
+        // The specs ride along so the UI can explain the fields it knows;
+        // ones whose variable the container lacks are simply never rendered.
+        return reply.send({ settings: await settings.read(server), specs: specsFor(server) });
       } catch (err) {
         return reply.code(502).send({ error: 'read-failed', message: (err as Error).message });
       }
@@ -99,7 +114,7 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
 
       try {
         const steps: string[] = [];
-        const applied = await settings.apply(server, changes, (m) => steps.push(m));
+        const applied = await settings.apply(server, changes, (m) => steps.push(m), specsFor(server));
 
         if (applied.length === 0) {
           return reply.send({ applied: [], steps: [], message: 'Nothing changed.' });
@@ -117,6 +132,11 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
         });
         return reply.send({ applied, steps });
       } catch (err) {
+        // A value that fails its spec never got as far as touching the
+        // container, so it is the operator's input to fix, not an incident.
+        if (err instanceof SettingsError) {
+          return reply.code(400).send({ error: 'invalid-value', message: err.message });
+        }
         db.audit({
           userId: user.id,
           username: user.username,

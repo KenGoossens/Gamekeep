@@ -106,6 +106,46 @@ const tcp = (port: number, purpose: string, required = true): GamePort => ({
   required,
 });
 
+/**
+ * What a settings field means, for the ones worth explaining.
+ *
+ * The Settings tab shows a container's environment variables, and a bare
+ * variable name is a poor interface: SERVER_PUBLIC=1 does not say what it
+ * does, whether 2 is allowed, or that changing WORLD_NAME abandons the world.
+ * A spec gives a variable a label, a sentence of context and a type the
+ * portal can hold it to -- the part of Pterodactyl's egg format actually
+ * worth having. A spec only applies when the container has that variable, so
+ * a wrong image simply shows the plain field instead.
+ */
+export interface SettingSpec {
+  key: string;
+  label: string;
+  help?: string;
+  type: 'text' | 'number' | 'boolean' | 'select';
+  min?: number;
+  max?: number;
+  options?: string[];
+}
+
+/**
+ * Variables the ich777 images share across games. Merged under every game's
+ * own specs and, like all specs, shown only when the variable exists.
+ */
+export const COMMON_SETTINGS: SettingSpec[] = [
+  {
+    key: 'VALIDATE',
+    label: 'Verify game files on start',
+    help: 'SteamCMD re-checks every file, which makes starting noticeably slower. Turn it on when files may be damaged, off for everyday use.',
+    type: 'boolean',
+  },
+  {
+    key: 'GAME_PARAMS',
+    label: 'Extra start parameters',
+    help: 'Passed to the game server verbatim. The game decides what they mean.',
+    type: 'text',
+  },
+];
+
 export interface GameProfile {
   key: string;
   label: string;
@@ -148,6 +188,8 @@ export interface GameProfile {
    * players through Steam's relay.
    */
   ports?: GamePort[];
+  /** Settings worth explaining; everything else still shows as a plain field. */
+  settings?: SettingSpec[];
   /**
    * Directory names that hold what cannot be redownloaded: worlds, saves,
    * player data, the server's own config. Suffixes to search for rather than
@@ -202,6 +244,22 @@ export const GAMES: GameProfile[] = [
       udp(2457, 'Steam query, which is what puts it in the server browser'),
     ],
     saves: ['worlds_local'],
+    settings: [
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text' },
+      {
+        key: 'WORLD_NAME',
+        label: 'World',
+        type: 'text',
+        help: 'A different name starts a brand-new world. The old one stays on disk.',
+      },
+      {
+        key: 'SERVER_PASS',
+        label: 'Password',
+        type: 'text',
+        help: 'Five characters minimum, or the server refuses to boot.',
+      },
+      { key: 'SERVER_PUBLIC', label: 'Listed in the public server browser', type: 'boolean' },
+    ],
     match: [/valheim/i],
     mods: thunderstore('valheim'),
   },
@@ -237,6 +295,29 @@ export const GAMES: GameProfile[] = [
       udp(19133, 'The same thing over IPv6', false),
     ],
     saves: ['worlds'],
+    settings: [
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text' },
+      {
+        key: 'GAMEMODE',
+        label: 'Game mode',
+        type: 'select',
+        options: ['survival', 'creative', 'adventure'],
+      },
+      {
+        key: 'DIFFICULTY',
+        label: 'Difficulty',
+        type: 'select',
+        options: ['peaceful', 'easy', 'normal', 'hard'],
+      },
+      { key: 'MAX_PLAYERS', label: 'Player limit', type: 'number', min: 1, max: 100 },
+      { key: 'ALLOW_CHEATS', label: 'Allow cheats', type: 'boolean' },
+      {
+        key: 'LEVEL_NAME',
+        label: 'World',
+        type: 'text',
+        help: 'A different name starts a brand-new world. The old one stays on disk.',
+      },
+    ],
     match: [/bedrock/i, /minecraftbe/i],
     modsUnavailable:
       'Bedrock add-ons come as .mcpack or .mcaddon files and there is no open repository to fetch them from — the Marketplace is closed. Add them by hand from the Files tab.',
@@ -254,6 +335,29 @@ export const GAMES: GameProfile[] = [
       tcp(25575, 'RCON. Never forward this one to the internet', false),
     ],
     saves: ['world', 'world_nether', 'world_the_end'],
+    settings: [
+      { key: 'MOTD', label: 'Message of the day', type: 'text' },
+      { key: 'MAX_PLAYERS', label: 'Player limit', type: 'number', min: 1, max: 1000 },
+      {
+        key: 'DIFFICULTY',
+        label: 'Difficulty',
+        type: 'select',
+        options: ['peaceful', 'easy', 'normal', 'hard'],
+      },
+      { key: 'PVP', label: 'Players can hurt each other', type: 'boolean' },
+      {
+        key: 'MEMORY',
+        label: 'Java memory',
+        type: 'text',
+        help: 'For example 4G. More helps modded servers; past the container limit it helps nobody.',
+      },
+      {
+        key: 'VERSION',
+        label: 'Minecraft version',
+        type: 'text',
+        help: 'LATEST follows releases. Pin a number when your mods need one.',
+      },
+    ],
     match: [/minecraft/i, /papermc/i, /spigot/i, /forge/i, /fabric/i],
     mods: {
       source: 'modrinth',
@@ -316,6 +420,11 @@ export const GAMES: GameProfile[] = [
       udp(15637, 'Steam query'),
     ],
     saves: ['savegame'],
+    settings: [
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text' },
+      { key: 'SERVER_PASSWORD', label: 'Password', type: 'text' },
+      { key: 'SERVER_SLOT_COUNT', label: 'Player limit', type: 'number', min: 1, max: 16 },
+    ],
     match: [/enshrouded/i],
     modsUnavailable: 'Enshrouded has no mod support, so there is nothing to install.',
   },
@@ -333,6 +442,12 @@ export const GAMES: GameProfile[] = [
       tcp(8212, 'REST admin API, if enabled. Keep it off the internet', false),
     ],
     saves: ['Pal/Saved'],
+    settings: [
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text' },
+      { key: 'PLAYERS', label: 'Player limit', type: 'number', min: 1, max: 32 },
+      { key: 'SERVER_PASSWORD', label: 'Password', type: 'text' },
+      { key: 'COMMUNITY', label: 'Listed in the community server browser', type: 'boolean' },
+    ],
     match: [/palworld/i],
     modsUnavailable:
       'Palworld mods are distributed by hand rather than through a repository. Add them from the Files tab.',

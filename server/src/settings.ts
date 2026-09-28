@@ -1,6 +1,57 @@
 import type Dockerode from 'dockerode';
 import type { ServerConfig } from './config.js';
 import type { DockerClient } from './docker/client.js';
+import type { SettingSpec } from './games.js';
+
+/** A value that does not fit its spec; reported as the operator's to fix. */
+export class SettingsError extends Error {}
+
+/** The spellings games use for yes and no, matched as pairs. */
+const BOOL_WORDS = new Set(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']);
+
+/**
+ * Holds a changed value to its spec before anything is recreated.
+ *
+ * Refused loudly rather than passed through: the game would either ignore a
+ * bad value or fail to boot on it, and both of those surface minutes later
+ * with the server already down. A message now beats a mystery then.
+ */
+function checkAgainstSpec(spec: SettingSpec, value: string): void {
+  const trimmed = value.trim();
+  switch (spec.type) {
+    case 'number': {
+      if (!/^-?\d+$/.test(trimmed)) {
+        throw new SettingsError(`${spec.label} must be a whole number, not "${value}".`);
+      }
+      const n = Number(trimmed);
+      if (spec.min !== undefined && n < spec.min) {
+        throw new SettingsError(`${spec.label} must be at least ${spec.min}.`);
+      }
+      if (spec.max !== undefined && n > spec.max) {
+        throw new SettingsError(`${spec.label} must be at most ${spec.max}.`);
+      }
+      return;
+    }
+    case 'boolean': {
+      if (!BOOL_WORDS.has(trimmed.toLowerCase())) {
+        throw new SettingsError(
+          `${spec.label} is a yes/no setting; "${value}" is neither.`,
+        );
+      }
+      return;
+    }
+    case 'select': {
+      if (!(spec.options ?? []).includes(trimmed)) {
+        throw new SettingsError(
+          `${spec.label} must be one of: ${(spec.options ?? []).join(', ')}.`,
+        );
+      }
+      return;
+    }
+    default:
+      return;
+  }
+}
 
 export interface SettingField {
   key: string;
@@ -60,7 +111,9 @@ export function createSettingsManager(dockerClient: DockerClient) {
     server: ServerConfig,
     changes: Record<string, string>,
     onProgress: (message: string) => void,
+    specs: SettingSpec[] = [],
   ): Promise<string[]> {
+    const specFor = new Map(specs.map((spec) => [spec.key, spec]));
     const container = docker.getContainer(server.container);
     const info = await container.inspect();
     const applied: string[] = [];
@@ -77,6 +130,9 @@ export function createSettingsManager(dockerClient: DockerClient) {
       // The masked placeholder means "unchanged", not "set it to dots".
       if (looksSecret(key) && value === '••••••••') continue;
       if (current.get(key) === value) continue;
+
+      const spec = specFor.get(key);
+      if (spec) checkAgainstSpec(spec, String(value));
 
       current.set(key, String(value).replace(/[\r\n]/g, ' '));
       applied.push(key);

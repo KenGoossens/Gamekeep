@@ -419,6 +419,24 @@ button:disabled,
   margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-soft);
 }
 .addrow input { flex: 1; min-width: 10rem; width: auto; }
+/* ---- typed settings fields ---- */
+.field select {
+  width: 100%; font: inherit; color: var(--text);
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.field select:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.fieldkey {
+  font-size: 0.72rem; color: var(--faint);
+  background: var(--bg); border: 1px solid var(--border-soft);
+  border-radius: 5px; padding: 1px 5px; margin-left: 6px;
+}
+.fieldhelp { display: block; font-size: 0.78rem; color: var(--faint); margin-top: 5px; }
+.field .checkline { padding: 8px 0 2px; }
+
 /* ---- schedules ---- */
 .addrow select {
   font: inherit; color: var(--text);
