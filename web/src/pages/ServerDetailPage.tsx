@@ -19,7 +19,6 @@ import { FilesTab } from '../components/FilesTab.tsx';
 import { NetworkTab } from '../components/NetworkTab.tsx';
 import { ModsTab } from '../components/ModsTab.tsx';
 import { LogsTab } from '../components/LogsTab.tsx';
-import { Modal } from '../components/Modal.tsx';
 import { WorldCard } from '../components/WorldCard.tsx';
 
 type Tab = 'overview' | 'metrics' | 'logs' | 'settings' | 'files' | 'mods' | 'network';
@@ -43,7 +42,6 @@ export function ServerDetailPage({
   const [logoOk, setLogoOk] = useState(true);
   const [nonce, setNonce] = useState(0);
   const [tab, setTab] = useState<Tab>('overview');
-  const [blocked, setBlocked] = useState<string | null>(null);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
@@ -177,9 +175,12 @@ export function ServerDetailPage({
             ['metrics', 'Performance', false],
             ...(canOperate
               ? ([
-                  // Logs are most useful precisely while the server runs, so
-                  // unlike the tabs below this one is never locked.
                   ['logs', 'Logs', false],
+                  // The third flag means changes need the server stopped, not
+                  // that the tab does. Refusing to open them at all is why a
+                  // freshly deployed server's configuration was invisible: the
+                  // moment you most want to check what a template set is the
+                  // moment the server is running.
                   ['settings', 'Settings', true],
                   ['files', 'Files', true],
                   ['mods', 'Mods', true],
@@ -188,21 +189,17 @@ export function ServerDetailPage({
               : []),
           ] as Array<[Tab, string, boolean]>
         ).map(([key, label, needsStopped]) => {
-          const locked = needsStopped && status.running;
+          const readOnly = needsStopped && status.running;
           return (
             <button
               key={key}
               type="button"
               className={tab === key ? 'tab active' : 'tab'}
-              aria-disabled={locked}
-              // The padlock is drawn, so the reason has to reach a screen
-              // reader some other way: this is that way, and it also becomes
-              // the tooltip for anyone hovering.
-              title={locked ? `Stop the server to use ${label}` : undefined}
-              onClick={() => (locked ? setBlocked(label) : setTab(key))}
+              title={readOnly ? `${label} is read-only while the server runs` : undefined}
+              onClick={() => setTab(key)}
             >
               {label}
-              {locked ? (
+              {readOnly ? (
                 <>
                   <svg
                     className="tab-lock"
@@ -224,7 +221,7 @@ export function ServerDetailPage({
                     />
                     <rect x="3" y="7" width="10" height="7" rx="1.6" fill="currentColor" />
                   </svg>
-                  <span className="sr-only"> (locked — stop the server first)</span>
+                  <span className="sr-only"> (read-only — stop the server to make changes)</span>
                 </>
               ) : null}
             </button>
@@ -232,31 +229,6 @@ export function ServerDetailPage({
         })}
       </nav>
 
-      {blocked ? (
-        <Modal
-          title={`Stop the server to change ${blocked.toLowerCase()}`}
-          onClose={() => setBlocked(null)}
-          actions={
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                setBlocked(null);
-                setTab('overview');
-              }}
-            >
-              Go to controls
-            </button>
-          }
-        >
-          <p>
-            <strong>{server.displayName}</strong> is running. Changing settings or files while it
-            runs does not work reliably: most game servers hold their configuration in memory and
-            write it back when they shut down, quietly undoing your edit.
-          </p>
-          <p>Stop the server first, make your change, then start it again.</p>
-        </Modal>
-      ) : null}
       {tab === 'metrics' ? (
         <section className="card">
           <MetricsTab serverId={server.id} />
@@ -268,7 +240,7 @@ export function ServerDetailPage({
           <div className="card-head">
             <h2>Server settings</h2>
           </div>
-          <SettingsTab serverId={server.id} onChanged={refresh} />
+          <SettingsTab serverId={server.id} onChanged={refresh} readOnly={status.running} />
         </section>
       ) : null}
 
@@ -304,7 +276,7 @@ export function ServerDetailPage({
           <div className="card-head">
             <h2>Files</h2>
           </div>
-          <FilesTab serverId={server.id} />
+          <FilesTab serverId={server.id} readOnly={status.running} />
         </section>
       ) : null}
 

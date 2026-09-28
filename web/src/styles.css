@@ -958,3 +958,23 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
 /* A file input that looks like the buttons beside it. */
 .uploadbtn { position: relative; overflow: hidden; cursor: pointer; }
 .uploadbtn input[type='file'] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* A field shown for reference, not for typing into. */
+.field input[readonly] { opacity: 0.7; cursor: default; background: var(--bg); }
+
+/* ---- the two addresses that matter for a game port ---- */
+.addresses {
+  display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 8px;
+}
+.addresses > div {
+  flex: 1; min-width: 11rem;
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.addresses dt {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--faint); margin-bottom: 3px;
+}
+.addresses dd { margin: 0; font-size: 1rem; }
+.addresses dd code { font-size: 0.95rem; color: var(--text); }
+.muted-inline { color: var(--faint); }

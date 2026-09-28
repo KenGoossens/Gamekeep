@@ -380,9 +380,20 @@ export interface PortForwardRule {
   managed: boolean;
 }
 
+export interface PublicAddress {
+  /** Null when it could not be looked up; `error` then says why. */
+  ip: string | null;
+  source: string | null;
+  checkedAt: number;
+  error?: string;
+}
+
 export interface PortForwardState {
   configured: boolean;
+  /** The LAN address forwards point at. */
   target: string;
+  /** The address the outside world sees — what a friend actually connects to. */
+  publicAddress: PublicAddress;
   needed: RequiredForward[];
   missing: RequiredForward[];
   rules: PortForwardRule[];

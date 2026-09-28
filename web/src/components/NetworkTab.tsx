@@ -50,7 +50,7 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
 
   if (!state) return <p className="empty">{error ?? 'Loading…'}</p>;
 
-  const { needed, missing, rules, configured, target } = state;
+  const { needed, missing, rules, configured, target, publicAddress } = state;
   const isMissing = (port: string) => missing.some((m) => m.port === port);
 
   return (
@@ -58,6 +58,31 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
       <p className="notes">
         Players connect straight to the game, not through this portal, so each game port has to be
         forwarded on the router to <code>{target}</code>.
+      </p>
+
+      {/* The two halves of the answer together: forwards point at the LAN
+          address, but what you give a friend is the public one. Having only
+          the first meant looking the second up somewhere else. */}
+      <dl className="addresses">
+        <div>
+          <dt>Friends connect to</dt>
+          <dd>
+            {publicAddress.ip ? (
+              <code>{publicAddress.ip}</code>
+            ) : (
+              <span className="muted-inline">not found</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Forwards point at</dt>
+          <dd>{target ? <code>{target}</code> : <span className="muted-inline">not set</span>}</dd>
+        </div>
+      </dl>
+      <p className="hint">
+        {publicAddress.ip
+          ? `This is your router's address as ${publicAddress.source} sees it. Most home connections keep it for a long time, but it is not guaranteed to stay — check here if friends suddenly cannot connect.`
+          : `Could not be looked up${publicAddress.error ? `: ${publicAddress.error}` : ''}.`}
       </p>
 
       <ul className="filelist">

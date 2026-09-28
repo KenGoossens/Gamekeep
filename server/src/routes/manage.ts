@@ -1,4 +1,5 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { ServerConfig } from '../config.js';
 import type { AppContext } from '../context.js';
 import { FileError } from '../files.js';
 import { originOf } from '../auth/origin.js';
@@ -6,9 +7,32 @@ import { RETENTION_MS } from '../metrics.js';
 import { readWorld } from '../world.js';
 
 export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { registry, metrics, settings, files, db, guard } = ctx;
+  const { registry, metrics, settings, files, db, docker, guard } = ctx;
   const anyone = { preHandler: guard.requireActiveUser };
   const operator = { preHandler: guard.requireOperator };
+
+  /**
+   * Refuses a write to a server that is running.
+   *
+   * Most game servers hold their configuration in memory and write it back on
+   * shutdown, so an edit made while one runs is silently undone. This used to
+   * live only in the browser, as a locked tab -- which meant the guarantee
+   * held for anyone using the UI and for nobody else. Reading is left alone:
+   * looking at a config costs nothing, and refusing to show it is why this was
+   * invisible after a deploy in the first place.
+   */
+  async function refuseWhileRunning(
+    server: ServerConfig,
+    reply: FastifyReply,
+  ): Promise<boolean> {
+    const status = await docker.getStatus(server);
+    if (!status.running) return false;
+    reply.code(409).send({
+      error: 'server-running',
+      message: 'Stop the server first: it rewrites its own configuration on shutdown.',
+    });
+    return true;
+  }
 
   // ---- performance ----------------------------------------------------
   app.get<{ Params: { id: string }; Querystring: { since?: string } }>(
@@ -65,6 +89,8 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
       const user = request.user!;
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      if (await refuseWhileRunning(server, reply)) return reply;
 
       const changes = request.body?.changes;
       if (!changes || typeof changes !== 'object') {
@@ -151,6 +177,7 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
       const user = request.user!;
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      if (await refuseWhileRunning(server, reply)) return reply;
       if (typeof request.body?.path !== 'string') {
         return reply.code(400).send({ error: 'invalid-body' });
       }
@@ -181,6 +208,7 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
       const user = request.user!;
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      if (await refuseWhileRunning(server, reply)) return reply;
 
       const part = await request.file();
       if (!part) return reply.code(400).send({ error: 'no-file' });
@@ -226,6 +254,7 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
       const user = request.user!;
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      if (await refuseWhileRunning(server, reply)) return reply;
 
       const { path, content } = request.body ?? {};
       if (typeof path !== 'string' || typeof content !== 'string') {

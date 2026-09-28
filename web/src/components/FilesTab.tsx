@@ -3,7 +3,14 @@ import { ApiError, api, type FileEntry } from '../api.ts';
 
 const bytes = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
-export function FilesTab({ serverId }: { serverId: string }) {
+export function FilesTab({
+  serverId,
+  readOnly,
+}: {
+  serverId: string;
+  /** The server is running: files can be read but not written. */
+  readOnly: boolean;
+}) {
   const [root, setRoot] = useState('');
   const [path, setPath] = useState('');
   const [entries, setEntries] = useState<FileEntry[] | null>(null);
@@ -136,7 +143,12 @@ export function FilesTab({ serverId }: { serverId: string }) {
         {saved ? <p className="hint ok">{saved}</p> : null}
         {error ? <p className="hint bad">{error}</p> : null}
         <div className="actions">
-          <button type="button" className="btn-primary" disabled={!dirty || busy} onClick={() => void save()}>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={readOnly || !dirty || busy}
+            onClick={() => void save()}
+          >
             {busy ? 'Saving…' : 'Save'}
           </button>
           <button type="button" className="btn-ghost" disabled={!dirty} onClick={() => setOpen({ ...open, content: open.original })}>
@@ -153,6 +165,12 @@ export function FilesTab({ serverId }: { serverId: string }) {
 
   return (
     <>
+      {readOnly ? (
+        <p className="hint">
+          The server is running, so files can be opened and read but not changed — which is also
+          what lets you check a freshly deployed server without stopping it first.
+        </p>
+      ) : null}
       <p className="notes">
         <code>{path || "Mounted directories"}</code>
       </p>
@@ -171,7 +189,7 @@ export function FilesTab({ serverId }: { serverId: string }) {
         <button
           type="button"
           className="btn-ghost"
-          disabled={busy || !newName.trim()}
+          disabled={readOnly || busy || !newName.trim()}
           onClick={() => void createFile()}
         >
           Create
@@ -182,7 +200,7 @@ export function FilesTab({ serverId }: { serverId: string }) {
           <input
             type="file"
             hidden
-            disabled={busy}
+            disabled={readOnly || busy}
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = '';

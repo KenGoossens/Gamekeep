@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api, type SettingField } from '../api.ts';
 
-export function SettingsTab({ serverId, onChanged }: { serverId: string; onChanged: () => void }) {
+export function SettingsTab({
+  serverId,
+  onChanged,
+  readOnly,
+}: {
+  serverId: string;
+  onChanged: () => void;
+  /** The server is running, so the values can be read but not changed. */
+  readOnly: boolean;
+}) {
   const [fields, setFields] = useState<SettingField[] | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -54,10 +63,17 @@ export function SettingsTab({ serverId, onChanged }: { serverId: string; onChang
   return (
     <>
       <p className="notes">
-        These are the container's environment variables. Saving <strong>recreates the container</strong>,
-        which takes the server offline for as long as it needs to start again — there is no way to change
-        them on a running container.
+        These are the container's environment variables. Saving{' '}
+        <strong>recreates the container</strong>, which takes the server offline for as long as it
+        needs to start again — there is no way to change them on a running container.
       </p>
+
+      {readOnly ? (
+        <p className="hint">
+          The server is running, so these are shown as they are but cannot be changed. Stop it
+          first — which is also what lets you check what a newly deployed server was given.
+        </p>
+      ) : null}
 
       {fields.map((f) => (
         <label className="field" key={f.key}>
@@ -67,6 +83,7 @@ export function SettingsTab({ serverId, onChanged }: { serverId: string; onChang
           </span>
           <input
             value={edits[f.key] ?? f.value}
+            readOnly={readOnly}
             onChange={(e) => setEdits((prev) => ({ ...prev, [f.key]: e.target.value }))}
           />
         </label>
@@ -88,7 +105,7 @@ export function SettingsTab({ serverId, onChanged }: { serverId: string; onChang
         <button
           type="button"
           className="btn-primary"
-          disabled={!dirty || busy}
+          disabled={readOnly || !dirty || busy}
           onClick={() => {
             const names = Object.keys(edits).join(', ');
             if (confirm(`Apply changes to ${names}? The server will restart.`)) void apply();

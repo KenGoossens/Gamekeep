@@ -4,6 +4,7 @@ import { originOf } from '../auth/origin.js';
 import { decryptSecret, encryptSecret } from '../secrets.js';
 import { coveredBy, requiredForwards, UnifiError } from '../unifi.js';
 import { buildProvider, listProviders, type RouterProvider } from '../router/provider.js';
+import { createPublicAddressLookup } from '../network/publicip.js';
 import '../router/unifi-provider.js';
 
 const SETTING_KEY = 'router';
@@ -15,6 +16,7 @@ interface StoredRouter {
 
 export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, docker, db, env, guard } = ctx;
+  const publicIp = createPublicAddressLookup();
   const owner = { preHandler: guard.requireOwner };
   const operator = { preHandler: guard.requireOperator };
 
@@ -129,17 +131,28 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
       const current = loadRouter();
       const needed = await requiredForwards(docker, server);
       const to = target();
+      // What to actually give a friend. Looked up alongside the rules rather
+      // than on its own, so the address and the ports it belongs to arrive
+      // together instead of as two things to piece together.
+      const publicAddress = await publicIp.get();
 
       if (!current) {
         // Still useful without a router: these are the rules to make by hand.
-        return reply.send({ configured: false, target: to, needed, rules: [], missing: needed });
+        return reply.send({
+          configured: false,
+          target: to,
+          publicAddress,
+          needed,
+          rules: [],
+          missing: needed,
+        });
       }
 
       try {
         const rules = await current.provider.list();
         const missing = needed.filter((n) => !rules.some((r) => coveredBy(r, n, to)));
         const mine = rules.filter((r) => r.fwd === to && needed.some((n) => coveredBy(r, n, to)));
-        return reply.send({ configured: true, target: to, needed, rules: mine, missing });
+        return reply.send({ configured: true, target: to, publicAddress, needed, rules: mine, missing });
       } catch (err) {
         const f = failure(err);
         return reply.code(f.status).send(f.body);
