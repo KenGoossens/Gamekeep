@@ -9,6 +9,8 @@
  * the mod installer, keeps those answers from drifting apart.
  */
 
+import { safeSegment } from './paths.js';
+
 export interface ModLayout {
   /** The repository that serves this game's mods. */
   source: string;
@@ -73,7 +75,7 @@ function thunderstore(community: string, pluginDir = 'BepInEx/plugins'): ModLayo
   return {
     source: 'thunderstore',
     community,
-    directory: (modId) => `${pluginDir}/${modId.replace(/[/\\]/g, '-')}`,
+    directory: (modId) => `${pluginDir}/${safeSegment(modId, 'mod name')}`,
     install: 'extract',
     loaderMarkers: ['BepInEx/core', '.doorstop_version'],
     allowedExtensions: BEPINEX,
@@ -95,7 +97,7 @@ export const GAMES: GameProfile[] = [
     match: [/satisfactory/i],
     mods: {
       source: 'ficsit',
-      directory: (modId) => `FactoryGame/Mods/${modId.replace(/[/\\]/g, '-')}`,
+      directory: (modId) => `FactoryGame/Mods/${safeSegment(modId, 'mod name')}`,
       install: 'extract',
       loaderMarkers: ['FactoryGame/Mods/SML'],
       allowedExtensions: UNREAL,

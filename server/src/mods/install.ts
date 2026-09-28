@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { DockerClient } from '../docker/client.js';
 import { createHelperRunner } from '../docker/helper.js';
+import { assertRelativePath, safeSegment } from '../paths.js';
 import type { ServerConfig } from '../config.js';
 import { buildTarEntries, type TarEntry } from '../tar.js';
 import { satisfies } from './semver.js';
@@ -178,7 +179,13 @@ function scanFinding(scans: ScanVerdict[]): Finding {
 function artefactName(version: ModVersion, modId: string): string {
   const raw = version.filename ?? `${modId}-${version.version}.jar`;
   const base = raw.split(/[/\\]/).pop() ?? raw;
-  return base.replace(/[^A-Za-z0-9._+-]/g, '_').slice(0, 120) || 'mod.jar';
+  // One plain segment or nothing: a filename of ".." would be written at the
+  // directory's parent, not inside it.
+  try {
+    return safeSegment(base, 'filename');
+  } catch {
+    return 'mod.jar';
+  }
 }
 
 /** Flags file types that have no business in a mod for this game. */
@@ -586,6 +593,15 @@ export function createModInstaller(dockerClient: DockerClient) {
     if (sha256Of(body) !== plan.sha256) {
       throw new ModSourceError('The download changed between inspection and install.', 'mismatch');
     }
+
+    /*
+     * Checked here as well as where the names were made. The target path is
+     * assembled from inputs that arrive through several files -- a repository
+     * id, an upload's filename, a layout -- and Docker will honour a ".." in
+     * it, so this is the one place every route has to pass through.
+     */
+    assertRelativePath(plan.targetDirectory, 'mod directory');
+    assertRelativePath(plan.filename, 'mod filename');
 
     const written: string[] = [];
     const files: TarEntry[] = [];

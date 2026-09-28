@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { PathError, safeSegment } from '../paths.js';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
 import type { ServerConfig } from '../config.js';
@@ -415,7 +416,12 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
           .send({ error: 'too-many-pending', message: 'Finish or abandon a pending upload first.' });
       }
 
-      const part = await request.file({ limits: { fileSize: MAX_UPLOAD_BYTES } });
+      // throwFileSizeLimit stated rather than left to the library's default,
+      // because the 413 below depends on it.
+      const part = await request.file({
+        limits: { fileSize: MAX_UPLOAD_BYTES },
+        throwFileSizeLimit: true,
+      });
       if (!part) return reply.code(400).send({ error: 'no-file' });
 
       let body: Buffer;
@@ -432,8 +438,19 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
       // rather than trusted; the client may suggest one, the filename is the
       // fallback.
       const suggested = String((part.fields?.name as { value?: unknown } | undefined)?.value ?? '');
-      const base = (suggested || part.filename || 'mod').replace(/\.(zip|jar|smod)$/i, '');
-      const modId = base.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 64) || 'mod';
+      const base = (suggested || part.filename || '').replace(/\.(zip|jar|smod)$/i, '');
+      let modId: string;
+      try {
+        // Refused, not repaired: a filename of "..zip" says the operator's
+        // input was not what they thought, and quietly calling it "mod" would
+        // hide that and leave a mod nobody can find by name.
+        modId = safeSegment(base, 'mod name').slice(0, 64);
+      } catch (err) {
+        return reply.code(400).send({
+          error: 'bad-name',
+          message: err instanceof PathError ? err.message : 'That name cannot be used.',
+        });
+      }
 
       try {
         const { plan, entries } = await mods.prepareUpload({

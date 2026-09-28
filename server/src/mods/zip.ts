@@ -54,7 +54,9 @@ export interface ArchiveLimits {
 }
 
 export const DEFAULT_LIMITS: ArchiveLimits = {
-  maxTotalBytes: 1024 * 1024 * 1024,
+  // Everything unpacked is held in memory during the write, so this is a
+  // ceiling on the portal's own RAM, not on the mod's ambition.
+  maxTotalBytes: 512 * 1024 * 1024,
   maxEntryBytes: 512 * 1024 * 1024,
   maxEntries: 20_000,
   maxRatio: 200,

@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import type { DockerClient } from './docker/client.js';
 import type { ServerConfig } from './config.js';
 import { buildTar } from './tar.js';
+import { PathError, safeSegment } from './paths.js';
 import { createHelperRunner } from './docker/helper.js';
 
 export interface FileEntry {
@@ -323,9 +324,18 @@ export function createFileBrowser(dockerClient: DockerClient) {
     filename: string,
     content: Buffer,
   ): Promise<{ path: string; bytes: number; replaced: boolean }> {
-    const safeName = filename.split(/[\/]/).pop() ?? '';
-    if (!safeName || safeName.startsWith('.') === false && safeName.includes(' ')) {
-      throw new FileError('That filename is not allowed.', 'invalid-name');
+    // The basename alone, and refused if that leaves nothing usable -- a
+    // filename of ".." names the directory's parent, not a file in it. The
+    // check this replaces caught NUL bytes but, through a precedence slip,
+    // only in names not starting with a dot, and let ".." through entirely.
+    let safeName: string;
+    try {
+      safeName = safeSegment(filename.split('/').pop() ?? '', 'filename');
+    } catch (err) {
+      throw new FileError(
+        err instanceof PathError ? err.message : 'That filename is not allowed.',
+        'invalid-name',
+      );
     }
     if (content.length > MAX_UPLOAD_BYTES) {
       throw new FileError('That file is too large to upload.', 'too-large');

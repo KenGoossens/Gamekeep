@@ -135,13 +135,13 @@ export function createAccessClient(config: { token: string; accountId: string })
   }
 
   async function listPolicies(): Promise<PolicySummary[]> {
-    const policies = await call<RawPolicy[]>(`/accounts/${accountId}/access/policies`);
+    const policies = await call<RawPolicy[]>(`/accounts/${encodeURIComponent(accountId)}/access/policies`);
     return (policies ?? []).map(summarise);
   }
 
   async function readPolicy(policyId: string): Promise<RawPolicy> {
     const policy = await call<RawPolicy>(
-      `/accounts/${accountId}/access/policies/${encodeURIComponent(policyId)}`,
+      `/accounts/${encodeURIComponent(accountId)}/access/policies/${encodeURIComponent(policyId)}`,
     );
     if (!policy?.id) throw new AccessError('No such policy on this account.', 'not-found');
     return policy;
@@ -154,7 +154,7 @@ export function createAccessClient(config: { token: string; accountId: string })
    */
   async function writeInclude(policy: RawPolicy, include: Rule[]): Promise<PolicySummary> {
     const updated = await call<RawPolicy>(
-      `/accounts/${accountId}/access/policies/${encodeURIComponent(policy.id)}`,
+      `/accounts/${encodeURIComponent(accountId)}/access/policies/${encodeURIComponent(policy.id)}`,
       {
         method: 'PUT',
         body: JSON.stringify({
