@@ -37,7 +37,8 @@ export type AuditAction =
   | 'schedule-removed'
   | 'backup-created'
   | 'backup-restored'
-  | 'backup-removed';
+  | 'backup-removed'
+  | 'console-command';
 
 
 export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';

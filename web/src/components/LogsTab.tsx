@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, type LogFile } from '../api.ts';
+import { ApiError, api, type LogFile } from '../api.ts';
 
 /**
  * The live console, followed as it happens.
@@ -20,7 +20,7 @@ import { api, type LogFile } from '../api.ts';
 interface Line {
   id: number;
   text: string;
-  stream: 'stdout' | 'stderr' | 'system';
+  stream: 'stdout' | 'stderr' | 'system' | 'stdin';
 }
 
 /** Past this the page slows down and nobody is reading that far back anyway. */
@@ -60,6 +60,9 @@ export function LogsTab({ serverId }: { serverId: string }) {
   const [status, setStatus] = useState<string | null>('Connecting…');
   const [source, setSource] = useState(CONTAINER);
   const [files, setFiles] = useState<LogFile[] | null>(null);
+  const [command, setCommand] = useState('');
+  const [sendState, setSendState] = useState<'idle' | 'sending'>('idle');
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const box = useRef<HTMLDivElement>(null);
   const nextId = useRef(0);
@@ -82,6 +85,32 @@ export function LogsTab({ serverId }: { serverId: string }) {
 
   // Starting over whenever the source changes: the two are different streams
   // of text and mixing them would be nonsense.
+  /**
+   * A command goes to the game's stdin; its answer comes back through the log
+   * stream like any other output. The game does not echo what it was typed,
+   * so the sent line is added locally -- otherwise the console reads as if it
+   * answered a question nobody asked.
+   */
+  async function send() {
+    const line = command.trim();
+    if (!line || sendState !== 'idle') return;
+    setSendState('sending');
+    setSendError(null);
+    try {
+      await api.sendConsole(serverId, line);
+      append(`${new Date().toISOString()} > ${line}`, 'stdin');
+      setCommand('');
+    } catch (err) {
+      setSendError(
+        err instanceof ApiError && typeof err.body.message === 'string'
+          ? err.body.message
+          : 'Could not send that.',
+      );
+    } finally {
+      setSendState('idle');
+    }
+  }
+
   useEffect(() => {
     setLines([]);
     offset.current = 0;
@@ -282,6 +311,34 @@ export function LogsTab({ serverId }: { serverId: string }) {
           })
         )}
       </div>
+
+      {source === CONTAINER ? (
+        <>
+          <div className="consolerow">
+            <span className="consoleprompt" aria-hidden="true">&gt;</span>
+            <input
+              type="text"
+              value={command}
+              maxLength={500}
+              placeholder="Console command — save-all, say Server restart in 5…, kick <name>"
+              aria-label="Console command"
+              onChange={(e) => setCommand(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void send();
+              }}
+            />
+            <button
+              type="button"
+              className="btn-ghost small"
+              disabled={sendState !== 'idle' || !command.trim()}
+              onClick={() => void send()}
+            >
+              {sendState === 'sending' ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+          {sendError ? <p className="hint bad">{sendError}</p> : null}
+        </>
+      ) : null}
 
       <p className="hint">
         Showing {shown.length}

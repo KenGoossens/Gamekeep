@@ -917,6 +917,20 @@ button.backlink { background: none; border: 0; padding: 0; font-weight: 500; }
    the tint is a hint, never the only way to tell. */
 .logline-stderr .logtext { color: #f0a58a; }
 .logline-system .logtext { color: var(--muted); font-style: italic; }
+.logline-stdin .logtext { color: var(--accent-cyan); }
+
+/* ---- console input ---- */
+.consolerow { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.consoleprompt { color: var(--accent-cyan); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.consolerow input {
+  flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem;
+  color: var(--text); background: var(--bg-raised);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 11px;
+}
+.consolerow input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
 .jumpdown { margin-bottom: 8px; }
 

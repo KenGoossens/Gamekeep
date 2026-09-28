@@ -44,6 +44,7 @@ import { registerModRoutes } from './routes/mods.js';
 import { registerWorkshopRoutes } from './routes/workshop.js';
 import { registerScheduleRoutes } from './routes/schedules.js';
 import { registerBackupRoutes } from './routes/backups.js';
+import { registerConsoleRoutes } from './routes/console.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
@@ -190,6 +191,7 @@ async function main() {
   registerWorkshopRoutes(app, ctx);
   registerScheduleRoutes(app, ctx);
   registerBackupRoutes(app, ctx);
+  registerConsoleRoutes(app, ctx);
   registerDashboardRoutes(app, ctx);
   registerLogRoutes(app, ctx);
   registerAccessRoutes(app, ctx);

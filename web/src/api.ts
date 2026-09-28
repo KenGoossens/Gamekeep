@@ -707,6 +707,12 @@ export const api = {
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
 
+  sendConsole: (serverId: string, command: string) =>
+    request<{ sent: boolean }>(`/api/servers/${encodeURIComponent(serverId)}/console`, {
+      ...json({ command }),
+      method: 'POST',
+    }),
+
   backups: (serverId: string) =>
     request<BackupList>(`/api/servers/${encodeURIComponent(serverId)}/backups`),
   setBackupPaths: (serverId: string, paths: string[]) =>

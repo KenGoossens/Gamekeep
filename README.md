@@ -241,6 +241,20 @@ the tab.
 The view follows the newest line until you scroll up, then stops and says so. It
 keeps three thousand lines; a chatty server produces far more in an evening.
 
+## Console
+
+The Logs tab is also a console. Under the live stream sits an input that
+writes one line to the game's own stdin — `save-all`, `say Restart in 5
+minutes`, `kick <name>` — and the answer comes back through the same log
+stream. One line per send, operator level, and every command lands in the
+audit log verbatim.
+
+Two container properties gate it, and the portal says so instead of failing
+vaguely: the container must have an interactive stdin (Unraid's "Interactive"
+toggle, `docker run -i`), and it must not be set to close stdin after one
+attach (`StdinOnce`) — a game that reads end-of-input as "shut down" would
+otherwise be stopped by the very act of talking to it.
+
 ## Notifications
 
 **Settings → Notifications**, as owner. A Discord webhook — one URL, no bot.
