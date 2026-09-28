@@ -15,6 +15,12 @@ const envSchema = z.object({
     .string()
     .min(32, 'SESSION_SECRET must be at least 32 characters (openssl rand -hex 32)'),
   DATABASE_PATH: z.string().min(1).default('/data/gamekeep.db'),
+  /**
+   * Where world backups are written. Inside the portal's own data volume by
+   * default, so they survive the game server being recreated -- the whole
+   * point -- and are covered by whatever backs up appdata itself.
+   */
+  BACKUP_DIR: z.string().min(1).default('/data/backups'),
   CONFIG_PATH: z.string().min(1).default('/config/servers.json'),
   DOCKER_SOCKET_PATH: z.string().min(1).default('/var/run/docker.sock'),
   DOCKER_HOST: z.string().url().optional(),

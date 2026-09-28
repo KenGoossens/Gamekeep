@@ -19,8 +19,7 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_PER_SERVER = 10;
 const MAX_NAME = 60;
 
-/** Actions a schedule may take. 'backup' joins once the backup service exists. */
-const ACTIONS: ScheduleAction[] = ['restart', 'start', 'stop'];
+const ACTIONS: ScheduleAction[] = ['restart', 'start', 'stop', 'backup'];
 
 interface ScheduleBody {
   name?: string;

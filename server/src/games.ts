@@ -148,6 +148,14 @@ export interface GameProfile {
    * players through Steam's relay.
    */
   ports?: GamePort[];
+  /**
+   * Directory names that hold what cannot be redownloaded: worlds, saves,
+   * player data, the server's own config. Suffixes to search for rather than
+   * fixed paths, because every container image roots the game somewhere else.
+   * They only ever become suggestions the operator confirms -- a wrong one
+   * costs a missing suggestion, never a wrong backup.
+   */
+  saves?: string[];
   mods?: ModLayout;
   /** Set instead of `mods` for the games that fetch their own from Steam. */
   workshop?: WorkshopLayout;
@@ -193,6 +201,7 @@ export const GAMES: GameProfile[] = [
       udp(2456, 'Game traffic'),
       udp(2457, 'Steam query, which is what puts it in the server browser'),
     ],
+    saves: ['worlds_local'],
     match: [/valheim/i],
     mods: thunderstore('valheim'),
   },
@@ -206,6 +215,7 @@ export const GAMES: GameProfile[] = [
     // Since 1.0 everything runs over 7777, but it needs both protocols
     // there -- a UDP-only forward leaves clients unable to finish joining.
     ports: [udp(7777, 'Game traffic'), tcp(7777, 'Server API and joining')],
+    saves: ['FactoryGame/Saved'],
     match: [/satisfactory/i],
     mods: {
       source: 'ficsit',
@@ -226,6 +236,7 @@ export const GAMES: GameProfile[] = [
       udp(19132, 'Game traffic'),
       udp(19133, 'The same thing over IPv6', false),
     ],
+    saves: ['worlds'],
     match: [/bedrock/i, /minecraftbe/i],
     modsUnavailable:
       'Bedrock add-ons come as .mcpack or .mcaddon files and there is no open repository to fetch them from — the Marketplace is closed. Add them by hand from the Files tab.',
@@ -242,6 +253,7 @@ export const GAMES: GameProfile[] = [
       udp(25565, 'Query, and only when enable-query is set', false),
       tcp(25575, 'RCON. Never forward this one to the internet', false),
     ],
+    saves: ['world', 'world_nether', 'world_the_end'],
     match: [/minecraft/i, /papermc/i, /spigot/i, /forge/i, /fabric/i],
     mods: {
       source: 'modrinth',
@@ -264,6 +276,7 @@ export const GAMES: GameProfile[] = [
       udp(9876, 'Game traffic'),
       udp(9877, 'Steam query'),
     ],
+    saves: ['save-data', 'Saves'],
     match: [/v[\s_-]?rising/i],
     mods: thunderstore('v-rising'),
   },
@@ -302,6 +315,7 @@ export const GAMES: GameProfile[] = [
       udp(15636, 'Game traffic'),
       udp(15637, 'Steam query'),
     ],
+    saves: ['savegame'],
     match: [/enshrouded/i],
     modsUnavailable: 'Enshrouded has no mod support, so there is nothing to install.',
   },
@@ -318,6 +332,7 @@ export const GAMES: GameProfile[] = [
       udp(27015, 'Steam query, needed only to appear in the community list', false),
       tcp(8212, 'REST admin API, if enabled. Keep it off the internet', false),
     ],
+    saves: ['Pal/Saved'],
     match: [/palworld/i],
     modsUnavailable:
       'Palworld mods are distributed by hand rather than through a repository. Add them from the Files tab.',
@@ -343,6 +358,7 @@ export const GAMES: GameProfile[] = [
       udp(16261, 'Game traffic and Steam discovery'),
       udp(16262, 'The channel players actually connect over'),
     ],
+    saves: ['Zomboid/Saves', 'Zomboid/Server', 'Zomboid/db'],
     match: [/zomboid/i],
     workshop: {
       // The file is named after the server, so it is found rather than
@@ -375,6 +391,7 @@ export const GAMES: GameProfile[] = [
       udp(27015, 'Steam query'),
       tcp(27020, 'RCON, if enabled. Keep it off the internet', false),
     ],
+    saves: ['ShooterGame/Saved'],
     match: [/ark[\s_:-]*survival[\s_-]*evolved/i, /\base[\s_-]?docker\b/i],
     workshop: {
       directory: 'Config/LinuxServer',
@@ -419,6 +436,7 @@ export const GAMES: GameProfile[] = [
       tcp(8080, 'Web dashboard. Keep it off the internet', false),
       tcp(8081, 'Telnet. Keep it off the internet', false),
     ],
+    saves: ['Saves'],
     match: [/7[\s_-]?days/i],
   },
   {
@@ -428,6 +446,7 @@ export const GAMES: GameProfile[] = [
     startupSeconds: 180,
     steamAppId: 105600,
     ports: [tcp(7777, 'Game traffic')],
+    saves: ['Worlds'],
     match: [/terraria/i],
   },
   {
@@ -439,6 +458,7 @@ export const GAMES: GameProfile[] = [
     startupSeconds: 120,
     // UDP only: forwarding TCP 34197 does nothing at all.
     ports: [udp(34197, 'Game traffic')],
+    saves: ['saves'],
     match: [/factorio/i],
     modsUnavailable:
       'Factorio has an official mod portal API, but downloading from it needs the username and token of an account that owns the game — a credential this portal deliberately does not hold. Add mods from the Files tab.',
@@ -455,6 +475,7 @@ export const GAMES: GameProfile[] = [
       udp(7778, 'Raw socket'),
       udp(27015, 'Steam query'),
     ],
+    saves: ['ConanSandbox/Saved'],
     match: [/conan/i],
   },
   {
@@ -464,6 +485,7 @@ export const GAMES: GameProfile[] = [
     startupSeconds: 420,
     steamAppId: 244850,
     ports: [udp(27016, 'Game traffic')],
+    saves: ['Saves'],
     match: [/space[\s_-]?engineers/i],
   },
   {
@@ -476,6 +498,7 @@ export const GAMES: GameProfile[] = [
       udp(8777, 'Game traffic'),
       udp(27015, 'Steam query'),
     ],
+    saves: ['Saved'],
     match: [/soulmask/i],
   },
   {

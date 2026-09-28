@@ -412,6 +412,29 @@ that is — a container without `TZ` set runs in UTC, which you want to know
 before 05:00, not after. Set `TZ` (e.g. `Europe/Brussels`) on the Gamekeep
 container to change it.
 
+## Backups
+
+**Backups → operator level.** A backup holds the world and the server's own
+config — the part no reinstall can bring back — not the tens of gigabytes
+SteamCMD can fetch again. The game registry knows where each game keeps its
+saves and searches the container for them; the operator confirms once, and
+that choice is what every backup contains from then on.
+
+- **Making one** works while the server runs: games flush their saves
+  continually, and a mostly-consistent copy beats none.
+- **Restoring** only happens while the server is stopped, and never without a
+  safety copy of what is about to be replaced — a restore that turns out to be
+  the wrong call must itself be undoable. Restores overlay: files created
+  since the backup are left alone.
+- **Rotation** keeps the newest ten per server; safety copies do not count.
+- Backups land in the portal's own data volume (`BACKUP_DIR`, default
+  `/data/backups`), so they survive the game container being recreated and
+  ride along with whatever backs up appdata itself. Each can also be
+  downloaded as a `.tar.gz` for a copy somewhere else entirely.
+
+For a nightly backup, add a **backup** action on the Schedule tab. It runs even
+when players are online — a backup kicks nobody.
+
 ## Restart or update?
 
 `updateStrategy: "restart"` (the default) stops and starts the container. For most

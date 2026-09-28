@@ -413,6 +413,26 @@ export interface ScheduleList {
   serverTime: string;
 }
 
+export interface Backup {
+  id: string;
+  createdAt: number;
+  createdBy: string;
+  kind: 'manual' | 'scheduled' | 'pre-restore';
+  file: string;
+  sizeBytes: number;
+  paths: string[];
+}
+
+export interface BackupList {
+  running: boolean;
+  /** Absolute container paths that go into every backup. */
+  paths: string[];
+  /** Found in the container; offered only while nothing is configured yet. */
+  suggestions: string[];
+  registryKnows: boolean;
+  backups: Backup[];
+}
+
 export interface ScheduleInput {
   name?: string;
   action: ScheduleAction;
@@ -686,6 +706,28 @@ export const api = {
     request<Dashboard>(`/api/dashboard?window=`),
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
+
+  backups: (serverId: string) =>
+    request<BackupList>(`/api/servers/${encodeURIComponent(serverId)}/backups`),
+  setBackupPaths: (serverId: string, paths: string[]) =>
+    request<{ paths: string[] }>(`/api/servers/${encodeURIComponent(serverId)}/backups/paths`, {
+      ...json({ paths }),
+      method: 'PUT',
+    }),
+  makeBackup: (serverId: string) =>
+    request<{ backup: Backup }>(`/api/servers/${encodeURIComponent(serverId)}/backups`, {
+      method: 'POST',
+    }),
+  restoreBackup: (serverId: string, backupId: string) =>
+    request<{ restored: string; safety: string }>(
+      `/api/servers/${encodeURIComponent(serverId)}/backups/${encodeURIComponent(backupId)}/restore`,
+      { method: 'POST' },
+    ),
+  deleteBackup: (serverId: string, backupId: string) =>
+    request<{ removed: string }>(
+      `/api/servers/${encodeURIComponent(serverId)}/backups/${encodeURIComponent(backupId)}`,
+      { method: 'DELETE' },
+    ),
 
   schedules: (serverId: string) =>
     request<ScheduleList>(`/api/servers/${encodeURIComponent(serverId)}/schedules`),

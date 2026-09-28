@@ -15,6 +15,7 @@ import type { HealthReporter } from './health.js';
 import type { ModInstaller } from './mods/install.js';
 import type { WorkshopDeclarations } from './mods/declare.js';
 import type { Scheduler } from './schedule.js';
+import type { BackupService } from './backup.js';
 import type { Notifier } from './notify.js';
 import type { Sessions } from './auth/session.js';
 import type { SetupGuard } from './auth/setup.js';
@@ -47,6 +48,8 @@ export interface AppContext {
   workshop: WorkshopDeclarations;
   /** Actions that run themselves at a set time. */
   scheduler: Scheduler;
+  /** World backups: the small irreplaceable part, not the reinstallable rest. */
+  backups: BackupService;
   /** Read-only status of every connection the portal depends on. */
   health: HealthReporter;
   sessions: Sessions;

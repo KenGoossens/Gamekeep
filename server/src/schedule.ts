@@ -131,7 +131,10 @@ export function createScheduler(deps: {
       return;
     }
 
-    if (schedule.skipOccupied && schedule.action !== 'start' && status.running) {
+    // Only for the disruptive actions: a backup does not kick anyone, and a
+    // nightly backup that skips because two night owls are on is no backup.
+    const disruptive = schedule.action === 'restart' || schedule.action === 'stop';
+    if (schedule.skipOccupied && disruptive && status.running) {
       // A fresh answer, not the cache: this is the one moment it matters.
       gameQuery.invalidate(server.id);
       const players = await gameQuery.getPlayers(server);

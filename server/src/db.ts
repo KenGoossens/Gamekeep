@@ -34,7 +34,10 @@ export type AuditAction =
   | 'password-reset'
   | 'schedule-created'
   | 'schedule-changed'
-  | 'schedule-removed';
+  | 'schedule-removed'
+  | 'backup-created'
+  | 'backup-restored'
+  | 'backup-removed';
 
 
 export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';
@@ -95,6 +98,52 @@ function toScheduleRow(raw: RawScheduleRow): ScheduleRow {
     nextRunAt: raw.next_run_at,
     lastRunAt: raw.last_run_at,
     lastResult: raw.last_result,
+  };
+}
+
+export type BackupKind = 'manual' | 'scheduled' | 'pre-restore';
+
+export interface BackupRow {
+  id: string;
+  serverId: string;
+  createdAt: number;
+  createdBy: string;
+  kind: BackupKind;
+  /** File name inside BACKUP_DIR/<serverId>/, never a full path. */
+  file: string;
+  sizeBytes: number;
+  /** Absolute container paths that went in. */
+  paths: string[];
+}
+
+interface RawBackupRow {
+  id: string;
+  server_id: string;
+  created_at: number;
+  created_by: string;
+  kind: string;
+  file: string;
+  size_bytes: number;
+  paths: string;
+}
+
+function toBackupRow(raw: RawBackupRow): BackupRow {
+  let paths: string[] = [];
+  try {
+    const parsed = JSON.parse(raw.paths) as unknown;
+    if (Array.isArray(parsed)) paths = parsed.filter((p): p is string => typeof p === 'string');
+  } catch {
+    // A row with unreadable paths still lists and still restores.
+  }
+  return {
+    id: raw.id,
+    serverId: raw.server_id,
+    createdAt: raw.created_at,
+    createdBy: raw.created_by,
+    kind: raw.kind as BackupKind,
+    file: raw.file,
+    sizeBytes: raw.size_bytes,
+    paths,
   };
 }
 
@@ -372,6 +421,23 @@ export function openDatabase(path: string) {
     CREATE INDEX IF NOT EXISTS idx_schedules_server ON schedules (server_id);
     CREATE INDEX IF NOT EXISTS idx_schedules_due ON schedules (enabled, next_run_at);
 
+    /*
+     * One row per backup that exists on disk. The row is the catalogue; the
+     * file under BACKUP_DIR is the backup. paths records exactly what went in,
+     * because "what did this contain" is the first question a restore asks.
+     */
+    CREATE TABLE IF NOT EXISTS backups (
+      id         TEXT PRIMARY KEY,
+      server_id  TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      created_by TEXT NOT NULL,
+      kind       TEXT NOT NULL DEFAULT 'manual',
+      file       TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      paths      TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_backups_server ON backups (server_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -527,6 +593,14 @@ export function openDatabase(path: string) {
     setScheduleNext: db.prepare('UPDATE schedules SET next_run_at = ? WHERE id = ?'),
     deleteSchedule: db.prepare('DELETE FROM schedules WHERE id = ?'),
     deleteSchedulesFor: db.prepare('DELETE FROM schedules WHERE server_id = ?'),
+
+    listBackups: db.prepare('SELECT * FROM backups WHERE server_id = ? ORDER BY created_at DESC'),
+    getBackup: db.prepare('SELECT * FROM backups WHERE id = ?'),
+    insertBackup: db.prepare(
+      `INSERT INTO backups (id, server_id, created_at, created_by, kind, file, size_bytes, paths)
+       VALUES (@id, @serverId, @createdAt, @createdBy, @kind, @file, @sizeBytes, @paths)`,
+    ),
+    deleteBackup: db.prepare('DELETE FROM backups WHERE id = ?'),
 
     getSetting: db.prepare('SELECT value FROM app_settings WHERE key = ?'),
     setSetting: db.prepare(
@@ -731,6 +805,40 @@ export function openDatabase(path: string) {
 
     removeSchedulesFor(serverId: string) {
       st.deleteSchedulesFor.run(serverId);
+    },
+
+    listBackups(serverId: string): BackupRow[] {
+      return (st.listBackups.all(serverId) as unknown as RawBackupRow[]).map(toBackupRow);
+    },
+
+    getBackup(id: string): BackupRow | null {
+      const raw = st.getBackup.get(id) as RawBackupRow | undefined;
+      return raw ? toBackupRow(raw) : null;
+    },
+
+    addBackup(row: {
+      id: string;
+      serverId: string;
+      createdBy: string;
+      kind: BackupKind;
+      file: string;
+      sizeBytes: number;
+      paths: string[];
+    }) {
+      st.insertBackup.run({
+        id: row.id,
+        serverId: row.serverId,
+        createdAt: Date.now(),
+        createdBy: row.createdBy,
+        kind: row.kind,
+        file: row.file,
+        sizeBytes: row.sizeBytes,
+        paths: JSON.stringify(row.paths),
+      });
+    },
+
+    removeBackup(id: string) {
+      st.deleteBackup.run(id);
     },
 
     listInstalledMods(serverId: string): InstalledModRow[] {

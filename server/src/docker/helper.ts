@@ -135,6 +135,46 @@ export function createHelperRunner(dockerClient: DockerClient) {
   }
 
   /**
+   * Like runDetached, but the helper sees several containers' volumes at once.
+   *
+   * What backups need: the game's volumes to read from and the portal's own
+   * to write into, so tar streams straight from one to the other and no
+   * world ever travels through this process. The portal names itself by
+   * hostname, which Docker sets to the container id.
+   */
+  async function runJoined(
+    containers: string[],
+    cmd: string[],
+    timeoutMs = 60_000,
+  ): Promise<string> {
+    const helper = await docker.createContainer({
+      Image: await ownImage(),
+      Entrypoint: [],
+      Cmd: cmd,
+      User: 'root',
+      Labels: { [HELPER_LABEL]: '1' },
+      HostConfig: {
+        VolumesFrom: containers,
+        NetworkMode: 'none',
+        AutoRemove: false,
+      },
+    });
+
+    try {
+      const stream = await helper.attach({ stream: true, stdout: true, stderr: true });
+      const output = collect(stream, timeoutMs);
+      await helper.start();
+      const [{ StatusCode }, body] = await Promise.all([helper.wait(), output]);
+      if (StatusCode !== 0) {
+        throw new HelperError('The command failed.', 'command-failed', StatusCode);
+      }
+      return body.toString('utf8');
+    } finally {
+      await helper.remove({ force: true }).catch(() => {});
+    }
+  }
+
+  /**
    * Removes helpers left behind by an earlier life of this process. Run at
    * boot, because that is exactly when the previous one was killed.
    */
@@ -143,7 +183,7 @@ export function createHelperRunner(dockerClient: DockerClient) {
     try {
       const orphans = await docker.listContainers({
         all: true,
-        filters: { label: [`=1`] },
+        filters: { label: [`${HELPER_LABEL}=1`] },
       });
       for (const orphan of orphans) {
         await docker.getContainer(orphan.Id).remove({ force: true }).catch(() => {});
@@ -155,7 +195,7 @@ export function createHelperRunner(dockerClient: DockerClient) {
     return removed;
   }
 
-  return { run, runDetached, ownImage, sweepOrphans };
+  return { run, runDetached, runJoined, ownImage, sweepOrphans };
 }
 
 export type HelperRunner = ReturnType<typeof createHelperRunner>;

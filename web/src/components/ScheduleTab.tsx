@@ -129,7 +129,9 @@ export function ScheduleTab({ serverId }: { serverId: string }) {
               </span>
               <span className="mod-meta">
                 {ACTION_LABELS[s.action]} at {s.time} · {daysText(s.days)}
-                {s.skipOccupied && s.action !== 'start' ? ' · skips when players are on' : ''}
+                {s.skipOccupied && (s.action === 'restart' || s.action === 'stop')
+                  ? ' · skips when players are on'
+                  : ''}
               </span>
               <span className="sched-when">
                 {s.enabled ? <>next: {whenText(s.nextRunAt)}</> : 'not planned'}
@@ -208,7 +210,7 @@ export function ScheduleTab({ serverId }: { serverId: string }) {
           maxLength={60}
           onChange={(e) => setName(e.target.value)}
         />
-        {action !== 'start' ? (
+        {action === 'restart' || action === 'stop' ? (
           <label className="checkline">
             <input
               type="checkbox"

@@ -22,6 +22,7 @@ import { createHealthReporter } from './health.js';
 import { createModInstaller } from './mods/install.js';
 import { createWorkshopDeclarations } from './mods/declare.js';
 import { createScheduler } from './schedule.js';
+import { createBackupService } from './backup.js';
 import { createHelperRunner } from './docker/helper.js';
 import { createNotifier } from './notify.js';
 import { createWatcher } from './watch.js';
@@ -42,6 +43,7 @@ import { registerSystemRoutes } from './routes/system.js';
 import { registerModRoutes } from './routes/mods.js';
 import { registerWorkshopRoutes } from './routes/workshop.js';
 import { registerScheduleRoutes } from './routes/schedules.js';
+import { registerBackupRoutes } from './routes/backups.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
@@ -80,6 +82,7 @@ async function main() {
   });
   const mods = createModInstaller(docker);
   const workshop = createWorkshopDeclarations(docker);
+  const backups = createBackupService({ docker, db, backupDir: env.BACKUP_DIR });
   const scheduler = createScheduler({
     db,
     registry,
@@ -89,6 +92,10 @@ async function main() {
     // Console for the same reason the notifier uses it: built before Fastify.
     log: (message) => console.log(`[Gamekeep] ${message}`),
   });
+  // A scheduled backup runs exactly like a manual one; only the actor differs.
+  scheduler.setBackupRunner(async (server, actor) =>
+    backups.describe(await backups.make(server, { actor, kind: 'scheduled' })),
+  );
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
@@ -113,6 +120,7 @@ async function main() {
     mods,
     workshop,
     scheduler,
+    backups,
     health,
     sessions,
     setup,
@@ -181,6 +189,7 @@ async function main() {
   registerModRoutes(app, ctx);
   registerWorkshopRoutes(app, ctx);
   registerScheduleRoutes(app, ctx);
+  registerBackupRoutes(app, ctx);
   registerDashboardRoutes(app, ctx);
   registerLogRoutes(app, ctx);
   registerAccessRoutes(app, ctx);
