@@ -294,6 +294,7 @@ export function ServerDetailPage({
         <RestartButton
           server={server}
           onAction={refresh}
+          canOperate={canOperate}
           onStarted={canOperate ? () => setTab('logs') : undefined}
         />
         {canOperate ? (

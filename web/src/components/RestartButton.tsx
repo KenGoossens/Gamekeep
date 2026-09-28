@@ -10,9 +10,11 @@ interface Props {
    * fires on a refusal. Used to jump straight to the log.
    */
   onStarted?: () => void;
+  /** Operators may restart during a cooldown; the API has always allowed it. */
+  canOperate: boolean;
 }
 
-export function RestartButton({ server, onAction, onStarted }: Props) {
+export function RestartButton({ server, onAction, onStarted, canOperate }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,13 +82,20 @@ export function RestartButton({ server, onAction, onStarted }: Props) {
   return (
     <>
       <div className="actions">
+        {/*
+          The cooldown stops a member restarting a server that is still
+          booting, which is the guardrail it exists for. It was stopping
+          operators too, although the API has always let them through --
+          so an owner saw a five-minute wait on a button the server would
+          have accepted. They now see the time and may click anyway.
+        */}
         <button
           type="button"
           className="btn-primary"
-          disabled={cooldown > 0 || submitting || unavailable || confirming}
+          disabled={(cooldown > 0 && !canOperate) || submitting || unavailable || confirming}
           onClick={() => setConfirming(true)}
         >
-          {cooldown > 0 ? `Wait ${formatClock(cooldown)}` : verb}
+          {cooldown > 0 ? (canOperate ? `${verb} anyway (${formatClock(cooldown)})` : `Wait ${formatClock(cooldown)}`) : verb}
         </button>
 
         {job?.phase === 'done' && cooldown > 0 ? (
@@ -105,6 +114,15 @@ export function RestartButton({ server, onAction, onStarted }: Props) {
 
       {confirming ? (
         <div className="confirm">
+            {/* Said before the rest, because it is the reason to pause: the
+                cooldown is normally what stops a second restart landing on a
+                server that is still loading its world. */}
+            {cooldown > 0 ? (
+              <p className="hint bad">
+                This was restarted {formatClock(cooldown)} ago and may still be starting up.
+                Restarting again now will interrupt that.
+              </p>
+            ) : null}
           <p>
             {occupied ? (
               <>
