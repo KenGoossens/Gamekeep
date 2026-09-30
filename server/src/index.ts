@@ -23,6 +23,7 @@ import { createModInstaller } from './mods/install.js';
 import { createWorkshopDeclarations } from './mods/declare.js';
 import { createScheduler } from './schedule.js';
 import { createBackupService } from './backup.js';
+import { createSteamCatalog } from './steam/catalog.js';
 import { createHelperRunner } from './docker/helper.js';
 import { createNotifier } from './notify.js';
 import { createWatcher } from './watch.js';
@@ -45,6 +46,7 @@ import { registerWorkshopRoutes } from './routes/workshop.js';
 import { registerScheduleRoutes } from './routes/schedules.js';
 import { registerBackupRoutes } from './routes/backups.js';
 import { registerConsoleRoutes } from './routes/console.js';
+import { registerSteamRoutes } from './routes/steam.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
@@ -84,6 +86,7 @@ async function main() {
   const mods = createModInstaller(docker);
   const workshop = createWorkshopDeclarations(docker);
   const backups = createBackupService({ docker, db, backupDir: env.BACKUP_DIR });
+  const steam = createSteamCatalog({ db, env });
   const scheduler = createScheduler({
     db,
     registry,
@@ -122,6 +125,7 @@ async function main() {
     workshop,
     scheduler,
     backups,
+    steam,
     health,
     sessions,
     setup,
@@ -192,6 +196,7 @@ async function main() {
   registerScheduleRoutes(app, ctx);
   registerBackupRoutes(app, ctx);
   registerConsoleRoutes(app, ctx);
+  registerSteamRoutes(app, ctx);
   registerDashboardRoutes(app, ctx);
   registerLogRoutes(app, ctx);
   registerAccessRoutes(app, ctx);

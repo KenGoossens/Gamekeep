@@ -152,9 +152,14 @@ export const serverSchema = z.object({
 });
 
 const serversFileSchema = z.object({
+  /*
+   * An empty list used to be refused, from the days when servers.json was the
+   * only way a server could exist. The portal deploys servers itself now, so
+   * a fresh install legitimately starts with none -- refusing to boot was
+   * telling new users to hand-write the very file the catalogue replaces.
+   */
   servers: z
     .array(serverSchema)
-    .min(1, 'servers.json lists no servers, so the portal would do nothing.')
     .superRefine((servers, ctx) => {
       const seen = new Set<string>();
       for (const s of servers) {

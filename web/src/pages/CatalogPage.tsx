@@ -10,8 +10,16 @@ import {
 } from '../api.ts';
 import { navigate } from '../router.ts';
 import { Findings } from '../components/Findings.tsx';
+import { SteamCatalog } from '../components/SteamCatalog.tsx';
 
-export function CatalogPage() {
+export function CatalogPage({ isOwner }: { isOwner: boolean }) {
+  /*
+   * Two ways in: the curated Unraid catalogue (templates from trusted
+   * publishers) and the whole of Steam (containers the portal composes
+   * itself). Different trust stories, so they are separate screens rather
+   * than merged results.
+   */
+  const [source, setSource] = useState<'unraid' | 'steam'>('unraid');
   const [query, setQuery] = useState('');
   const [apps, setApps] = useState<CatalogApp[]>([]);
   const [total, setTotal] = useState(0);
@@ -67,11 +75,33 @@ export function CatalogPage() {
       <div className="page-head">
         <h1>Add a game server</h1>
         <p>
-          {total} game servers from trusted publishers in Community Applications. Deploying creates
-          a container on your Unraid server.
+          {source === 'unraid'
+            ? `${total} game servers from trusted publishers in Community Applications. Deploying creates a container on your Unraid server.`
+            : 'Any dedicated server on Steam, as a container Gamekeep composes itself on Valve’s official steamcmd image.'}
         </p>
       </div>
 
+      <nav className="tabs" style={{ marginBottom: 14 }}>
+        <button
+          type="button"
+          className={source === 'unraid' ? 'tab active' : 'tab'}
+          onClick={() => setSource('unraid')}
+        >
+          Unraid apps
+        </button>
+        <button
+          type="button"
+          className={source === 'steam' ? 'tab active' : 'tab'}
+          onClick={() => setSource('steam')}
+        >
+          Steam
+        </button>
+      </nav>
+
+      {source === 'steam' ? (
+        <SteamCatalog isOwner={isOwner} />
+      ) : (
+      <>
       <div className="addrow" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
         <input
           placeholder="Search for a game…"
@@ -109,6 +139,8 @@ export function CatalogPage() {
         ))}
       </ul>
       {!loading && apps.length === 0 ? <p className="empty">Nothing matched that search.</p> : null}
+      </>
+      )}
     </>
   );
 }

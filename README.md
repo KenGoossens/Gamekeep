@@ -322,6 +322,39 @@ Host paths from a template are ignored and replaced with ones the portal
 controls, and `ExtraParams` is never applied. The resolved digest is recorded in
 the audit log, because a tag can be moved afterwards.
 
+### Any dedicated server on Steam
+
+The catalogue has a second tab: **Steam**. Where the Unraid tab trusts a
+template author, this one trusts exactly two parties — Valve's official
+`steamcmd/steamcmd` image and Steam's own depots — and Gamekeep composes
+everything in between itself.
+
+How it works: Steam's own app info carries each app's launch configuration
+(the same data `app_info_print` shows), which is the missing half of a
+generic deploy — SteamCMD can download any app id, but only the app info says
+how to start it. Gamekeep reads it, proposes the most headless-looking Linux
+launch line (xterm wrappers are swapped for the plain script they wrap), and
+shows it for the operator to confirm or correct. The generated start script
+downloads the app through SteamCMD on every start (which is also how the
+server updates), drops root for a `99:100` user, links `steamclient.so`
+where games expect it, and becomes the game. Script and a matching
+`docker-compose.yml` land inside the server's own volume, readable in the
+Files tab — the compose file reproduces the server anywhere, portal or not.
+
+Finding a server, three ways:
+
+- **Paste an app id or store/SteamDB URL** — always works, needs nothing.
+- **Search without a key** — covers servers that have a store page.
+- **Search with a free Steam Web API key** (steamcommunity.com/dev/apikey,
+  owner sets it once) — covers every "dedicated server" Steam lists,
+  refreshed weekly.
+
+Games the registry recognises get their required ports prefilled and their
+backups, mods, player counts and typed settings out of the box. Windows-only
+servers are refused with the reason; apps that refuse anonymous downloads say
+so in their first log lines, and a Steam account can be set on the container.
+Composed servers keep stdin open, so the Console tab can type at them.
+
 ### Which network a deployed server joins
 
 Its own — `GAME_NETWORK`, created and joined by the portal on the first deploy,

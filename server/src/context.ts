@@ -16,6 +16,7 @@ import type { ModInstaller } from './mods/install.js';
 import type { WorkshopDeclarations } from './mods/declare.js';
 import type { Scheduler } from './schedule.js';
 import type { BackupService } from './backup.js';
+import type { SteamCatalog } from './steam/catalog.js';
 import type { Notifier } from './notify.js';
 import type { Sessions } from './auth/session.js';
 import type { SetupGuard } from './auth/setup.js';
@@ -50,6 +51,8 @@ export interface AppContext {
   scheduler: Scheduler;
   /** World backups: the small irreplaceable part, not the reinstallable rest. */
   backups: BackupService;
+  /** Which dedicated servers Steam carries, and the key that unlocks the full list. */
+  steam: SteamCatalog;
   /** Read-only status of every connection the portal depends on. */
   health: HealthReporter;
   sessions: Sessions;

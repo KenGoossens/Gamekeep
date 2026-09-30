@@ -55,9 +55,20 @@ export interface DeployPlan {
   exposed: Record<string, Record<string, never>>;
   /** Ports the game registry supplied because the template had not. */
   addedPorts: string[];
+  /**
+   * Set for servers the portal composes itself (the Steam path), where the
+   * start behaviour is a generated script rather than the image's default.
+   */
+  entrypoint?: string[];
+  /**
+   * Keeps stdin open so the Console tab can type at the game. Only set on
+   * containers the portal composes itself; a template's own image is left to
+   * its own declared behaviour.
+   */
+  openStdin?: boolean;
 }
 
-const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,31}$/;
+export const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,31}$/;
 
 export class DeployError extends Error {
   constructor(
@@ -401,6 +412,8 @@ export function createDeployer(dockerClient: DockerClient) {
       Image: plan.image,
       Env: plan.env,
       ExposedPorts: plan.exposed,
+      ...(plan.entrypoint ? { Entrypoint: plan.entrypoint } : {}),
+      ...(plan.openStdin ? { OpenStdin: true, StdinOnce: false } : {}),
       Labels: {
         'net.unraid.docker.managed': 'gamekeep',
         'net.unraid.docker.icon': '',

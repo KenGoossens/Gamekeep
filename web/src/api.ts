@@ -456,6 +456,44 @@ export interface ScheduleInput {
   enabled?: boolean;
 }
 
+export interface SteamSearch {
+  haveKey: boolean;
+  cachedCount: number;
+  fetchedAt: number | null;
+  results: Array<{ appId: number; name: string; known: string | null }>;
+  /** Set when the query itself was an app id or a store URL. */
+  appId: number | null;
+  stale: boolean;
+}
+
+export interface SteamAppProposal {
+  info: {
+    appId: number;
+    name: string;
+    type: string;
+    osList: string[];
+    linux: boolean;
+    sizeMB: number | null;
+    launches: Array<{ executable: string; arguments: string; os: string; description: string }>;
+  };
+  command: string;
+  warnings: string[];
+  image: string;
+  known: { label: string } | null;
+  ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp'; purpose: string }>;
+}
+
+export interface SteamDeployRequest {
+  appId: number;
+  name: string;
+  command: string;
+  ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp' }>;
+  gameParams?: string;
+  validate?: boolean;
+  steamUsername?: string;
+  steamPassword?: string;
+}
+
 export interface ScannerSettings {
   virustotal: boolean;
   clamavHost: string;
@@ -722,6 +760,23 @@ export const api = {
     request<Dashboard>(`/api/dashboard?window=`),
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
+
+  steamSearch: (q: string) =>
+    request<SteamSearch>(`/api/steam/search?q=${encodeURIComponent(q)}`),
+  steamApp: (appId: number) => request<SteamAppProposal>(`/api/steam/app/${appId}`),
+  steamDeploy: (input: SteamDeployRequest) =>
+    request<{ serverId: string; steps: string[]; appdataPath: string }>('/api/steam/deploy', {
+      ...json(input),
+      method: 'POST',
+    }),
+  steamIntegration: () =>
+    request<{ haveKey: boolean; cachedCount: number; fetchedAt: number | null }>(
+      '/api/steam/integration',
+    ),
+  setSteamKey: (webApiKey: string) =>
+    request<{ haveKey: boolean }>('/api/steam/integration', { ...json({ webApiKey }), method: 'PUT' }),
+  refreshSteamCatalog: () =>
+    request<{ count: number }>('/api/steam/catalog/refresh', { method: 'POST' }),
 
   userAccess: (userId: string) =>
     request<{
