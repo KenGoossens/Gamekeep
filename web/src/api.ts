@@ -456,11 +456,15 @@ export interface ScheduleInput {
   enabled?: boolean;
 }
 
+export interface WikiIndex {
+  sections: Array<{ section: string; pages: Array<{ id: string; title: string }> }>;
+}
+
 export interface SteamSearch {
   /** How many dedicated servers the shipped Steam snapshot holds. */
   total: number;
   snapshotDate: string;
-  results: Array<{ appId: number; name: string; known: string | null }>;
+  results: Array<{ appId: number; name: string; known: string | null; iconUrl: string | null }>;
   /** Set when the query itself was an app id or a store URL. */
   appId: number | null;
 }
@@ -759,6 +763,10 @@ export const api = {
     request<Dashboard>(`/api/dashboard?window=`),
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
+
+  wiki: () => request<WikiIndex>('/api/wiki'),
+  wikiPage: (id: string) =>
+    request<{ id: string; title: string; markdown: string }>(`/api/wiki/${encodeURIComponent(id)}`),
 
   steamSearch: (q: string) =>
     request<SteamSearch>(`/api/steam/search?q=${encodeURIComponent(q)}`),

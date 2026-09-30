@@ -12,6 +12,7 @@ import { DashboardPage } from './pages/DashboardPage.tsx';
 import { UsersPage } from './pages/UsersPage.tsx';
 import { CatalogPage } from './pages/CatalogPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
+import { WikiPage } from './pages/WikiPage.tsx';
 
 const POLL_IDLE_MS = 5000;
 const POLL_BUSY_MS = 2000;
@@ -117,6 +118,7 @@ export function App() {
       {route.page === 'users' && me.role === 'owner' ? <UsersPage me={me} /> : null}
       {route.page === 'catalog' && canOperate(me.role) ? <CatalogPage /> : null}
       {route.page === 'settings' && me.role === 'owner' ? <SettingsPage /> : null}
+      {route.page === 'wiki' ? <WikiPage pageId={route.wikiPage} /> : null}
     </AppShell>
   );
 }

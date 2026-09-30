@@ -47,6 +47,7 @@ import { registerScheduleRoutes } from './routes/schedules.js';
 import { registerBackupRoutes } from './routes/backups.js';
 import { registerConsoleRoutes } from './routes/console.js';
 import { registerSteamRoutes } from './routes/steam.js';
+import { registerWikiRoutes } from './routes/wiki.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
@@ -81,7 +82,7 @@ async function main() {
     readConfig: () => readNotifyConfig({ db, env }),
     // Console rather than app.log: the services are built before Fastify is,
     // and a failed notification is not worth reordering the boot for.
-    onError: (message) => console.warn(`[Gamekeep] ${message}`),
+    onError: (message) => console.warn(`[GameKeepr] ${message}`),
   });
   const mods = createModInstaller(docker);
   const workshop = createWorkshopDeclarations(docker);
@@ -94,7 +95,7 @@ async function main() {
     docker,
     gameQuery,
     // Console for the same reason the notifier uses it: built before Fastify.
-    log: (message) => console.log(`[Gamekeep] ${message}`),
+    log: (message) => console.log(`[GameKeepr] ${message}`),
   });
   // A scheduled backup runs exactly like a manual one; only the actor differs.
   scheduler.setBackupRunner(async (server, actor) =>
@@ -197,6 +198,7 @@ async function main() {
   registerBackupRoutes(app, ctx);
   registerConsoleRoutes(app, ctx);
   registerSteamRoutes(app, ctx);
+  registerWikiRoutes(app, ctx);
   registerDashboardRoutes(app, ctx);
   registerLogRoutes(app, ctx);
   registerAccessRoutes(app, ctx);
@@ -254,7 +256,7 @@ async function main() {
   if (setupToken) {
     app.log.warn(`
   ==================================================================
-   Gamekeep has no accounts yet. Open it and create the first admin.
+   GameKeepr has no accounts yet. Open it and create the first admin.
 
    SETUP TOKEN: ${setupToken}
 
@@ -283,11 +285,11 @@ async function main() {
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info(
     { servers: registry.list().map((s) => s.id), users: db.userCount() },
-    'Gamekeep ready',
+    'GameKeepr ready',
   );
 }
 
 main().catch((err) => {
-  console.error('[Gamekeep] Fatal startup error:', err);
+  console.error('[GameKeepr] Fatal startup error:', err);
   process.exit(1);
 });

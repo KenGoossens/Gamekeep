@@ -190,7 +190,7 @@ export function BackupsTab({ serverId }: { serverId: string }) {
         <p className="hint">
           {list.registryKnows
             ? 'Nothing found yet — a server that has never run has no saves. Start it once, then come back.'
-            : 'Gamekeep does not know where this game keeps its saves. Add the directory below; the Files tab helps you find it.'}
+            : 'GameKeepr does not know where this game keeps its saves. Add the directory below; the Files tab helps you find it.'}
         </p>
       )}
 

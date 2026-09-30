@@ -98,7 +98,7 @@ export function reviewTemplate(
       state: 'fail',
       summary: 'This template asks to run privileged.',
       detail:
-        'A privileged container is effectively root on the Unraid host. Gamekeep will not deploy it, whatever the app.',
+        'A privileged container is effectively root on the Unraid host. GameKeepr will not deploy it, whatever the app.',
     });
   } else {
     findings.push({
@@ -141,7 +141,7 @@ export function reviewTemplate(
       id: 'paths-replaced',
       label: 'Storage',
       state: 'pass',
-      summary: `${paths.length} host path(s) replaced with a directory Gamekeep chooses.`,
+      summary: `${paths.length} host path(s) replaced with a directory GameKeepr chooses.`,
       detail:
         'The template names its own host paths; those are ignored, and everything lands under this portal’s game server directory instead.',
     });

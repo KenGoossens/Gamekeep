@@ -267,7 +267,7 @@ function compatibilityFindings(
       state: 'unknown',
       summary: `${loaders.join(' / ') || 'any loader'} — ${gameVersions.join(', ') || 'unstated'}`,
       detail:
-        'Gamekeep cannot read this server’s own version, so check this matches it. A mod for the wrong version simply will not load.',
+        'GameKeepr cannot read this server’s own version, so check this matches it. A mod for the wrong version simply will not load.',
     });
   }
 
@@ -349,7 +349,7 @@ export function createModInstaller(dockerClient: DockerClient) {
       response = await fetch(url, {
         redirect: 'follow',
         signal: AbortSignal.timeout(120_000),
-        headers: { 'user-agent': 'Gamekeep' },
+        headers: { 'user-agent': 'GameKeepr' },
       });
     } catch (err) {
       throw new ModSourceError(`Download failed: ${(err as Error).message}`, 'download-failed');

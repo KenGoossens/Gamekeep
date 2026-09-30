@@ -49,7 +49,7 @@ export function registerWorkshopRoutes(app: FastifyInstance, ctx: AppContext) {
             error: 'not-workshop-game',
             message: game
               ? `${game.label} does not take mods from the Steam Workshop.`
-              : 'This server has no game type set, so Gamekeep cannot tell where its mods come from.',
+              : 'This server has no game type set, so GameKeepr cannot tell where its mods come from.',
           },
         },
       };
@@ -227,7 +227,7 @@ export function registerWorkshopRoutes(app: FastifyInstance, ctx: AppContext) {
           // Said plainly: nothing has been downloaded yet, and the operator
           // who does not restart will wonder why nothing changed.
           message: found.layout.modIdsKey && item.declaredModIds.length === 0
-            ? `Added. Gamekeep could not find this mod's own id in its Workshop description, so check the ${found.layout.modIdsKey} line before starting.`
+            ? `Added. GameKeepr could not find this mod's own id in its Workshop description, so check the ${found.layout.modIdsKey} line before starting.`
             : 'Added. It downloads on the next start.',
         });
       } catch (err) {

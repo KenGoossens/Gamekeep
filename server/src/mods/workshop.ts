@@ -179,7 +179,7 @@ export async function lookupWorkshopItems(ids: string[]): Promise<WorkshopItem[]
     response = await fetch(DETAILS, {
       method: 'POST',
       body,
-      headers: { 'user-agent': 'Gamekeep' },
+      headers: { 'user-agent': 'GameKeepr' },
       signal: AbortSignal.timeout(15_000),
     });
   } catch (err) {

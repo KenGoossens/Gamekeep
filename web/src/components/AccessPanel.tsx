@@ -4,7 +4,7 @@ import { ApiError, api, type AccessPolicy, type AccessStatus } from '../api.ts';
 /**
  * Who may reach this portal at all.
  *
- * Cloudflare Access sits in front of Gamekeep's own login, so a policy there
+ * Cloudflare Access sits in front of GameKeepr's own login, so a policy there
  * is the guest list: an address on it lets someone reach the sign-in page,
  * and nothing more. That is why adding one is an operator's job while
  * connecting Cloudflare -- which stores a credential -- stays the owner's.
@@ -139,7 +139,7 @@ export function AccessPanel() {
               This policy also has {policy.otherIncludes} other allow rule
               {policy.otherIncludes === 1 ? '' : 's'}, {policy.requireRules} requirement
               {policy.requireRules === 1 ? '' : 's'} and {policy.excludeRules} exclusion
-              {policy.excludeRules === 1 ? '' : 's'}. Gamekeep never touches those — change them in
+              {policy.excludeRules === 1 ? '' : 's'}. GameKeepr never touches those — change them in
               Cloudflare.
             </p>
           ) : null}

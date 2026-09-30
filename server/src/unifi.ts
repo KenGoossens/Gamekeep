@@ -43,7 +43,7 @@ export interface UnifiConfig {
 }
 
 /** Rules the portal created carry this prefix, so it never touches yours. */
-const MANAGED_PREFIX = 'Gamekeep:';
+const MANAGED_PREFIX = 'GameKeepr:';
 /**
  * Rules created before the project was renamed. Kept so an existing install
  * can still recognise -- and therefore remove -- its own rules.
@@ -194,7 +194,7 @@ export function createUnifiClient(config: UnifiConfig) {
     const existing = (await list()).find((r) => r.id === id);
     if (!existing) throw new UnifiError('That rule no longer exists.', 'not-found');
     if (!existing.managed) {
-      throw new UnifiError('That rule was not created by Gamekeep, so it will not be removed.', 'not-managed');
+      throw new UnifiError('That rule was not created by GameKeepr, so it will not be removed.', 'not-managed');
     }
     await call(`/rest/portforward/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }

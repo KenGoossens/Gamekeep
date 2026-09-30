@@ -24,8 +24,9 @@ export function navigate(to: string) {
 }
 
 export interface Route {
-  page: 'dashboard' | 'servers' | 'server' | 'activity' | 'users' | 'catalog' | 'settings';
+  page: 'dashboard' | 'servers' | 'server' | 'activity' | 'users' | 'catalog' | 'settings' | 'wiki';
   serverId?: string;
+  wikiPage?: string;
 }
 
 export function parseRoute(path: string): Route {
@@ -35,6 +36,7 @@ export function parseRoute(path: string): Route {
   if (parts[0] === 'users') return { page: 'users' };
   if (parts[0] === 'catalog') return { page: 'catalog' };
   if (parts[0] === 'settings') return { page: 'settings' };
+  if (parts[0] === 'wiki') return { page: 'wiki', wikiPage: parts[1] ? decodeURIComponent(parts[1]) : undefined };
   if (parts[0] === 'servers' && parts[1]) {
     return { page: 'server', serverId: decodeURIComponent(parts[1]) };
   }

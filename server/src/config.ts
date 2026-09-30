@@ -175,7 +175,7 @@ export type ServerConfig = z.infer<typeof serverSchema>;
 export type Env = z.infer<typeof envSchema>;
 
 function fail(what: string, detail: string): never {
-  console.error(`\n[Gamekeep] Refusing to start -- ${what}:\n${detail}\n`);
+  console.error(`\n[GameKeepr] Refusing to start -- ${what}:\n${detail}\n`);
   process.exit(1);
 }
 

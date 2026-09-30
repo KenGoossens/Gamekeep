@@ -23,6 +23,8 @@ export function AppShell({ me, current, onSignedOut, children }: Props) {
           { href: '/settings', label: 'Settings', key: 'settings' },
         ]
       : []),
+    // Last on purpose: the manual is the thing you reach for, not live in.
+    { href: '/wiki', label: 'Wiki', key: 'wiki' },
   ];
 
   return (
@@ -30,7 +32,7 @@ export function AppShell({ me, current, onSignedOut, children }: Props) {
       <nav className="nav">
         <a {...linkProps('/')} className="brand">
           <img className="mark" src="/logo.png" alt="" width={26} height={26} />
-          Gamekeep
+          GameKeepr
         </a>
 
         <div className="navlinks">

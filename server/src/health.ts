@@ -139,7 +139,7 @@ export function createHealthReporter(deps: {
         method: 'GET',
         redirect: 'manual',
         signal: AbortSignal.timeout(6_000),
-        headers: { 'user-agent': 'Gamekeep self-check' },
+        headers: { 'user-agent': 'GameKeepr self-check' },
       });
     } catch (err) {
       return {
@@ -198,7 +198,7 @@ export function createHealthReporter(deps: {
     );
 
     const home =
-      'The tunnel token lives on that container (its own environment), never in Gamekeep. Rotate it in Zero Trust and recreate the container -- a restart does not re-read an env file.';
+      'The tunnel token lives on that container (its own environment), never in GameKeepr. Rotate it in Zero Trust and recreate the container -- a restart does not re-read an env file.';
 
     if (!found) {
       return {
@@ -285,7 +285,7 @@ export function createHealthReporter(deps: {
       const rules = await provider.list();
       const mine = rules.filter((r) => r.managed).length;
       facts.push({ k: 'Rules on the router', v: String(result.rules) });
-      facts.push({ k: 'Created by Gamekeep', v: String(mine) });
+      facts.push({ k: 'Created by GameKeepr', v: String(mine) });
 
       return {
         state: lan ? 'ok' : 'warn',

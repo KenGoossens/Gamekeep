@@ -122,7 +122,7 @@ export async function fetchJson<T>(
     response = await fetch(url, {
       ...rest,
       signal: AbortSignal.timeout(timeoutMs),
-      headers: { accept: 'application/json', 'user-agent': 'Gamekeep', ...(rest.headers ?? {}) },
+      headers: { accept: 'application/json', 'user-agent': 'GameKeepr', ...(rest.headers ?? {}) },
     });
   } catch (err) {
     throw new ModSourceError(`Could not reach the mod repository: ${(err as Error).message}`, 'unreachable');

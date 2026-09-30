@@ -158,7 +158,7 @@ export function WorkshopPanel({ serverId }: { serverId: string }) {
   return (
     <>
       <p className="notes">
-        This game collects its own mods. Gamekeep writes the Workshop id into{' '}
+        This game collects its own mods. GameKeepr writes the Workshop id into{' '}
         <code>{list.file.split('/').pop()}</code> and the server downloads it on the next start —
         so nothing is scanned here, because nothing is downloaded here.
       </p>
@@ -285,7 +285,7 @@ export function WorkshopPanel({ serverId }: { serverId: string }) {
       {list.usesModIds ? (
         <p className="hint">
           This game keeps two lists: the Workshop ids it downloads, and the mod names it then
-          loads. Gamekeep maintains both — currently{' '}
+          loads. GameKeepr maintains both — currently{' '}
           {list.modIds.length > 0 ? <code>{list.modIds.join('; ')}</code> : 'empty'}.
         </p>
       ) : null}

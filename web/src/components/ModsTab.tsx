@@ -187,7 +187,7 @@ export function ModsTab({ serverId }: { serverId: string }) {
       {/* ---- what is installed ---- */}
       <h3 className="subhead">Installed</h3>
       {status.installed.length === 0 ? (
-        <p className="empty">No mods installed through Gamekeep.</p>
+        <p className="empty">No mods installed through GameKeepr.</p>
       ) : (
         <ul className="modlist">
           {status.installed.map((m) => (

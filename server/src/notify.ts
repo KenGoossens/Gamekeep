@@ -224,7 +224,7 @@ export function createNotifier(options: {
       headers: { 'content-type': 'application/json' },
       signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
-        username: 'Gamekeep',
+        username: 'GameKeepr',
         embeds: [
           {
             title: shape.title,
@@ -235,7 +235,7 @@ export function createNotifier(options: {
             url: options.publicUrl,
             fields: fieldsFor(event),
             ...artworkFor(event.server),
-            footer: { text: 'Gamekeep' },
+            footer: { text: 'GameKeepr' },
             timestamp: new Date().toISOString(),
           },
         ],
@@ -289,7 +289,7 @@ export function createNotifier(options: {
   async function test(webhook: string, sample?: NotifyServer): Promise<void> {
     await toDiscord(webhook, {
       kind: 'server-recovered',
-      server: sample ?? { name: 'Gamekeep' },
+      server: sample ?? { name: 'GameKeepr' },
       actor: { username: 'this is a test', role: 'nobody restarted anything' },
       detail: 'Notifications are working. A real message will look like this one.',
     });

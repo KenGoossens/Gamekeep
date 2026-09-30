@@ -31,8 +31,12 @@ export function GameTile({ server }: { server: GameServer }) {
           onError={() => setFailed(true)}
         />
       ) : style === 'icon' ? (
-        // Not on Steam: centre the game's icon on a tint drawn from its accent.
+        /* Not on Steam, so no poster exists. The icon serves twice: blown up
+           and blurred as the card's backdrop, and sharp in the middle -- which
+           reads as a full-picture card without inventing artwork the game
+           never had. */
         <div className="iconart" aria-hidden="true">
+          <img className="iconcover" src={artworkUrl(server.id, 'icon')} alt="" loading="lazy" />
           <img
             src={artworkUrl(server.id, 'icon')}
             alt=""

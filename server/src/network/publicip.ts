@@ -50,7 +50,7 @@ export function createPublicAddressLookup() {
   async function ask(source: (typeof SOURCES)[number]): Promise<string | null> {
     const response = await fetch(source.url, {
       signal: AbortSignal.timeout(6_000),
-      headers: { accept: 'text/plain', 'user-agent': 'Gamekeep' },
+      headers: { accept: 'text/plain', 'user-agent': 'GameKeepr' },
     });
     if (!response.ok) return null;
 

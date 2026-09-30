@@ -1,6 +1,7 @@
 import { mkdir, writeFile, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { ServerConfig } from './config.js';
+import { gameByQueryType } from './games.js';
 
 export type ArtworkKind = 'poster' | 'hero' | 'logo' | 'icon';
 
@@ -89,11 +90,21 @@ export function createArtworkStore(databasePath: string) {
     return null;
   }
 
+  /**
+   * A per-server id wins, but hardly anyone sets one: the game registry knows
+   * the Steam id for every game it recognises. The same fallback notifications
+   * use -- without it, a hand-configured server whose author never filled in
+   * steamAppId sat on a lettered tile while its game had poster art all along.
+   */
+  function steamIdOf(server: ServerConfig): number | undefined {
+    return server.steamAppId ?? gameByQueryType(server.query?.type)?.steamAppId;
+  }
+
   async function ensureSteam(server: ServerConfig, log: (m: string) => void) {
     for (const kind of ['poster', 'hero', 'logo'] as const) {
       if (await resolve(server.id, kind)) continue;
       const file = join(root, server.id, `${kind}.${kind === 'logo' ? 'png' : 'jpg'}`);
-      const url = `https://cdn.cloudflare.steamstatic.com/steam/apps/${server.steamAppId}/${STEAM_FILES[kind]}`;
+      const url = `https://cdn.cloudflare.steamstatic.com/steam/apps/${steamIdOf(server)}/${STEAM_FILES[kind]}`;
       log(
         (await download(url, file))
           ? `artwork: fetched ${server.id}/${kind}`
@@ -125,14 +136,14 @@ export function createArtworkStore(databasePath: string) {
    */
   async function ensure(servers: ServerConfig[], log: (message: string) => void): Promise<void> {
     for (const server of servers) {
-      if (server.steamAppId) await ensureSteam(server, log);
+      if (steamIdOf(server)) await ensureSteam(server, log);
       else await ensureIcon(server, log);
     }
   }
 
   /** Which presentation the UI should use for this server. */
   async function styleFor(server: ServerConfig): Promise<'poster' | 'icon' | 'none'> {
-    if (server.steamAppId && (await resolve(server.id, 'poster'))) return 'poster';
+    if (steamIdOf(server) && (await resolve(server.id, 'poster'))) return 'poster';
     if (await resolve(server.id, 'icon')) return 'icon';
     return 'none';
   }

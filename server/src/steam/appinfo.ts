@@ -61,7 +61,7 @@ export async function inspectSteamApp(appId: number): Promise<SteamAppInfo> {
   let response: Response;
   try {
     response = await fetch(`${INFO_URL}${appId}`, {
-      headers: { accept: 'application/json', 'user-agent': 'Gamekeep' },
+      headers: { accept: 'application/json', 'user-agent': 'GameKeepr' },
       signal: AbortSignal.timeout(20_000),
     });
   } catch (err) {

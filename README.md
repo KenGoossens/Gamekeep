@@ -1,4 +1,4 @@
-# Gamekeep
+# GameKeepr
 
 Let the people you play with look after your game servers, without giving them
 access to your server.
@@ -53,7 +53,7 @@ gets two extras — see [On Unraid](#on-unraid).
 
 ```bash
 git clone https://github.com/KenGoossens/Gamekeep.git
-cd Gamekeep
+cd GameKeepr
 cp .env.example .env
 ```
 
@@ -219,7 +219,7 @@ What can be checked, is:
 | **Age and reach** | When it was last updated and how many people run it. Warnings, never verdicts. |
 
 Project Zomboid keeps two lists — the Workshop ids it downloads and the mod
-names it then loads — and a mod in only one of them does nothing. Gamekeep
+names it then loads — and a mod in only one of them does nothing. GameKeepr
 maintains both, reading the mod's name out of its Workshop description the way
 every Project Zomboid mod manager does. If a publisher did not put one there,
 it says so instead of guessing.
@@ -326,13 +326,13 @@ the audit log, because a tag can be moved afterwards.
 
 The catalogue has a second tab: **Steam**. Where the Unraid tab trusts a
 template author, this one trusts exactly two parties — Valve's official
-`steamcmd/steamcmd` image and Steam's own depots — and Gamekeep composes
+`steamcmd/steamcmd` image and Steam's own depots — and GameKeepr composes
 everything in between itself.
 
 How it works: Steam's own app info carries each app's launch configuration
 (the same data `app_info_print` shows), which is the missing half of a
 generic deploy — SteamCMD can download any app id, but only the app info says
-how to start it. Gamekeep reads it, proposes the most headless-looking Linux
+how to start it. GameKeepr reads it, proposes the most headless-looking Linux
 launch line (xterm wrappers are swapped for the plain script they wrap), and
 shows it for the operator to confirm or correct. The generated start script
 downloads the app through SteamCMD on every start (which is also how the
@@ -343,7 +343,7 @@ Files tab — the compose file reproduces the server anywhere, portal or not.
 
 The Steam tab browses like the Unraid tab: the whole list up front (~580
 dedicated servers), recognised games sorted to the top, a search box that
-narrows it. The list ships with Gamekeep as data — Valve retired the only
+narrows it. The list ships with GameKeepr as data — Valve retired the only
 complete live source in 2025, and its replacement only sees apps with store
 pages, which server tools do not have (tested: it finds 12 of the ~580). The
 live store search picks up newer servers that do have store pages, and
@@ -469,7 +469,7 @@ Runs go through the same machinery as a button press: two-stage verification,
 cooldown, audit log and Discord all apply, with the schedule named as the
 actor. Times run on the portal's own clock, and the tab says which time zone
 that is — a container without `TZ` set runs in UTC, which you want to know
-before 05:00, not after. Set `TZ` (e.g. `Europe/Brussels`) on the Gamekeep
+before 05:00, not after. Set `TZ` (e.g. `Europe/Brussels`) on the GameKeepr
 container to change it.
 
 ## Backups

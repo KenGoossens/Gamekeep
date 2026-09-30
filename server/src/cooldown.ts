@@ -14,7 +14,7 @@ export interface CooldownState {
  * starting and it never comes up.
  *
  * State is derived from the audit log rather than held in memory, so
- * redeploying Gamekeep does not hand everyone a fresh restart budget.
+ * redeploying GameKeepr does not hand everyone a fresh restart budget.
  */
 export function createCooldown(db: Db) {
   function check(server: ServerConfig): CooldownState {

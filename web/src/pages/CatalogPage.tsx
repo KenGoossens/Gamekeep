@@ -77,7 +77,7 @@ export function CatalogPage() {
         <p>
           {source === 'unraid'
             ? `${total} game servers from trusted publishers in Community Applications. Deploying creates a container on your Unraid server.`
-            : 'Any dedicated server on Steam, as a container Gamekeep composes itself on Valve’s official steamcmd image.'}
+            : 'Any dedicated server on Steam, as a container GameKeepr composes itself on Valve’s official steamcmd image.'}
         </p>
       </div>
 

@@ -11,7 +11,7 @@ import { AccessError, createAccessClient, type AccessClient } from '../access/cl
  * which policy this portal is allowed to edit. Adding and removing addresses
  * is operator-level, because it is a weaker capability than the one operators
  * already have -- an address on the Access policy only lets someone reach the
- * login page, while creating a Gamekeep account lets them actually in.
+ * login page, while creating a GameKeepr account lets them actually in.
  */
 
 const SETTING_KEY = 'cloudflare-access';

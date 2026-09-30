@@ -5,7 +5,7 @@
  * GetAppList in 2025, and its replacement (IStoreService, key or no key)
  * only returns apps with store pages -- which dedicated server tools do not
  * have; tested, it finds 12 of the ~580. So the complete list ships with
- * Gamekeep as data, exactly like the game registry does, taken from the last
+ * GameKeepr as data, exactly like the game registry does, taken from the last
  * full snapshot of Valve's own list. Two live routes keep it current enough:
  * the public store search catches newer servers that do have store pages,
  * and pasting an app id or URL works for absolutely anything, list or no
@@ -20,8 +20,10 @@ const STORE_SEARCH = 'https://store.steampowered.com/api/storesearch/';
 export interface SteamCatalogEntry {
   appId: number;
   name: string;
-  /** The Gamekeep registry's label when it recognises this game, else null. */
+  /** The GameKeepr registry's label when it recognises this game, else null. */
   known: string | null;
+  /** The tool's own Steam client icon, when it has one. */
+  iconUrl: string | null;
 }
 
 export interface SteamCatalogStatus {
@@ -29,16 +31,19 @@ export interface SteamCatalogStatus {
   snapshotDate: string;
 }
 
-function decorate(app: { appid: number; name: string }): SteamCatalogEntry {
+function decorate(app: { appid: number; name: string; icon?: string }): SteamCatalogEntry {
   return {
     appId: app.appid,
     name: app.name,
     known: identifyGame(app.name, '')?.label ?? null,
+    iconUrl: app.icon
+      ? `https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/${app.appid}/${app.icon}.jpg`
+      : null,
   };
 }
 
 /**
- * Recognised games first, then alphabetical: the servers Gamekeep can give
+ * Recognised games first, then alphabetical: the servers GameKeepr can give
  * ports, saves, mods and a player count belong at the top of the list, the
  * same way running servers sort first everywhere else.
  */
@@ -60,7 +65,7 @@ export function createSteamCatalog() {
       const response = await fetch(
         `${STORE_SEARCH}?term=${encodeURIComponent(query)}&l=english&cc=US`,
         {
-          headers: { accept: 'application/json', 'user-agent': 'Gamekeep' },
+          headers: { accept: 'application/json', 'user-agent': 'GameKeepr' },
           signal: AbortSignal.timeout(15_000),
         },
       );

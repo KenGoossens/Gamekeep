@@ -5,11 +5,11 @@ import { navigate } from '../router.ts';
 /**
  * Any dedicated server Steam carries, browsed exactly like the Unraid tab:
  * the whole list up front, a search box that narrows it, one Configure button
- * per row. The servers Gamekeep fully understands (ports, saves, mods,
+ * per row. The servers GameKeepr fully understands (ports, saves, mods,
  * player counts) sort to the top, the way running servers sort first
  * everywhere else.
  *
- * The list ships with Gamekeep — Valve retired the only complete live source
+ * The list ships with GameKeepr — Valve retired the only complete live source
  * — and is topped up by the live store search and by pasting an app id or
  * store URL, which works for anything, listed or not.
  */
@@ -78,17 +78,21 @@ export function SteamCatalog() {
       <ul className="catalog">
         {(search?.results ?? []).map((r) => (
           <li key={r.appId}>
-            {/* Dedicated server tools have no store page and no artwork on
-                Steam's CDN, so every row gets the lettered tile. */}
-            <div className="noicon" aria-hidden="true">
-              {r.name.slice(0, 1)}
-            </div>
+            {/* The tool's own Steam client icon, baked into the shipped
+                list; the few without one keep the lettered tile. */}
+            {r.iconUrl ? (
+              <img src={r.iconUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="noicon" aria-hidden="true">
+                {r.name.slice(0, 1)}
+              </div>
+            )}
             <div className="catalog-body">
               <span className="uname">{r.name}</span>
               <span className="hint">Steam app {r.appId}</span>
               <p className="catalog-overview">
                 {r.known
-                  ? `Gamekeep knows this game (${r.known}): required ports are prefilled, and backups, mods and the player count work out of the box.`
+                  ? `GameKeepr knows this game (${r.known}): required ports are prefilled, and backups, mods and the player count work out of the box.`
                   : 'Not in the game registry — check the proposed start command and add the ports its documentation names.'}
               </p>
             </div>
@@ -180,7 +184,7 @@ function SteamDeployForm({
       </div>
 
       <p className="notes">
-        Composed by Gamekeep on Valve’s official <code>{proposal.image}</code> image: SteamCMD
+        Composed by GameKeepr on Valve’s official <code>{proposal.image}</code> image: SteamCMD
         downloads app {info.appId} on first start
         {info.sizeMB
           ? ` (~${info.sizeMB >= 1024 ? `${(info.sizeMB / 1024).toFixed(1)} GB` : `${info.sizeMB} MB`})`
@@ -190,7 +194,7 @@ function SteamDeployForm({
       </p>
       {proposal.known ? (
         <p className="hint ok">
-          Gamekeep knows this game ({proposal.known.label}): required ports are prefilled, and
+          GameKeepr knows this game ({proposal.known.label}): required ports are prefilled, and
           backups, mods and the player count will work out of the box.
         </p>
       ) : null}

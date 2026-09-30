@@ -31,7 +31,7 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: () => void }) {
     <div className="login">
       <form className="card" onSubmit={submit}>
         <img className="brandmark" src="/logo.png" alt="" width={64} height={64} />
-        <h1>Gamekeep</h1>
+        <h1>GameKeepr</h1>
         <p>Sign in to check on the game servers and restart them when an update lands.</p>
 
         <label className="field">

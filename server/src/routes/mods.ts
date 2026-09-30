@@ -67,10 +67,10 @@ export function registerModRoutes(app: FastifyInstance, ctx: AppContext) {
             message:
               gameByQueryType(gameType)?.modsUnavailable ??
               (gameByQueryType(gameType)
-                ? `Gamekeep has no mod repository for ${gameByQueryType(gameType)!.label} yet.`
+                ? `GameKeepr has no mod repository for ${gameByQueryType(gameType)!.label} yet.`
                 : gameType
-                  ? `Gamekeep does not recognise "${gameType}" as a game it can find mods for.`
-                  : 'This server has no game type set, so Gamekeep cannot tell which mods would fit.'),
+                  ? `GameKeepr does not recognise "${gameType}" as a game it can find mods for.`
+                  : 'This server has no game type set, so GameKeepr cannot tell which mods would fit.'),
           },
         },
       };

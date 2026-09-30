@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, type NotifySettings } from '../api.ts';
 
 /**
- * Where Gamekeep tells you something went wrong.
+ * Where GameKeepr tells you something went wrong.
  *
  * The default selection is deliberately short. This portal exists because its
  * owner is away, and the point is to be interrupted when a restart did not

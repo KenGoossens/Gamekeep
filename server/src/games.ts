@@ -1,5 +1,5 @@
 /**
- * What Gamekeep knows about a game, in one place.
+ * What GameKeepr knows about a game, in one place.
  *
  * This used to be scattered: the query type came from servers.json by hand,
  * and the mod layout was a second table keyed by the same string. The result

@@ -1,7 +1,7 @@
 /**
  * Managing who may reach this portal, through Cloudflare Access.
  *
- * Cloudflare Access is the gate in front of Gamekeep's own login, and a policy
+ * Cloudflare Access is the gate in front of GameKeepr's own login, and a policy
  * there is the guest list. Adding a friend means editing that list, which
  * until now meant opening the Zero Trust dashboard.
  *

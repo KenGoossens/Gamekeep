@@ -118,7 +118,7 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
             ))}
           </ul>
           <p>
-            Add it in Unraid under this container’s port mappings, or redeploy it: Gamekeep now
+            Add it in Unraid under this container’s port mappings, or redeploy it: GameKeepr now
             fills in ports a template leaves out.
           </p>
         </div>
