@@ -115,7 +115,7 @@ export function App() {
       {route.page === 'dashboard' ? <DashboardPage canOperate={canOperate(me.role)} /> : null}
       {route.page === 'activity' ? <ActivityPage /> : null}
       {route.page === 'users' && me.role === 'owner' ? <UsersPage me={me} /> : null}
-      {route.page === 'catalog' && canOperate(me.role) ? <CatalogPage isOwner={me.role === 'owner'} /> : null}
+      {route.page === 'catalog' && canOperate(me.role) ? <CatalogPage /> : null}
       {route.page === 'settings' && me.role === 'owner' ? <SettingsPage /> : null}
     </AppShell>
   );

@@ -457,13 +457,12 @@ export interface ScheduleInput {
 }
 
 export interface SteamSearch {
-  haveKey: boolean;
-  cachedCount: number;
-  fetchedAt: number | null;
+  /** How many dedicated servers the shipped Steam snapshot holds. */
+  total: number;
+  snapshotDate: string;
   results: Array<{ appId: number; name: string; known: string | null }>;
   /** Set when the query itself was an app id or a store URL. */
   appId: number | null;
-  stale: boolean;
 }
 
 export interface SteamAppProposal {
@@ -769,15 +768,6 @@ export const api = {
       ...json(input),
       method: 'POST',
     }),
-  steamIntegration: () =>
-    request<{ haveKey: boolean; cachedCount: number; fetchedAt: number | null }>(
-      '/api/steam/integration',
-    ),
-  setSteamKey: (webApiKey: string) =>
-    request<{ haveKey: boolean }>('/api/steam/integration', { ...json({ webApiKey }), method: 'PUT' }),
-  refreshSteamCatalog: () =>
-    request<{ count: number }>('/api/steam/catalog/refresh', { method: 'POST' }),
-
   userAccess: (userId: string) =>
     request<{
       role: Role;

@@ -24,7 +24,6 @@ import { identifyGame } from '../games.js';
 export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, db, env, guard, deployer, steam, notify, gameQuery } = ctx;
   const operator = { preHandler: guard.requireOperator };
-  const owner = { preHandler: guard.requireOwner };
 
   /** Accepts an app id, a store URL or a steamdb URL; people paste all three. */
   function parseAppReference(raw: string): number | null {
@@ -38,52 +37,15 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
     const q = String(request.query.q ?? '').trim();
     const status = steam.status();
 
-    // A pasted id or URL skips the catalogue entirely; that route never
-    // depends on a key or a cache.
+    // A pasted id or URL skips the catalogue entirely.
     const pastedId = q ? parseAppReference(q) : null;
     if (pastedId) {
-      return reply.send({ ...status, results: [], appId: pastedId, stale: false });
+      return reply.send({ ...status, results: [], appId: pastedId });
     }
 
-    if (q.length < 2) return reply.send({ ...status, results: [], appId: null, stale: false });
-    const { results, stale } = await steam.search(q);
-    return reply.send({ ...status, results, appId: null, stale });
-  });
-
-  app.get('/api/steam/integration', owner, async (_request, reply) => reply.send(steam.status()));
-
-  app.put<{ Body: { webApiKey?: string } }>(
-    '/api/steam/integration',
-    owner,
-    async (request, reply) => {
-      const key = String(request.body?.webApiKey ?? '').trim();
-      if (!/^[A-F0-9]{32}$/i.test(key)) {
-        return reply.code(400).send({
-          error: 'bad-key',
-          message: 'A Steam Web API key is 32 hex characters — get one free at steamcommunity.com/dev/apikey.',
-        });
-      }
-      steam.setApiKey(key);
-      db.audit({
-        userId: request.user!.id,
-        username: request.user!.username,
-        serverId: null,
-        action: 'integration-changed',
-        result: 'success',
-        detail: 'Steam Web API key set',
-        ...originOf(request),
-      });
-      return reply.send(steam.status());
-    },
-  );
-
-  app.post('/api/steam/catalog/refresh', owner, async (request, reply) => {
-    try {
-      const count = await steam.refresh();
-      return reply.send({ count, ...steam.status() });
-    } catch (err) {
-      return reply.code(502).send({ error: 'refresh-failed', message: (err as Error).message });
-    }
+    // An empty query returns the whole catalogue, exactly like the Unraid
+    // tab: the list is for browsing, the search box only narrows it.
+    return reply.send({ ...status, results: await steam.search(q), appId: null });
   });
 
   /** Everything needed to decide: what it is, whether it runs here, and how. */

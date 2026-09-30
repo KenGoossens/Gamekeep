@@ -341,13 +341,14 @@ where games expect it, and becomes the game. Script and a matching
 `docker-compose.yml` land inside the server's own volume, readable in the
 Files tab — the compose file reproduces the server anywhere, portal or not.
 
-Finding a server, three ways:
-
-- **Paste an app id or store/SteamDB URL** — always works, needs nothing.
-- **Search without a key** — covers servers that have a store page.
-- **Search with a free Steam Web API key** (steamcommunity.com/dev/apikey,
-  owner sets it once) — covers every "dedicated server" Steam lists,
-  refreshed weekly.
+The Steam tab browses like the Unraid tab: the whole list up front (~580
+dedicated servers), recognised games sorted to the top, a search box that
+narrows it. The list ships with Gamekeep as data — Valve retired the only
+complete live source in 2025, and its replacement only sees apps with store
+pages, which server tools do not have (tested: it finds 12 of the ~580). The
+live store search picks up newer servers that do have store pages, and
+pasting an app id or store/SteamDB URL works for absolutely anything, listed
+or not. No API key needed anywhere.
 
 Games the registry recognises get their required ports prefilled and their
 backups, mods, player counts and typed settings out of the box. Windows-only

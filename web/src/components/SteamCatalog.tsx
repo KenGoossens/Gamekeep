@@ -3,14 +3,15 @@ import { ApiError, api, type SteamAppProposal, type SteamSearch } from '../api.t
 import { navigate } from '../router.ts';
 
 /**
- * Any dedicated server Steam carries, from a container the portal composes.
+ * Any dedicated server Steam carries, browsed exactly like the Unraid tab:
+ * the whole list up front, a search box that narrows it, one Configure button
+ * per row. The servers Gamekeep fully understands (ports, saves, mods,
+ * player counts) sort to the top, the way running servers sort first
+ * everywhere else.
  *
- * The screen is honest about its three routes. With a Steam Web API key the
- * search covers the whole catalogue; without one it covers the servers that
- * have store pages; and pasting an app id or store URL always works, key or
- * no key. The deploy form's centrepiece is the start command — the one thing
- * between Valve's image and Steam's depots that Gamekeep wrote itself, shown
- * before anything exists rather than discovered after.
+ * The list ships with Gamekeep — Valve retired the only complete live source
+ * — and is topped up by the live store search and by pasting an app id or
+ * store URL, which works for anything, listed or not.
  */
 
 function explain(err: unknown, fallback: string): string {
@@ -19,19 +20,17 @@ function explain(err: unknown, fallback: string): string {
     : fallback;
 }
 
-export function SteamCatalog({ isOwner }: { isOwner: boolean }) {
+export function SteamCatalog() {
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState<SteamSearch | null>(null);
   const [proposal, setProposal] = useState<SteamAppProposal | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [keyInput, setKeyInput] = useState('');
-  const [keyNote, setKeyNote] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       api.steamSearch(query).then(setSearch, () => setError('Could not search Steam.'));
-    }, 300);
+    }, 250);
     return () => clearTimeout(timer);
   }, [query]);
 
@@ -47,22 +46,6 @@ export function SteamCatalog({ isOwner }: { isOwner: boolean }) {
     }
   }
 
-  async function saveKey() {
-    setBusy(true);
-    setKeyNote(null);
-    try {
-      await api.setSteamKey(keyInput.trim());
-      setKeyInput('');
-      const { count } = await api.refreshSteamCatalog();
-      setKeyNote(`Key saved; found ${count} dedicated servers on Steam.`);
-      setSearch(await api.steamSearch(query));
-    } catch (err) {
-      setKeyNote(explain(err, 'Could not save the key.'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (proposal) {
     return <SteamDeployForm proposal={proposal} onCancel={() => setProposal(null)} />;
   }
@@ -71,71 +54,68 @@ export function SteamCatalog({ isOwner }: { isOwner: boolean }) {
     <>
       <div className="addrow" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
         <input
-          placeholder="Search Steam, or paste an app id / store URL…"
+          placeholder="Search, or paste an app id / store URL for anything not listed…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
       </div>
 
-      {search && !search.haveKey ? (
-        <div className="hint">
-          <p style={{ margin: '4px 0' }}>
-            Without a Steam Web API key the search only sees servers with a store page — most
-            dedicated server tools have none. Pasting an app id or URL always works.
-            {isOwner ? ' A key is free at steamcommunity.com/dev/apikey:' : ' Ask the owner to add a key for the full catalogue.'}
-          </p>
-          {isOwner ? (
-            <div className="addrow" style={{ marginTop: 6, paddingTop: 0, borderTop: 0 }}>
-              <input
-                placeholder="Steam Web API key (32 hex characters)"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-              />
-              <button
-                type="button"
-                className="btn-ghost"
-                disabled={busy || keyInput.trim().length !== 32}
-                onClick={() => void saveKey()}
-              >
-                Save & fetch catalogue
-              </button>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {search?.haveKey && search.cachedCount > 0 ? (
-        <p className="hint">
-          Searching {search.cachedCount.toLocaleString()} dedicated servers known to Steam
-          {search.stale ? ' (list is over a week old — the owner can refresh it)' : ''}.
-        </p>
-      ) : null}
-      {keyNote ? <p className="hint ok">{keyNote}</p> : null}
-      {error ? <p className="hint bad">{error}</p> : null}
+      {error ? <div className="banner">{error}</div> : null}
+      {!search ? <p className="empty">Loading…</p> : null}
 
       {search?.appId ? (
-        <button type="button" className="btn-primary" disabled={busy} onClick={() => void open(search.appId!)}>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={busy}
+          onClick={() => void open(search.appId!)}
+        >
           {busy ? 'Reading app info…' : `Inspect Steam app ${search.appId}`}
         </button>
       ) : null}
 
-      <ul className="modlist">
+      <ul className="catalog">
         {(search?.results ?? []).map((r) => (
           <li key={r.appId}>
-            <span className="mod-name">
-              {r.name} <span className="mod-version">{r.appId}</span>
-            </span>
-            <span className="mod-meta">
-              {r.known ? `Gamekeep knows this game (${r.known}): ports, saves and mods light up automatically` : 'Unknown to the registry — ports and the start command need a check'}
-            </span>
-            <button type="button" className="btn-ghost small" disabled={busy} onClick={() => void open(r.appId)}>
+            {/* Dedicated server tools have no store page and no artwork on
+                Steam's CDN, so every row gets the lettered tile. */}
+            <div className="noicon" aria-hidden="true">
+              {r.name.slice(0, 1)}
+            </div>
+            <div className="catalog-body">
+              <span className="uname">{r.name}</span>
+              <span className="hint">Steam app {r.appId}</span>
+              <p className="catalog-overview">
+                {r.known
+                  ? `Gamekeep knows this game (${r.known}): required ports are prefilled, and backups, mods and the player count work out of the box.`
+                  : 'Not in the game registry — check the proposed start command and add the ports its documentation names.'}
+              </p>
+            </div>
+            {r.known ? <span className="pill ok">full support</span> : null}
+            <button
+              type="button"
+              className="btn-primary small"
+              disabled={busy}
+              onClick={() => void open(r.appId)}
+            >
               Configure
             </button>
           </li>
         ))}
       </ul>
-      {search && query.trim().length >= 2 && search.results.length === 0 && !search.appId ? (
-        <p className="empty">Nothing matched. Try the app id from the game’s SteamDB page.</p>
+      {search && search.results.length === 0 && !search.appId ? (
+        <p className="empty">
+          Nothing matched. Newer servers may not be in the shipped list yet — paste the app id from
+          the game’s SteamDB page and it works all the same.
+        </p>
+      ) : null}
+      {search && !query.trim() ? (
+        <p className="hint">
+          {search.total} dedicated servers, from Steam’s last complete app list ({search.snapshotDate}).
+          Newer ones are found through search when they have a store page, and pasting an app id
+          always works.
+        </p>
       ) : null}
     </>
   );
@@ -149,7 +129,14 @@ function SteamDeployForm({
   onCancel: () => void;
 }) {
   const { info } = proposal;
-  const [name, setName] = useState(info.name.replace(/\s*dedicated\s*server\s*/i, '').trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 32) || `app-${info.appId}`);
+  const [name, setName] = useState(
+    info.name
+      .replace(/\s*dedicated\s*server\s*/i, '')
+      .trim()
+      .replace(/[^A-Za-z0-9._-]+/g, '-')
+      .replace(/^[-.]+|[-.]+$/g, '')
+      .slice(0, 32) || `app-${info.appId}`,
+  );
   const [command, setCommand] = useState(proposal.command);
   const [gameParams, setGameParams] = useState('');
   const [validate, setValidate] = useState(false);
@@ -195,9 +182,11 @@ function SteamDeployForm({
       <p className="notes">
         Composed by Gamekeep on Valve’s official <code>{proposal.image}</code> image: SteamCMD
         downloads app {info.appId} on first start
-        {info.sizeMB ? ` (~${info.sizeMB >= 1024 ? `${(info.sizeMB / 1024).toFixed(1)} GB` : `${info.sizeMB} MB`})` : ''}, then the start
-        command below runs as an unprivileged user. The generated script lands in the server’s own
-        files, where you can read and edit it later.
+        {info.sizeMB
+          ? ` (~${info.sizeMB >= 1024 ? `${(info.sizeMB / 1024).toFixed(1)} GB` : `${info.sizeMB} MB`})`
+          : ''}
+        , then the start command below runs as an unprivileged user. The generated script lands in
+        the server’s own files, where you can read and edit it later.
       </p>
       {proposal.known ? (
         <p className="hint ok">
@@ -239,9 +228,8 @@ function SteamDeployForm({
       <h3 className="subhead">Ports</h3>
       {ports.length === 0 ? (
         <p className="hint">
-          No ports known for this game. Add the ones its documentation names, or deploy without and
-          add them later by recreating — the Network tab will say what is missing if Gamekeep
-          learns this game.
+          No ports known for this game. Add the ones its documentation names — without them nobody
+          can join from outside.
         </p>
       ) : null}
       <ul className="modlist">
@@ -275,7 +263,9 @@ function SteamDeployForm({
         />
         <select
           value={newPort.protocol}
-          onChange={(e) => setNewPort((prev) => ({ ...prev, protocol: e.target.value as 'udp' | 'tcp' }))}
+          onChange={(e) =>
+            setNewPort((prev) => ({ ...prev, protocol: e.target.value as 'udp' | 'tcp' }))
+          }
         >
           <option value="udp">udp</option>
           <option value="tcp">tcp</option>

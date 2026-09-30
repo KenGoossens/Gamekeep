@@ -12,7 +12,7 @@ import { navigate } from '../router.ts';
 import { Findings } from '../components/Findings.tsx';
 import { SteamCatalog } from '../components/SteamCatalog.tsx';
 
-export function CatalogPage({ isOwner }: { isOwner: boolean }) {
+export function CatalogPage() {
   /*
    * Two ways in: the curated Unraid catalogue (templates from trusted
    * publishers) and the whole of Steam (containers the portal composes
@@ -99,7 +99,7 @@ export function CatalogPage({ isOwner }: { isOwner: boolean }) {
       </nav>
 
       {source === 'steam' ? (
-        <SteamCatalog isOwner={isOwner} />
+        <SteamCatalog />
       ) : (
       <>
       <div className="addrow" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>

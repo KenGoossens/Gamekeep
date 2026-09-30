@@ -549,6 +549,11 @@ button:disabled,
   width: 44px; height: 44px; flex: none; border-radius: 10px;
   object-fit: contain; background: var(--surface-2);
 }
+/* Steam server tools have no artwork, so their tile carries the initial. */
+.catalog .noicon {
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.05rem; color: var(--muted);
+}
 .catalog-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .catalog-overview {
   margin: 4px 0 0; color: var(--faint); font-size: 0.83rem; line-height: 1.45;

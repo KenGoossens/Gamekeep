@@ -86,7 +86,7 @@ async function main() {
   const mods = createModInstaller(docker);
   const workshop = createWorkshopDeclarations(docker);
   const backups = createBackupService({ docker, db, backupDir: env.BACKUP_DIR });
-  const steam = createSteamCatalog({ db, env });
+  const steam = createSteamCatalog();
   const scheduler = createScheduler({
     db,
     registry,

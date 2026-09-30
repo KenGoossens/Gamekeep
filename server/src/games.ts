@@ -358,7 +358,9 @@ export const GAMES: GameProfile[] = [
         help: 'LATEST follows releases. Pin a number when your mods need one.',
       },
     ],
-    match: [/minecraft/i, /papermc/i, /spigot/i, /forge/i, /fabric/i],
+    // Word-bounded: bare /forge/ claimed "Arma Reforger" and "Citadel:
+    // Forged With Fire" for Minecraft the moment a broad list ran through it.
+    match: [/minecraft/i, /papermc/i, /spigot/i, /\bforge\b/i, /\bfabric\b/i],
     mods: {
       source: 'modrinth',
       // A Minecraft mod is a .jar the server loads directly; unpacking it
