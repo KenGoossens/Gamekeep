@@ -6,11 +6,15 @@ host, but anything with Docker works.
 ## 1. The container
 
 ```
-git clone https://github.com/KenGoossens/Gamekeep.git
-cd Gamekeep
-cp .env.example .env        # edit: see below
-docker compose up -d --build
+mkdir gamekeepr && cd gamekeepr
+curl -LO https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/docker-compose.yml
+curl -Lo .env https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/.env.example
+# edit .env: see below
+docker compose up -d
 ```
+
+On Unraid, skip all of this: install from Community Applications (or add the
+repository as a template source on the Docker tab), fill in the template, done.
 
 The `.env` essentials:
 

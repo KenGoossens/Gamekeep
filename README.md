@@ -56,24 +56,39 @@ gets two extras — see [On Unraid](#on-unraid).
 
 ## Install
 
+### On Unraid (recommended there)
+
+Once GameKeepr is in Community Applications: **Apps → search "GameKeepr" →
+Install**. Until then, add this repository as a template source yourself:
+*Docker tab → Template Repositories* → add
+`https://github.com/KenGoossens/Gamekeep` → Save, then *Add Container* and
+pick GameKeepr from the template list. Fill in `PUBLIC_URL` and a
+`SESSION_SECRET` (`openssl rand -hex 32`), start it, and read the container
+log for the one-time **setup token** — the portal asks for it to create the
+owner account.
+
+Two Unraid notes the template repeats: keep the data path on a **pool**
+(`/mnt/cache/...`, not `/mnt/user` — SQLite and FUSE do not get along), and
+set the appdata share's mover action to *Array → Cache* so the mover never
+migrates a live database off the pool.
+
+### Anywhere with Docker
+
+No clone, no build — the image is published:
+
 ```bash
-git clone https://github.com/KenGoossens/Gamekeep.git
-cd GameKeepr
-cp .env.example .env
+mkdir gamekeepr && cd gamekeepr
+curl -LO https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/docker-compose.yml
+curl -Lo .env https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/.env.example
+# edit .env: PUBLIC_URL, SESSION_SECRET (openssl rand -hex 32), TZ
+docker compose up -d
+docker logs gamekeep        # prints the one-time SETUP TOKEN
 ```
 
-Fill in `.env` — every value is documented there. The two that must be set:
-
-```bash
-PUBLIC_URL=https://portal.example.com     # or http://192.168.1.10:8088
-SESSION_SECRET=$(openssl rand -hex 32)
-```
-
-Then list the servers the portal may touch:
-
-```bash
-cp config/servers.example.json config/servers.json
-```
+Open the portal, paste the token, create the owner account — setup then closes
+permanently. A fresh install starts with zero servers: add them from the
+portal's own catalogue (Unraid apps or any dedicated server on Steam), or list
+hand-managed containers in `config/servers.json`:
 
 ```jsonc
 {
@@ -82,25 +97,20 @@ cp config/servers.example.json config/servers.json
       "id": "valheim",                  // used in URLs; never a container name
       "displayName": "Valheim",
       "container": "Valheim",           // exact name from `docker ps`
-      "query": { "type": "valheim", "host": "Valheim", "port": 2456 },
-      "steamAppId": 892970,             // optional: fetches the official artwork
-      "cooldownSeconds": 300,
-      "restartTimeoutSeconds": 300
+      "query": { "type": "valheim", "host": "Valheim", "port": 2456 }
     }
   ]
 }
 ```
 
+### From source
+
 ```bash
+git clone https://github.com/KenGoossens/Gamekeep.git && cd Gamekeep
+cp .env.example .env   # edit as above
+# uncomment "build: ." in docker-compose.yml, then:
 docker compose up -d --build
-docker logs gamekeep        # prints the one-time SETUP TOKEN
 ```
-
-Open the portal, paste the token, and create the owner account. Setup then closes
-permanently.
-
-A built image is published to `ghcr.io/kengoossens/gamekeep:latest` if you would
-rather not build one.
 
 ### Getting servers.json right
 

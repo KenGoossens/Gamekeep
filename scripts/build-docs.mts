@@ -164,9 +164,14 @@ const landing = `
 
 <section class="quickstart">
   <h2>Run it</h2>
-  <pre><code>git clone ${GITHUB}.git && cd Gamekeep
-cp .env.example .env    # set PUBLIC_URL, SESSION_SECRET, TZ
-docker compose up -d --build</code></pre>
+  <pre><code>mkdir gamekeepr && cd gamekeepr
+curl -LO https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/docker-compose.yml
+curl -Lo .env https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/.env.example
+# edit .env: PUBLIC_URL, SESSION_SECRET, TZ
+docker compose up -d</code></pre>
+  <p>On Unraid, install from Community Applications instead — or add
+  <code>https://github.com/KenGoossens/Gamekeep</code> as a template repository
+  on the Docker tab until it lands there.</p>
   <p>First boot prints a one-time setup token in the container log; open the portal and create the
   owner account with it. On Unraid, install from Community Applications instead. The
   <a href="wiki/setup.html">setup guide</a> walks through the rest — including the one honest

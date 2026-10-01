@@ -1,7 +1,9 @@
 services:
   gamekeep:
-    build: .
-    image: gamekeep:latest
+    # The published image; nothing to clone or build. To build from source
+    # instead, uncomment the build line and run: docker compose up -d --build
+    image: ghcr.io/kengoossens/gamekeep:latest
+    #build: .
     container_name: gamekeep
     restart: unless-stopped
     env_file: .env
