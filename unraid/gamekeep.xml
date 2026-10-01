@@ -11,7 +11,7 @@
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/KenGoossens/Gamekeep/issues</Support>
+  <Support>https://forums.unraid.net/topic/200758-support-gamekeepr-game-server-portal-for-your-friends/</Support>
   <Project>https://kengoossens.github.io/Gamekeep/</Project>
   <Overview>
 Your game servers, your friends' hands. GameKeepr is a self-hosted portal that lets friends see which game servers are up, who is playing, and restart a server when a game update lands - without giving anyone access to Unraid itself.
