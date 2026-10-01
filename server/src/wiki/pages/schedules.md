@@ -1,5 +1,7 @@
 # Schedules
 
+![Two schedules on a server, with the next run and the day picker](/api/wiki/images/schedule.png)
+
 A schedule is a standing instruction per server: restart, stop, start or back
 up at a set time on set days. The classic one is a nightly restart at 05:00,
 when the memory leak has had its day and nobody is on.

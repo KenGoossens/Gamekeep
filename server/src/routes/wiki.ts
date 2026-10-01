@@ -1,3 +1,7 @@
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
 import { readPage, visiblePages } from '../wiki/index.js';
@@ -25,6 +29,33 @@ export function registerWikiRoutes(app: FastifyInstance, ctx: AppContext) {
     }
     return reply.send({ sections });
   });
+
+  /**
+   * The wiki's screenshots: static files shipped beside the pages. Gated at
+   * sign-in level -- what a screenshot teaches, the page's role gates; the
+   * pixels themselves hold nothing a signed-in member may not see.
+   */
+  const imagesDir = join(dirname(fileURLToPath(import.meta.url)), '../wiki/images');
+  app.get<{ Params: { file: string } }>(
+    '/api/wiki/images/:file',
+    { preHandler: guard.requireActiveUser },
+    async (request, reply) => {
+      const file = request.params.file;
+      // A plain name, no separators: this route serves one directory, period.
+      if (!/^[A-Za-z0-9_-]+\.png$/.test(file)) {
+        return reply.code(404).send({ error: 'unknown-image' });
+      }
+      const path = join(imagesDir, file);
+      try {
+        await stat(path);
+      } catch {
+        return reply.code(404).send({ error: 'unknown-image' });
+      }
+      reply.header('content-type', 'image/png');
+      reply.header('cache-control', 'private, max-age=86400');
+      return reply.send(createReadStream(path));
+    },
+  );
 
   app.get<{ Params: { id: string } }>(
     '/api/wiki/:id',

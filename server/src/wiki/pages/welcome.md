@@ -1,5 +1,7 @@
 # Welcome to GameKeepr
 
+![A server page: artwork, status, players and the tabs your role unlocks](/api/wiki/images/server-detail.png)
+
 GameKeepr is this group's game server portal. It exists so that the servers do
 not depend on one person being home: anyone on the guest list can see whether
 a server is up, who is playing, and — when a game update needs it — restart a

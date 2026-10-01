@@ -1,5 +1,7 @@
 # Backups
 
+![The Backups tab: what goes in, and the restorable history](/api/wiki/images/backups.png)
+
 A game install is redownloadable; the world is not. Backups hold the small
 irreplaceable part — worlds, saves, the server's own config — never the tens
 of gigabytes SteamCMD can fetch again.

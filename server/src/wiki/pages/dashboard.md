@@ -1,5 +1,7 @@
 # The dashboard
 
+![The command centre: fleet, players and performance in one view](/api/wiki/images/dashboard.png)
+
 The dashboard is the landing page because it answers the first question
 anyone opening the portal has: **is anything wrong?**
 

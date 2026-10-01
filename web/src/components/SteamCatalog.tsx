@@ -81,7 +81,22 @@ export function SteamCatalog() {
             {/* The tool's own Steam client icon, baked into the shipped
                 list; the few without one keep the lettered tile. */}
             {r.iconUrl ? (
-              <img src={r.iconUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+              <img
+                src={r.iconUrl}
+                alt=""
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  // A dead CDN entry falls back to the lettered tile.
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  ((e.target as HTMLImageElement).nextElementSibling as HTMLElement | null)?.style.removeProperty('display');
+                }}
+              />
+            ) : null}
+            {r.iconUrl ? (
+              <div className="noicon" aria-hidden="true" style={{ display: 'none' }}>
+                {r.name.slice(0, 1)}
+              </div>
             ) : (
               <div className="noicon" aria-hidden="true">
                 {r.name.slice(0, 1)}

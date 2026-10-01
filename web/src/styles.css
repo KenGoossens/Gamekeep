@@ -459,6 +459,11 @@ button:disabled,
   color: var(--muted);
 }
 .wiki-body th { color: var(--text); font-size: 0.8rem; }
+.wiki-body .wiki-shot {
+  display: block; width: 100%; max-width: 860px; margin: 6px 0 16px;
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
 .wiki-body hr { border: 0; border-top: 1px solid var(--border-soft); margin: 20px 0; }
 .wiki-body a { color: var(--accent-cyan); }
 @media (max-width: 52rem) { .wiki { grid-template-columns: 1fr; } }
@@ -599,6 +604,9 @@ button:disabled,
   width: 44px; height: 44px; flex: none; border-radius: 10px;
   object-fit: contain; background: var(--surface-2);
 }
+/* Steam client icons are often dark art on transparency; a lifted backdrop
+   keeps them readable on the dark list. */
+.catalog img { background: color-mix(in srgb, var(--surface-2) 60%, #8d97c4 40%); padding: 4px; }
 /* Steam server tools have no artwork, so their tile carries the initial. */
 .catalog .noicon {
   display: flex; align-items: center; justify-content: center;

@@ -1,5 +1,7 @@
 # Logs and the console
 
+![The live log with the console input underneath](/api/wiki/images/logs-console.png)
+
 ## The live log
 
 The Logs tab streams the server's console as it happens and survives dropped

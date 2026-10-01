@@ -1,5 +1,7 @@
 # Installing game servers
 
+![The Steam tab: every dedicated server Steam carries, recognised games first](/api/wiki/images/catalog-steam.png)
+
 **Add server** offers two routes. They differ in who you are trusting.
 
 ## Unraid apps

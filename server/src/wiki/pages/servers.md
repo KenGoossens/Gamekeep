@@ -1,5 +1,7 @@
 # Servers and restarting
 
+![The Servers page: one full-picture card per server, running ones first](/api/wiki/images/servers.png)
+
 The Servers page shows every server you may see, running ones first. The
 search box filters by name.
 

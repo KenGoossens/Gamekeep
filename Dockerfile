@@ -27,6 +27,7 @@ RUN cd server && npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=server-build /app/server/dist ./server/dist
 # The wiki's markdown pages ship beside the compiled module that reads them.
 COPY --from=server-build /app/server/src/wiki/pages ./server/dist/wiki/pages
+COPY --from=server-build /app/server/src/wiki/images ./server/dist/wiki/images
 COPY --from=web-build /app/web/dist ./web/dist
 
 # Deliberately runs as root. On Unraid /var/run/docker.sock is root:root mode

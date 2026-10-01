@@ -18,6 +18,12 @@ function inline(text: string): string {
     text
       // Code first: nothing inside backticks is styled further.
       .replace(/`([^`]+)`/g, '<code>$1</code>')
+      // Images before links, or the link rule eats the ![..](..) syntax.
+      // Only the wiki's own image route: the pages are ours, the rule is free.
+      .replace(
+        /!\[([^\]]*)\]\((\/api\/wiki\/images\/[A-Za-z0-9._-]+)\)/g,
+        '<img class="wiki-shot" src="$2" alt="$1" loading="lazy" />',
+      )
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/\*([^*]+)\*/g, '<em>$1</em>')
       // Only harmless destinations: the pages are ours, but the rule is free.

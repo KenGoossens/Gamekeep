@@ -1,5 +1,7 @@
 # Mods
 
+![Workshop mods on a Project Zomboid server, with live Steam data per mod](/api/wiki/images/mods-workshop.png)
+
 A mod is third-party code that runs inside a game server, so this tab is
 operator-level, only writes while the server is stopped, and never uses the
 word "safe" — no check can decide whether code is hostile. What it does is
