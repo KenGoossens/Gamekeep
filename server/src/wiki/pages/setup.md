@@ -15,8 +15,14 @@ curl -Lo .env https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/.env.e
 docker compose up -d
 ```
 
-On Unraid, skip all of this: install from Community Applications (or add the
-repository as a template source on the Docker tab), fill in the template, done.
+On Unraid, skip all of this: install from Community Applications once it is
+listed. Until then, fetch the template from the Unraid terminal —
+
+```
+curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml   https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/gamekeep.xml
+```
+
+— then Docker → Add Container → pick GameKeepr from the Template dropdown.
 
 The `.env` essentials:
 

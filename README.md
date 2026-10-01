@@ -59,10 +59,15 @@ gets two extras — see [On Unraid](#on-unraid).
 ### On Unraid (recommended there)
 
 Once GameKeepr is in Community Applications: **Apps → search "GameKeepr" →
-Install**. Until then, add this repository as a template source yourself:
-*Docker tab → Template Repositories* → add
-`https://github.com/KenGoossens/Gamekeep` → Save, then *Add Container* and
-pick GameKeepr from the template list. Fill in `PUBLIC_URL` and a
+Install**. Until then (Unraid 7 removed the old "Template Repositories"
+field), fetch the template once from the Unraid terminal:
+
+```bash
+curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml   https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/gamekeep.xml
+```
+
+Then *Docker → Add Container* → pick **GameKeepr** from the Template dropdown
+(under User templates) — every field prefills. Set `PUBLIC_URL` and a
 `SESSION_SECRET` (`openssl rand -hex 32`), start it, and read the container
 log for the one-time **setup token** — the portal asks for it to create the
 owner account.

@@ -169,9 +169,11 @@ curl -LO https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/docker-comp
 curl -Lo .env https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/.env.example
 # edit .env: PUBLIC_URL, SESSION_SECRET, TZ
 docker compose up -d</code></pre>
-  <p>On Unraid, install from Community Applications instead — or add
-  <code>https://github.com/KenGoossens/Gamekeep</code> as a template repository
-  on the Docker tab until it lands there.</p>
+  <p>On Unraid, install from Community Applications instead — or, until it
+  lands there, fetch the template once from the Unraid terminal:
+  <code>curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml
+  https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/gamekeep.xml</code>
+  and pick GameKeepr under Docker → Add Container.</p>
   <p>First boot prints a one-time setup token in the container log; open the portal and create the
   owner account with it. On Unraid, install from Community Applications instead. The
   <a href="wiki/setup.html">setup guide</a> walks through the rest — including the one honest
