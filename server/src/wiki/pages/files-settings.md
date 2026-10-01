@@ -1,5 +1,7 @@
 # Files and settings
 
+![Typed settings: the registry gives known variables a label, a control and a range](/api/wiki/images/settings-typed.png)
+
 ## The Files tab
 
 A file browser over the server's own data directories — including when the

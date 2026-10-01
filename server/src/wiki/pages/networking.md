@@ -1,5 +1,7 @@
 # Networking and ports
 
+![The Network tab saying what no forwarding rule can fix: a port the container never opened](/api/wiki/images/network-ports.png)
+
 The portal is a web app and hides behind a tunnel; **the game servers do
 not**. Players connect straight to the game over its own protocol, so each
 game port must be forwarded on the router. A reverse proxy cannot help with

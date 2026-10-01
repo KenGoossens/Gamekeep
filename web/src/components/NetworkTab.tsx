@@ -58,7 +58,7 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
     <>
       <p className="notes">
         Players connect straight to the game, not through this portal, so each game port has to be
-        forwarded on the router to <code>{target}</code>.
+        forwarded on the router{target ? <> to <code>{target}</code></> : <> — set LAN_ADDRESS to name the destination</>}.
       </p>
 
       {/* The two halves of the answer together: forwards point at the LAN

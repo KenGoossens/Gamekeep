@@ -1,5 +1,7 @@
 # Setting up from scratch
 
+![First boot: the portal asks for the setup token its log just printed](/api/wiki/images/setup-token.png)
+
 What it takes to run GameKeepr on a fresh machine. Unraid is the assumed
 host, but anything with Docker works.
 

@@ -1,5 +1,7 @@
 # Your account
 
+![The sign-in screen — the inner of the two doors](/api/wiki/images/login.png)
+
 ## Signing in
 
 Accounts are made by the owner — there is no self-registration; this portal

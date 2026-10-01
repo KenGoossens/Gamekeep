@@ -1,5 +1,7 @@
 # The security model
 
+![The activity feed: every action recorded, rejections included](/api/wiki/images/activity.png)
+
 Written down so decisions are deliberate, not accidental.
 
 ## The centre of gravity

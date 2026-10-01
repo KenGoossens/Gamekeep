@@ -1,5 +1,7 @@
 # Users, access and integrations
 
+![The owner Settings page: notifications, scanners, router and Access in one place](/api/wiki/images/settings-page.png)
+
 ## Accounts
 
 Users page → add a user with a role (see *Roles and permissions*). The new

@@ -1,5 +1,7 @@
 # Roles and permissions
 
+![Per-server exceptions: the owner makes sam operator of one server, or hides one](/api/wiki/images/users-access.png)
+
 GameKeepr has three roles. The idea behind them: **restarting is self-healing
 and safe for everyone; changing what a server runs is not; and accounts and
 platform settings belong to whoever owns the machine.**
