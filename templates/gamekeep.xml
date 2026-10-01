@@ -30,7 +30,7 @@ On first start the log prints a one-time SETUP TOKEN - open the WebUI, paste it,
   </Overview>
   <Category>Tools: GameServers:</Category>
   <WebUI>http://[IP]:[PORT:8080]/</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/gamekeep.xml</TemplateURL>
+  <TemplateURL>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/icon.png</Icon>
   <ExtraParams>--restart=unless-stopped</ExtraParams>
   <PostArgs/>

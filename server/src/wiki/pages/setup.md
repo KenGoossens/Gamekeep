@@ -19,7 +19,7 @@ On Unraid, skip all of this: install from Community Applications once it is
 listed. Until then, fetch the template from the Unraid terminal —
 
 ```
-curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml   https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/gamekeep.xml
+curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml   https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml
 ```
 
 — then Docker → Add Container → pick GameKeepr from the Template dropdown.

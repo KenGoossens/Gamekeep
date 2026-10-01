@@ -172,7 +172,7 @@ docker compose up -d</code></pre>
   <p>On Unraid, install from Community Applications instead — or, until it
   lands there, fetch the template once from the Unraid terminal:
   <code>curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml
-  https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/gamekeep.xml</code>
+  https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml</code>
   and pick GameKeepr under Docker → Add Container.</p>
   <p>First boot prints a one-time setup token in the container log; open the portal and create the
   owner account with it. On Unraid, install from Community Applications instead. The

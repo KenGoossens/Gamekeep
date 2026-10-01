@@ -63,7 +63,7 @@ Install**. Until then (Unraid 7 removed the old "Template Repositories"
 field), fetch the template once from the Unraid terminal:
 
 ```bash
-curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml   https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/gamekeep.xml
+curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml   https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml
 ```
 
 Then *Docker → Add Container* → pick **GameKeepr** from the Template dropdown
