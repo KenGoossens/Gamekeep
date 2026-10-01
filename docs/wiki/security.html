@@ -38,6 +38,10 @@
 <p>  privileged requests are refused.</p>
 <h2>Honesty rules</h2>
 <p>Things someone may not see answer <strong>404, not 403</strong> — a hidden server, a wiki page above your role. Telling someone a thing exists is itself a disclosure. Audit rows record rejections as well as successes; the rejections are the interesting ones. Secrets are encrypted at rest, masked in every UI, and never echoed back.</p>
+<h2>Narrowing the socket</h2>
+<p>The optional <code>dockerproxy</code> service in the compose file puts a filter between GameKeepr and the Docker socket, passing only the API groups it uses (containers, images, networks, exec, POST) and refusing the rest — volumes, secrets, swarm, system and plugins all answer 403. The preset is tested against every feature, deploys included.</p>
+<p>Be honest about what it buys: GameKeepr legitimately needs container creation and exec, and the proxy cannot inspect request bodies, so it is defence-in-depth, not a sandbox. The unforgeable rule remains the one in GameKeepr's own code: no privileged containers, no client-named containers.</p>
+<p>Unraid's built-in API (7.2+) offers scoped API keys, but its schema can control containers, not create them — nor exec, attach or read files — so it cannot carry GameKeepr's feature set today. Worth revisiting as it matures.</p>
 <h2>What to rotate when</h2>
 <p><code>SESSION_SECRET</code> invalidates all sessions <em>and</em> stored integration secrets — rotate it only deliberately. Integration keys (VirusTotal, UniFi, the Discord webhook, tunnel tokens) rotate at their own services; GameKeepr stores only encrypted copies and survives any of them changing.</p></article></div>
 <footer>

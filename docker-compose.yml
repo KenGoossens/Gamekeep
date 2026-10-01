@@ -56,19 +56,31 @@ networks:
 #      - gamekeep
 
 # --- Optional hardening ------------------------------------------------------
-# Replace the docker.sock mount with a proxy exposing only what is needed, then
-# set DOCKER_HOST=http://dockerproxy:2375 in .env and drop the socket volume.
+# Narrow the socket: a proxy that only passes the Docker API groups GameKeepr
+# actually uses. Set DOCKER_HOST=http://gamekeep-dockerproxy:2375 on the
+# gamekeep service, drop its docker.sock volume, and put both on one network.
+#
+# This preset is TESTED against every feature: status, restart, logs, files,
+# console, mods, backups and a full Steam deploy all work through it, while
+# /volumes, /secrets, /swarm, /system and /plugins answer 403.
+#
+# Be honest about the gain: GameKeepr needs container creation (deploys) and
+# exec (files, mods, backups), and the proxy cannot inspect request bodies --
+# so it does not stop a compromised portal from creating a privileged
+# container. What it removes is everything else: the endpoints a portal has
+# no business reaching at all.
 #
 #  dockerproxy:
 #    image: tecnativa/docker-socket-proxy:latest
 #    container_name: gamekeep-dockerproxy
 #    restart: unless-stopped
 #    environment:
-#      CONTAINERS: 1   # inspect, list, stats
-#      POST: 1         # restart, stop, start
-#      IMAGES: 1       # only for pull-recreate and deploying new servers
-#      EXEC: 1         # only for the file editor
-#      # Everything else stays off: no VOLUMES, no NETWORKS, no SECRETS.
+#      CONTAINERS: 1   # list, inspect, stats, logs, archive (files/backups)
+#      POST: 1         # restart, stop, start, create (deploys), attach (console)
+#      IMAGES: 1       # pulling the image a deploy needs
+#      NETWORKS: 1     # the game network deploys join -- without this, deploys break
+#      EXEC: 1         # the file browser, mods and save discovery
+#      # Everything else stays off: no VOLUMES, no SECRETS, no SWARM, no PLUGINS.
 #    volumes:
 #      - /var/run/docker.sock:/var/run/docker.sock:ro
 #    networks:

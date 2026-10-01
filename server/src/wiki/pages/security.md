@@ -44,6 +44,23 @@ Audit rows record rejections as well as successes; the rejections are the
 interesting ones. Secrets are encrypted at rest, masked in every UI, and
 never echoed back.
 
+## Narrowing the socket
+
+The optional `dockerproxy` service in the compose file puts a filter between
+GameKeepr and the Docker socket, passing only the API groups it uses
+(containers, images, networks, exec, POST) and refusing the rest — volumes,
+secrets, swarm, system and plugins all answer 403. The preset is tested
+against every feature, deploys included.
+
+Be honest about what it buys: GameKeepr legitimately needs container creation
+and exec, and the proxy cannot inspect request bodies, so it is
+defence-in-depth, not a sandbox. The unforgeable rule remains the one in
+GameKeepr's own code: no privileged containers, no client-named containers.
+
+Unraid's built-in API (7.2+) offers scoped API keys, but its schema can
+control containers, not create them — nor exec, attach or read files — so it
+cannot carry GameKeepr's feature set today. Worth revisiting as it matures.
+
 ## What to rotate when
 
 `SESSION_SECRET` invalidates all sessions *and* stored integration secrets —
