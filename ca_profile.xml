@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<CommunityApplications>
+  <Profile>
+**GameKeepr** — your game servers, your friends' hands.
+
+A self-hosted portal for the game servers on your Unraid box. Friends sign in, see which servers are up and who is playing, and restart a server when a game update lands — without touching Unraid, SSH, or anything else on the machine.
+
+What it does: restarts verified against the game itself (not just the container), installing servers from Community Applications templates or any of ~580 dedicated servers on Steam, schedules that skip when players are online, world backups with safe restores, live logs with a console that types at the game, mod installs with archive-safety checks and optional malware scanning, three roles with per-server exceptions, Discord notifications, and a built-in wiki that documents all of it.
+
+Honest by design: the container mounts the Docker socket (root-equivalent — the overview and the documentation say so prominently), never deploys privileged containers, and never lets a request name a container directly.
+
+Documentation and screenshots: https://kengoossens.github.io/Gamekeep/
+Support: the forum thread below. Bugs and code: GitHub.
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/unraid/icon.png</Icon>
+  <WebPage>https://kengoossens.github.io/Gamekeep/</WebPage>
+  <Forum>https://forums.unraid.net/topic/200758-support-gamekeepr-game-server-portal-for-your-friends/</Forum>
+  <Photo>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/server/src/wiki/images/servers.png</Photo>
+  <Photo>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/server/src/wiki/images/dashboard.png</Photo>
+  <Photo>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/server/src/wiki/images/catalog-steam.png</Photo>
+  <Photo>https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/server/src/wiki/images/logs-console.png</Photo>
+</CommunityApplications>
