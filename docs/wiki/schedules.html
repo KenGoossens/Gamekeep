@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Schedules — GameKeepr</title>
+<meta name="description" content="GameKeepr — the self-hosted game server portal for your friends. Restart, schedule, back up and mod game servers on your own machine." />
+<link rel="icon" href="../images/logo.png" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="../index.html"><img src="../images/logo.png" alt="" /> GameKeepr</a>
+  <nav>
+    <a href="../wiki/welcome.html">Wiki</a>
+    <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
+  </nav>
+</header>
+<div class="wiki"><nav class="side"><h3>Using GameKeepr</h3><ul><li><a href="welcome.html">Welcome to GameKeepr</a></li><li><a href="servers.html">Servers and restarting</a></li><li><a href="dashboard.html">The dashboard</a></li><li><a href="account.html">Your account</a></li><li><a href="roles.html">Roles and permissions</a></li></ul><h3>Operating servers</h3><ul><li><a href="installing.html">Installing game servers</a></li><li><a href="mods.html">Mods</a></li><li><a href="files-settings.html">Files and settings</a></li><li><a href="schedules.html" class="active">Schedules</a></li><li><a href="backups.html">Backups</a></li><li><a href="console-logs.html">Logs and the console</a></li><li><a href="networking.html">Networking and ports</a></li></ul><h3>Administration</h3><ul><li><a href="setup.html">Setting up from scratch</a></li><li><a href="access.html">Users, access and integrations</a></li><li><a href="security.html">The security model</a></li></ul></nav><article class="prose"><h1>Schedules</h1>
+<p>![Two schedules on a server, with the next run and the day picker](../images/schedule.png)</p>
+<p>A schedule is a standing instruction per server: restart, stop, start or back up at a set time on set days. The classic one is a nightly restart at 05:00, when the memory leak has had its day and nobody is on.</p>
+<p>It is deliberately not cron — a time and weekdays are the whole vocabulary the job needs. No days selected means every day.</p>
+<h2>The three protective rules</h2>
+<ol><li><strong>A schedule never turns a stopped server back on.</strong> Someone stopped that</li></ol>
+<p>   server on purpose; a restart schedule skips and says so. Wanting a server    up at a fixed time is what the separate <em>start</em> action is for.</p>
+<ol><li><strong>&quot;Skip when players are online&quot;</strong> (default for restart and stop) asks the</li></ol>
+<p>   game itself at the moment of truth, not a cached count. Backups ignore it    — a backup kicks nobody.</p>
+<ol><li><strong>A missed run stays missed.</strong> If the portal was down at 05:00, the</li></ol>
+<p>   restart waits for the next 05:00 instead of firing whenever the portal    comes back.</p>
+<h2>What a run looks like</h2>
+<p>Runs go through the same machinery as a button press: two-stage verification, cooldown, the activity feed and Discord all apply, with the schedule named as the actor. Each schedule's row shows its next run and what the last one did (&quot;Done&quot;, &quot;Skipped: 3 players are online&quot;, or the failure).</p>
+<h2>Whose clock</h2>
+<p>Times run on the portal's clock, and the tab says which time zone that is and what it currently reads. If it says UTC, the owner should set <code>TZ</code> (for example <code>Europe/Brussels</code>) on the GameKeepr container — before 05:00, not after.</p></article></div>
+<footer>
+  <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>
+</footer>
+</body>
+</html>

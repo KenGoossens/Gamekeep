@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>GameKeepr — self-hosted game server portal</title>
+<meta name="description" content="GameKeepr — the self-hosted game server portal for your friends. Restart, schedule, back up and mod game servers on your own machine." />
+<link rel="icon" href="images/logo.png" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><img src="images/logo.png" alt="" /> GameKeepr</a>
+  <nav>
+    <a href="wiki/welcome.html">Wiki</a>
+    <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
+  </nav>
+</header>
+
+<main class="hero">
+  <h1>Your game servers, <em>your friends' hands</em>.</h1>
+  <p class="tag">
+    GameKeepr is a self-hosted portal for the game servers on your own machine. Friends sign in,
+    see who is playing, and restart a server when a game update lands — without touching Unraid,
+    SSH, or anything else on the box.
+  </p>
+  <p class="cta">
+    <a class="btn" href="https://github.com/KenGoossens/Gamekeep">Get it on GitHub</a>
+    <a class="btn ghost" href="wiki/welcome.html">Read the wiki</a>
+  </p>
+  <img class="shot" src="images/servers.png" alt="The Servers page: full-picture cards per game server" />
+</main>
+
+<section class="features">
+  <div>
+    <h2>Restarts that tell the truth</h2>
+    <p>A restart is verified in two stages — the container came back, then the <strong>game itself
+    answered</strong>. Per-game startup times, a cooldown that stops restart-hammering, and an
+    activity feed everyone can read.</p>
+  </div>
+  <div>
+    <h2>Any server Steam carries</h2>
+    <p>Deploy from Unraid's Community Applications, or pick any of ~580 dedicated servers on Steam
+    — GameKeepr composes the container itself on Valve's official steamcmd image, with the start
+    command from Steam's own app info, shown before anything exists.</p>
+  </div>
+  <div>
+    <h2>Schedules with manners</h2>
+    <p>Nightly restarts that ask the game if anyone is playing first, never turn a deliberately
+    stopped server back on, and skip missed runs instead of firing them late.</p>
+  </div>
+  <div>
+    <h2>Backups of what matters</h2>
+    <p>The world and its settings — not the reinstallable gigabytes. Restores only while stopped,
+    always preceded by a safety copy, applied as an overlay.</p>
+  </div>
+  <div>
+    <h2>Mods, checked honestly</h2>
+    <p>Repository installs with hash verification, archive-safety judging and optional malware
+    scanning; Steam Workshop declarations for the games that fetch their own. No report ever says
+    "safe" — it says what was checked.</p>
+  </div>
+  <div>
+    <h2>Three roles, per-server exceptions</h2>
+    <p>Members restart, operators run servers, the owner runs the platform. Any user can be made
+    operator of one server, member on another, or shown nothing at all — hidden means hidden.</p>
+  </div>
+</section>
+
+<section class="gallery">
+  <figure><img src="images/dashboard.png" alt="The dashboard" loading="lazy" /><figcaption>The command centre: is anything wrong?</figcaption></figure>
+  <figure><img src="images/catalog-steam.png" alt="The Steam catalogue" loading="lazy" /><figcaption>Every dedicated server on Steam, recognised games first.</figcaption></figure>
+  <figure><img src="images/logs-console.png" alt="Logs and console" loading="lazy" /><figcaption>Live logs, with a console that types at the game.</figcaption></figure>
+</section>
+
+<section class="quickstart">
+  <h2>Run it</h2>
+  <pre><code>git clone https://github.com/KenGoossens/Gamekeep.git && cd Gamekeep
+cp .env.example .env    # set PUBLIC_URL, SESSION_SECRET, TZ
+docker compose up -d --build</code></pre>
+  <p>First boot prints a one-time setup token in the container log; open the portal and create the
+  owner account with it. On Unraid, install from Community Applications instead. The
+  <a href="wiki/setup.html">setup guide</a> walks through the rest — including the one honest
+  warning: the portal holds the Docker socket, and the
+  <a href="wiki/security.html">security model</a> explains what that means and what is done
+  about it.</p>
+</section>
+
+<footer>
+  <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>
+</footer>
+</body>
+</html>

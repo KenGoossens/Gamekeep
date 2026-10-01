@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>The security model — GameKeepr</title>
+<meta name="description" content="GameKeepr — the self-hosted game server portal for your friends. Restart, schedule, back up and mod game servers on your own machine." />
+<link rel="icon" href="../images/logo.png" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="../index.html"><img src="../images/logo.png" alt="" /> GameKeepr</a>
+  <nav>
+    <a href="../wiki/welcome.html">Wiki</a>
+    <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
+  </nav>
+</header>
+<div class="wiki"><nav class="side"><h3>Using GameKeepr</h3><ul><li><a href="welcome.html">Welcome to GameKeepr</a></li><li><a href="servers.html">Servers and restarting</a></li><li><a href="dashboard.html">The dashboard</a></li><li><a href="account.html">Your account</a></li><li><a href="roles.html">Roles and permissions</a></li></ul><h3>Operating servers</h3><ul><li><a href="installing.html">Installing game servers</a></li><li><a href="mods.html">Mods</a></li><li><a href="files-settings.html">Files and settings</a></li><li><a href="schedules.html">Schedules</a></li><li><a href="backups.html">Backups</a></li><li><a href="console-logs.html">Logs and the console</a></li><li><a href="networking.html">Networking and ports</a></li></ul><h3>Administration</h3><ul><li><a href="setup.html">Setting up from scratch</a></li><li><a href="access.html">Users, access and integrations</a></li><li><a href="security.html" class="active">The security model</a></li></ul></nav><article class="prose"><h1>The security model</h1>
+<p>Written down so decisions are deliberate, not accidental.</p>
+<h2>The centre of gravity</h2>
+<p>GameKeepr holds the Docker socket, which is <strong>root-equivalent on the host</strong>. Everything else follows from taking that seriously:</p>
+<ul><li>Clients never name containers. Every request addresses a server id, and the</li></ul>
+<p>  only ids that exist are the ones in <code>servers.json</code> plus what the portal   itself deployed. There is no code path from user input to an arbitrary   container.</p>
+<ul><li>The portal never deploys privileged containers and never adds capabilities</li></ul>
+<p>  — refused in code, not in review.</p>
+<ul><li>Operator accounts can change what runs on the machine. Treat handing out</li></ul>
+<p>  the operator role as handing out the machine.</p>
+<h2>Doors and identities</h2>
+<p>Two independent layers: Cloudflare Access (email codes, keeps the internet out) and GameKeepr's own accounts (scrypt-hashed passwords, per-browser sessions, roles). Rate-limited logins, one-time passwords for new accounts, sessions visible and revocable by the owner.</p>
+<h2>What third-party code gets to do</h2>
+<ul><li><strong>Mods</strong> are downloaded only from known repositories or uploaded by an</li></ul>
+<p>  operator; archives are parsed and judged before a byte is unpacked (path   traversal, symlinks, device nodes, compression bombs), hashes verified   where the repository publishes them, optional scanners consulted. No report   ever says &quot;safe&quot; — that claim is not available.</p>
+<ul><li><strong>Steam-composed servers</strong> trust Valve's official image and Steam's depots;</li></ul>
+<p>  the start script in between is generated, visible in the Files tab, and   runs the game as an unprivileged user (<code>99:100</code>), never root.</p>
+<ul><li><strong>Templates</strong> are reviewed before deploy; untrusted publishers and</li></ul>
+<p>  privileged requests are refused.</p>
+<h2>Honesty rules</h2>
+<p>Things someone may not see answer <strong>404, not 403</strong> — a hidden server, a wiki page above your role. Telling someone a thing exists is itself a disclosure. Audit rows record rejections as well as successes; the rejections are the interesting ones. Secrets are encrypted at rest, masked in every UI, and never echoed back.</p>
+<h2>What to rotate when</h2>
+<p><code>SESSION_SECRET</code> invalidates all sessions <em>and</em> stored integration secrets — rotate it only deliberately. Integration keys (VirusTotal, UniFi, the Discord webhook, tunnel tokens) rotate at their own services; GameKeepr stores only encrypted copies and survives any of them changing.</p></article></div>
+<footer>
+  <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>
+</footer>
+</body>
+</html>

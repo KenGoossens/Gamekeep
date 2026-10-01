@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Setting up from scratch — GameKeepr</title>
+<meta name="description" content="GameKeepr — the self-hosted game server portal for your friends. Restart, schedule, back up and mod game servers on your own machine." />
+<link rel="icon" href="../images/logo.png" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="../index.html"><img src="../images/logo.png" alt="" /> GameKeepr</a>
+  <nav>
+    <a href="../wiki/welcome.html">Wiki</a>
+    <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
+  </nav>
+</header>
+<div class="wiki"><nav class="side"><h3>Using GameKeepr</h3><ul><li><a href="welcome.html">Welcome to GameKeepr</a></li><li><a href="servers.html">Servers and restarting</a></li><li><a href="dashboard.html">The dashboard</a></li><li><a href="account.html">Your account</a></li><li><a href="roles.html">Roles and permissions</a></li></ul><h3>Operating servers</h3><ul><li><a href="installing.html">Installing game servers</a></li><li><a href="mods.html">Mods</a></li><li><a href="files-settings.html">Files and settings</a></li><li><a href="schedules.html">Schedules</a></li><li><a href="backups.html">Backups</a></li><li><a href="console-logs.html">Logs and the console</a></li><li><a href="networking.html">Networking and ports</a></li></ul><h3>Administration</h3><ul><li><a href="setup.html" class="active">Setting up from scratch</a></li><li><a href="access.html">Users, access and integrations</a></li><li><a href="security.html">The security model</a></li></ul></nav><article class="prose"><h1>Setting up from scratch</h1>
+<p>What it takes to run GameKeepr on a fresh machine. Unraid is the assumed host, but anything with Docker works.</p>
+<h2>1. The container</h2>
+<pre><code>git clone https://github.com/KenGoossens/Gamekeep.git
+cd Gamekeep
+cp .env.example .env        # edit: see below
+docker compose up -d --build</code></pre>
+<p>The <code>.env</code> essentials:</p>
+<table><thead><tr><th>Variable</th><th>What it is</th></tr></thead><tbody><tr><td><code>PUBLIC_URL</code></td><td>The address people will use, e.g. <code>https://portal.example.org</code></td></tr><tr><td><code>SESSION_SECRET</code></td><td><code>openssl rand -hex 32</code> — also the key that encrypts stored integration secrets</td></tr><tr><td><code>TZ</code></td><td>e.g. <code>Europe/Brussels</code> — schedules run on this clock</td></tr><tr><td><code>APPDATA_ROOT</code> / <code>APPDATA_HOST_ROOT</code></td><td>where deployed game servers keep their data, as the portal and the host see it</td></tr><tr><td><code>GAME_NETWORK</code></td><td>the Docker network deployed servers join (default <code>gamekeep-servers</code>)</td></tr></tbody></table>
+<p>The one mount that makes everything work is the Docker socket — which is also the security model's centre of gravity; read <em>The security model</em> before exposing anything.</p>
+<h2>2. First boot</h2>
+<p>The portal starts with no accounts and prints a <strong>setup token</strong> in its container log. Open the portal, create the first owner account with that token. The token dies with the first account; a restart mints a new one only while no accounts exist.</p>
+<p>Fresh installs start with zero servers — that is normal. Add them through <strong>Add server</strong> (see <em>Installing game servers</em>) or list hand-managed containers in <code>config/servers.json</code>.</p>
+<h2>3. Publishing it</h2>
+<p>Behind a Cloudflare Tunnel with Access in front is the tested shape: no open router ports for the portal, an email-code outer door, GameKeepr's own login inside. Point the tunnel at <code>http://gamekeep:8080</code> on the shared Docker network and delete the published port. The game servers still need real port forwards — see <em>Networking and ports</em>.</p>
+<h2>4. Unraid specifics</h2>
+<ul><li>Keep appdata on a pool: SQLite dislikes the <code>/mnt/user</code> FUSE layer — use</li></ul>
+<p>  <code>/mnt/cache/...</code> paths, and set the appdata share's mover action to   <strong>Array → Cache</strong> so the mover never migrates a live database off the pool.</p>
+<ul><li>Mount <code>/boot/config/plugins/dockerMan/templates-user</code> into the portal so</li></ul>
+<p>  deployed servers show properly in Unraid's Docker tab.</p>
+<h2>5. After that</h2>
+<p>Work through <strong>Users, access and integrations</strong>: create accounts, connect the Discord webhook, optionally the malware scanners, the UniFi router and the Cloudflare Access guest list.</p></article></div>
+<footer>
+  <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>
+</footer>
+</body>
+</html>

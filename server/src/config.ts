@@ -196,6 +196,20 @@ export function loadServers(configPath: string): ServerConfig[] {
   try {
     raw = readFileSync(configPath, 'utf8');
   } catch (err) {
+    /*
+     * A missing file is a fresh install, not a broken one: Community
+     * Applications creates the mount but nothing puts a servers.json there,
+     * and the portal deploys its own servers anyway. Any other read error --
+     * permissions, a directory in the way -- still refuses to start, because
+     * that is a real problem pretending to be an empty list.
+     */
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      console.warn(
+        `[GameKeepr] No server list at ${configPath} -- starting with none. ` +
+          'Deploy servers from the portal, or list hand-managed containers in servers.json.',
+      );
+      return [];
+    }
     return fail(
       `could not read the server list at ${configPath}`,
       `${(err as Error).message}\nCopy config/servers.example.json and edit it.`,

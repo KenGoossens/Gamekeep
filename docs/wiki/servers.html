@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Servers and restarting — GameKeepr</title>
+<meta name="description" content="GameKeepr — the self-hosted game server portal for your friends. Restart, schedule, back up and mod game servers on your own machine." />
+<link rel="icon" href="../images/logo.png" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="../index.html"><img src="../images/logo.png" alt="" /> GameKeepr</a>
+  <nav>
+    <a href="../wiki/welcome.html">Wiki</a>
+    <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
+  </nav>
+</header>
+<div class="wiki"><nav class="side"><h3>Using GameKeepr</h3><ul><li><a href="welcome.html">Welcome to GameKeepr</a></li><li><a href="servers.html" class="active">Servers and restarting</a></li><li><a href="dashboard.html">The dashboard</a></li><li><a href="account.html">Your account</a></li><li><a href="roles.html">Roles and permissions</a></li></ul><h3>Operating servers</h3><ul><li><a href="installing.html">Installing game servers</a></li><li><a href="mods.html">Mods</a></li><li><a href="files-settings.html">Files and settings</a></li><li><a href="schedules.html">Schedules</a></li><li><a href="backups.html">Backups</a></li><li><a href="console-logs.html">Logs and the console</a></li><li><a href="networking.html">Networking and ports</a></li></ul><h3>Administration</h3><ul><li><a href="setup.html">Setting up from scratch</a></li><li><a href="access.html">Users, access and integrations</a></li><li><a href="security.html">The security model</a></li></ul></nav><article class="prose"><h1>Servers and restarting</h1>
+<p>![The Servers page: one full-picture card per server, running ones first](../images/servers.png)</p>
+<p>The Servers page shows every server you may see, running ones first. The search box filters by name.</p>
+<h2>What the status means</h2>
+<table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td><strong>Running</strong></td><td>The container is up. If the game publishes player counts, they show on the card.</td></tr><tr><td><strong>Stopped</strong></td><td>Deliberately off. Members cannot start a stopped server — that is operator work.</td></tr><tr><td><strong>Never started</strong></td><td>Installed but not yet started for the first time.</td></tr><tr><td><strong>Restarting…</strong></td><td>Someone pressed the button; the card shows live progress and who started it.</td></tr></tbody></table>
+<h2>What a restart actually does</h2>
+<p>For most servers here, a restart is also the update: the container checks for a new game version on the way up. GameKeepr then verifies the result in two stages — first that the container is back, then that the <strong>game itself answers</strong>. A running container with a dead game inside is precisely the failure this catches.</p>
+<p>Three outcomes land in the activity feed:</p>
+<ul><li><strong>Success</strong> — the game answered. Done.</li><li><strong>Unconfirmed</strong> — the container came back but the game did not answer in</li></ul>
+<p>  the time this game normally needs. Usually it is simply still loading (a   modded server that fetches its mods on start can take a long while); check   again in a few minutes before assuming the worst.</p>
+<ul><li><strong>Failed</strong> — the restart itself did not complete. The message says why.</li></ul>
+<h2>The cooldown</h2>
+<p>After a restart, the button shows a countdown. That is not bureaucracy: the server is most likely still loading its world, and a second restart now would interrupt it. Operators may override the cooldown when they know better; the confirmation tells them what they are interrupting.</p>
+<h2>Players online</h2>
+<p>If people are online, the confirmation dialog says so before you restart — they will be disconnected and can rejoin once the server is back. Warn them in-game or on Discord first; the restart itself takes a minute or two.</p></article></div>
+<footer>
+  <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>
+</footer>
+</body>
+</html>

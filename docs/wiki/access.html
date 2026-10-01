@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Users, access and integrations — GameKeepr</title>
+<meta name="description" content="GameKeepr — the self-hosted game server portal for your friends. Restart, schedule, back up and mod game servers on your own machine." />
+<link rel="icon" href="../images/logo.png" />
+<link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="../index.html"><img src="../images/logo.png" alt="" /> GameKeepr</a>
+  <nav>
+    <a href="../wiki/welcome.html">Wiki</a>
+    <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
+  </nav>
+</header>
+<div class="wiki"><nav class="side"><h3>Using GameKeepr</h3><ul><li><a href="welcome.html">Welcome to GameKeepr</a></li><li><a href="servers.html">Servers and restarting</a></li><li><a href="dashboard.html">The dashboard</a></li><li><a href="account.html">Your account</a></li><li><a href="roles.html">Roles and permissions</a></li></ul><h3>Operating servers</h3><ul><li><a href="installing.html">Installing game servers</a></li><li><a href="mods.html">Mods</a></li><li><a href="files-settings.html">Files and settings</a></li><li><a href="schedules.html">Schedules</a></li><li><a href="backups.html">Backups</a></li><li><a href="console-logs.html">Logs and the console</a></li><li><a href="networking.html">Networking and ports</a></li></ul><h3>Administration</h3><ul><li><a href="setup.html">Setting up from scratch</a></li><li><a href="access.html" class="active">Users, access and integrations</a></li><li><a href="security.html">The security model</a></li></ul></nav><article class="prose"><h1>Users, access and integrations</h1>
+<h2>Accounts</h2>
+<p>Users page → add a user with a role (see <em>Roles and permissions</em>). The new account gets a one-time password to hand over on any channel you like — it must be replaced at first sign-in and can do nothing until then. From the same page: reset passwords, disable accounts, change roles, delete.</p>
+<p><strong>Per-server exceptions</strong> live behind each user's <em>Access…</em> button: make someone operator of one server, member on one, or hide a server from them entirely. The rule is the role; the row is the exception.</p>
+<h2>Sessions</h2>
+<p>The Users page shows who is signed in right now, from which browser, and lets you end sessions. Role changes and disables take effect on the next request — no waiting for a session to expire.</p>
+<h2>The outer door: Cloudflare Access</h2>
+<p>When the portal is published through Cloudflare Access, GameKeepr can manage the guest list itself: Settings → Access shows the emails on the policy, and adding a friend is one field instead of a trip to the Cloudflare dashboard. Two doors stay deliberately separate — removing someone from Access keeps them out entirely; removing their GameKeepr account keeps them signed out of the portal.</p>
+<h2>Notifications</h2>
+<p>Settings → Notifications takes a Discord webhook. What gets announced: deliberate actions (restarts, starts, stops, deploys, mod installs — with who did it), and the watcher's findings (a server that stopped <strong>without anyone asking</strong>, and its recovery). Every embed carries the game's artwork and one colour per kind of news.</p>
+<h2>Malware scanners</h2>
+<p>Settings → Malware scanning, both optional: a <strong>VirusTotal</strong> key (lookups by hash — the file itself never leaves the machine) and/or a <strong>ClamAV</strong> daemon you run yourself. With neither configured, mod reports say &quot;no scanner is configured&quot; — never &quot;clean&quot;.</p>
+<h2>The router</h2>
+<p>Settings → Router connects a UniFi controller with an API key, after which the per-server Network tab can create port forwards instead of only listing what is missing. The controller's TLS certificate is pinned on first contact.</p>
+<p>All stored integration secrets are encrypted at rest with <code>SESSION_SECRET</code>.</p></article></div>
+<footer>
+  <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>
+</footer>
+</body>
+</html>

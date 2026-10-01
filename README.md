@@ -1,5 +1,10 @@
 # GameKeepr
 
+**[Website & public wiki](https://kengoossens.github.io/Gamekeep/)** · the same
+manual ships inside the portal, behind sign-in, filtered by role. The public
+copy is generated from the identical markdown (`scripts/build-docs.mts`), so
+the two cannot drift.
+
 Let the people you play with look after your game servers, without giving them
 access to your server.
 
