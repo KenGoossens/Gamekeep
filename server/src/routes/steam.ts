@@ -61,10 +61,35 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
         const info = await inspectSteamApp(appId);
         const proposal = proposeCommand(info);
         const known = identifyGame(info.name, '');
+
+        /*
+         * Steam shrugging is not the end of the line. The registry knows the
+         * real start script for several servers whose app info lists no Linux
+         * launch entry (7 Days to Die, Project Zomboid); and for the rest, an
+         * empty command now means the generated start script goes looking for
+         * the server's own conventional script on first boot.
+         */
+        let command = proposal.command;
+        let warnings = proposal.warnings;
+        if (!command && info.linux && known?.serverLaunch) {
+          command = known.serverLaunch;
+          warnings = warnings
+            .filter((w) => !w.includes('written by hand'))
+            .concat(
+              `Steam lists no Linux launch command for this app, but GameKeepr knows ${known.label}: the server's own start script is prefilled.`,
+            );
+        } else if (!command && info.linux) {
+          warnings = warnings
+            .filter((w) => !w.includes('written by hand'))
+            .concat(
+              'Steam lists no Linux launch command for this app. Leave the field empty and GameKeepr will look for the server’s own start script (startserver.sh and friends) on first boot — or write the command by hand if you know it.',
+            );
+        }
+
         return reply.send({
           info,
-          command: proposal.command,
-          warnings: proposal.warnings,
+          command,
+          warnings,
           image: STEAM_IMAGE,
           known: known ? { label: known.label } : null,
           // Prefilled from the registry when the game is recognised; the
@@ -114,8 +139,10 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
       return reply.code(409).send({ error: 'id-taken', message: `"${serverId}" already exists.` });
     }
 
+    // Empty is allowed on purpose: the generated start script then finds the
+    // server's own conventional start script on first boot, or refuses loudly.
     const command = String(body.command ?? '').trim();
-    if (!command || command.length > 300 || /[\r\n\0]/.test(command)) {
+    if (command.length > 300 || /[\r\n\0]/.test(command)) {
       return reply.code(400).send({
         error: 'bad-command',
         message: 'The start command must be one line of at most 300 characters.',

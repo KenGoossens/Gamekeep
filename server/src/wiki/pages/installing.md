@@ -21,9 +21,13 @@ and Steam's own depots — and the one thing in between is a start script
 GameKeepr writes, which lands in the server's own files where you can read it.
 
 - The **start command** comes from Steam's own app info and is shown for you
-  to confirm. When a server misbehaves on first start, the game's wiki
-  usually documents the right headless command — edit it in the form or later
-  in the Files tab.
+  to confirm. When Steam lists no Linux command, GameKeepr's registry fills
+  in the known start script for games it recognises (7 Days to Die, Project
+  Zomboid) — and for everything else the field may simply stay empty: the
+  server then finds its own conventional start script (`startserver.sh` and
+  friends) on first boot, refusing loudly instead of guessing when none
+  exists. When a server misbehaves, the game's wiki usually documents the
+  right headless command — edit it in the form or later in the Files tab.
 - SteamCMD downloads the server on first start and re-checks on every start,
   which is also how it updates.
 - Windows-only servers are refused with the reason. The rare app that refuses

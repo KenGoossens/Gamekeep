@@ -21,6 +21,8 @@
 <main class="wiki"><article class="prose"><h1>Changelog</h1>
 <p>All notable changes to GameKeepr. The format follows <a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a>; versions follow <a href="https://semver.org" target="_blank" rel="noreferrer">semantic versioning</a>. The <code>latest</code> image on ghcr.io moves only when a version is released; <code>edge</code> tracks the main branch between releases.</p>
 <h2>Unreleased</h2>
+<ul><li><strong>Start commands Steam never wrote down.</strong> When an app's Steam info lists no</li></ul>
+<p>  Linux launch entry, the registry now fills in the known start script for   recognised games (7 Days to Die, Project Zomboid), and for everything else   the command may stay empty: the server finds its own conventional start   script (<code>startserver.sh</code> and friends) on first boot — and refuses loudly   instead of guessing when none exists.</p>
 <ul><li><strong>Tournaments</strong> are in development: teams, brackets, and a CS2 match server</li></ul>
 <p>  provisioned per match with MatchZy reporting the results back. The   groundwork ships in 1.1.0 but nothing of it is visible yet.</p>
 <h2>1.1.0 — 2026-10-02</h2>

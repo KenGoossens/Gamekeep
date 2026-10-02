@@ -203,6 +203,14 @@ export interface GameProfile {
   /** Settings worth explaining; everything else still shows as a plain field. */
   settings?: SettingSpec[];
   /**
+   * The known-good headless start line for this game's dedicated server,
+   * relative to the install directory. Only for games whose Steam app info
+   * lists no Linux launch entry: Steam's own answer wins when it exists, but
+   * when Steam shrugs, this is the difference between a prefilled form and
+   * "write the start command by hand".
+   */
+  serverLaunch?: string;
+  /**
    * Directory names that hold what cannot be redownloaded: worlds, saves,
    * player data, the server's own config. Suffixes to search for rather than
    * fixed paths, because every container image roots the game somewhere else.
@@ -491,6 +499,9 @@ export const GAMES: GameProfile[] = [
       udp(16262, 'The channel players actually connect over'),
     ],
     saves: ['Zomboid/Saves', 'Zomboid/Server', 'Zomboid/db'],
+    // Steam's app info lists no Linux launch entry for the dedicated server;
+    // this is the script it actually ships.
+    serverLaunch: './start-server.sh',
     match: [/zomboid/i],
     workshop: {
       // The file is named after the server, so it is found rather than
@@ -569,6 +580,8 @@ export const GAMES: GameProfile[] = [
       tcp(8081, 'Telnet. Keep it off the internet', false),
     ],
     saves: ['Saves'],
+    // No Linux launch entry in Steam's app info; the depot ships this script.
+    serverLaunch: './startserver.sh -configfile=serverconfig.xml',
     match: [/7[\s_-]?days/i],
   },
   {

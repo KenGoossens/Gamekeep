@@ -8,6 +8,12 @@ releases.
 
 ## Unreleased
 
+- **Start commands Steam never wrote down.** When an app's Steam info lists no
+  Linux launch entry, the registry now fills in the known start script for
+  recognised games (7 Days to Die, Project Zomboid), and for everything else
+  the command may stay empty: the server finds its own conventional start
+  script (`startserver.sh` and friends) on first boot — and refuses loudly
+  instead of guessing when none exists.
 - **Tournaments** are in development: teams, brackets, and a CS2 match server
   provisioned per match with MatchZy reporting the results back. The
   groundwork ships in 1.1.0 but nothing of it is visible yet.

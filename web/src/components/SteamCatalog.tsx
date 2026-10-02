@@ -226,16 +226,23 @@ function SteamDeployForm({
 
       <label className="field">
         <span>
-          Start command <code className="fieldkey">from Steam’s own app info</code>
+          Start command{' '}
+          <code className="fieldkey">
+            {proposal.command ? 'from Steam’s own app info' : 'optional'}
+          </code>
         </span>
         <input
           value={command}
+          placeholder="empty = find the server’s own start script on first boot"
           style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
           onChange={(e) => setCommand(e.target.value)}
         />
         <span className="fieldhelp">
-          Runs inside the install directory. When a server misbehaves, the game’s own wiki usually
-          documents the right headless command — edit it here or later in the Files tab.
+          Runs inside the install directory. Left empty, GameKeepr looks for the server’s own
+          conventional start script (startserver.sh and friends) after the download — and refuses
+          loudly instead of guessing when it finds none. When a server misbehaves, the game’s own
+          wiki usually documents the right headless command — edit it here or later in the Files
+          tab.
         </span>
       </label>
 
@@ -347,7 +354,7 @@ function SteamDeployForm({
         <button
           type="button"
           className="btn-primary"
-          disabled={busy || !info.linux || !command.trim() || !name.trim() || steps !== null}
+          disabled={busy || !info.linux || !name.trim() || steps !== null}
           onClick={() => void deploy()}
         >
           {busy ? 'Deploying…' : info.linux ? 'Deploy' : 'No Linux build — cannot deploy'}

@@ -114,13 +114,49 @@ chown -R "$PUID:$PGID" "$HOME/.steam" 2>/dev/null || true
 
 echo "---GameKeepr: starting the server---"
 cd "$SERVER_DIR"
-# Some depots ship their binaries without the executable bit.
-FIRST_WORD="${req.command.split(/\s+/)[0] ?? ''}"
+${startBlock(req.command)}`;
+}
+
+/**
+ * The last lines of the start script: run the given command, or -- when none
+ * was given because Steam's app info had no Linux launch entry -- find the
+ * server's own start script by convention. The names are tried in order of
+ * how strongly they announce themselves; the first hit wins, and no hit means
+ * a loud refusal with the directory's scripts listed, never a guess between
+ * two.
+ */
+function startBlock(command: string): string {
+  if (command.trim()) {
+    return `# Some depots ship their binaries without the executable bit.
+FIRST_WORD="${command.split(/\s+/)[0] ?? ''}"
 [ -f "$FIRST_WORD" ] && chmod +x "$FIRST_WORD" 2>/dev/null || true
 # The launch line below came from Steam's own app info and was shown at
 # deploy time; GAME_PARAMS is appended so arguments can be tuned from the
 # Settings tab without editing this script.
-exec runuser -u "$RUN_AS" -- bash -c "cd '$SERVER_DIR'; exec ${req.command.replace(/"/g, '\\"')} \${GAME_PARAMS:-}"
+exec runuser -u "$RUN_AS" -- bash -c "cd '$SERVER_DIR'; exec ${command.replace(/"/g, '\\"')} \${GAME_PARAMS:-}"
+`;
+  }
+  return `# No start command was given: Steam's app info had no Linux launch entry.
+# Dedicated servers almost always ship their own start script under a
+# conventional name; the first of these that exists is the server.
+CANDIDATE=""
+for name in startserver.sh StartServer.sh start-server.sh start_server.sh runserver.sh run_server.sh launch.sh start.sh run.sh; do
+    if [ -f "$SERVER_DIR/$name" ]; then
+        CANDIDATE="$name"
+        break
+    fi
+done
+if [ -z "$CANDIDATE" ]; then
+    echo "---GameKeepr: no start command was set and no conventional start script was found.---"
+    echo "---Shell scripts in the install directory:---"
+    ls "$SERVER_DIR"/*.sh 2>/dev/null || echo "(none)"
+    echo "---Set the start line in this file (Files tab: steamcmd/gamekeep-start.sh) and restart.---"
+    exit 78
+fi
+echo "---GameKeepr: no start command was set; found $CANDIDATE and starting it.---"
+echo "---(Edit steamcmd/gamekeep-start.sh in the Files tab to change this.)---"
+chmod +x "$SERVER_DIR/$CANDIDATE" 2>/dev/null || true
+exec runuser -u "$RUN_AS" -- bash -c "cd '$SERVER_DIR'; exec './$CANDIDATE' \${GAME_PARAMS:-}"
 `;
 }
 
