@@ -28,9 +28,7 @@
 <h2>What a restart actually does</h2>
 <p>For most servers here, a restart is also the update: the container checks for a new game version on the way up. GameKeepr then verifies the result in two stages — first that the container is back, then that the <strong>game itself answers</strong>. A running container with a dead game inside is precisely the failure this catches.</p>
 <p>Three outcomes land in the activity feed:</p>
-<ul><li><strong>Success</strong> — the game answered. Done.</li><li><strong>Unconfirmed</strong> — the container came back but the game did not answer in</li></ul>
-<p>  the time this game normally needs. Usually it is simply still loading (a   modded server that fetches its mods on start can take a long while); check   again in a few minutes before assuming the worst.</p>
-<ul><li><strong>Failed</strong> — the restart itself did not complete. The message says why.</li></ul>
+<ul><li><strong>Success</strong> — the game answered. Done.</li><li><strong>Unconfirmed</strong> — the container came back but the game did not answer in the time this game normally needs. Usually it is simply still loading (a modded server that fetches its mods on start can take a long while); check again in a few minutes before assuming the worst.</li><li><strong>Failed</strong> — the restart itself did not complete. The message says why.</li></ul>
 <h2>The cooldown</h2>
 <p>After a restart, the button shows a countdown. That is not bureaucracy: the server is most likely still loading its world, and a second restart now would interrupt it. Operators may override the cooldown when they know better; the confirmation tells them what they are interrupting.</p>
 <h2>Players online</h2>

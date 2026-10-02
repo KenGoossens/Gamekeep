@@ -23,21 +23,11 @@
 <p>Written down so decisions are deliberate, not accidental.</p>
 <h2>The centre of gravity</h2>
 <p>GameKeepr holds the Docker socket, which is <strong>root-equivalent on the host</strong>. Everything else follows from taking that seriously:</p>
-<ul><li>Clients never name containers. Every request addresses a server id, and the</li></ul>
-<p>  only ids that exist are the ones in <code>servers.json</code> plus what the portal   itself deployed. There is no code path from user input to an arbitrary   container.</p>
-<ul><li>The portal never deploys privileged containers and never adds capabilities</li></ul>
-<p>  — refused in code, not in review.</p>
-<ul><li>Operator accounts can change what runs on the machine. Treat handing out</li></ul>
-<p>  the operator role as handing out the machine.</p>
+<ul><li>Clients never name containers. Every request addresses a server id, and the only ids that exist are the ones in <code>servers.json</code> plus what the portal itself deployed. There is no code path from user input to an arbitrary container.</li><li>The portal never deploys privileged containers and never adds capabilities — refused in code, not in review.</li><li>Operator accounts can change what runs on the machine. Treat handing out the operator role as handing out the machine.</li></ul>
 <h2>Doors and identities</h2>
 <p>Two independent layers: Cloudflare Access (email codes, keeps the internet out) and GameKeepr's own accounts (scrypt-hashed passwords, per-browser sessions, roles). Rate-limited logins, one-time passwords for new accounts, sessions visible and revocable by the owner.</p>
 <h2>What third-party code gets to do</h2>
-<ul><li><strong>Mods</strong> are downloaded only from known repositories or uploaded by an</li></ul>
-<p>  operator; archives are parsed and judged before a byte is unpacked (path   traversal, symlinks, device nodes, compression bombs), hashes verified   where the repository publishes them, optional scanners consulted. No report   ever says &quot;safe&quot; — that claim is not available.</p>
-<ul><li><strong>Steam-composed servers</strong> trust Valve's official image and Steam's depots;</li></ul>
-<p>  the start script in between is generated, visible in the Files tab, and   runs the game as an unprivileged user (<code>99:100</code>), never root.</p>
-<ul><li><strong>Templates</strong> are reviewed before deploy; untrusted publishers and</li></ul>
-<p>  privileged requests are refused.</p>
+<ul><li><strong>Mods</strong> are downloaded only from known repositories or uploaded by an operator; archives are parsed and judged before a byte is unpacked (path traversal, symlinks, device nodes, compression bombs), hashes verified where the repository publishes them, optional scanners consulted. No report ever says &quot;safe&quot; — that claim is not available.</li><li><strong>Steam-composed servers</strong> trust Valve's official image and Steam's depots; the start script in between is generated, visible in the Files tab, and runs the game as an unprivileged user (<code>99:100</code>), never root.</li><li><strong>Templates</strong> are reviewed before deploy; untrusted publishers and privileged requests are refused.</li></ul>
 <h2>Honesty rules</h2>
 <p>Things someone may not see answer <strong>404, not 403</strong> — a hidden server, a wiki page above your role. Telling someone a thing exists is itself a disclosure. Audit rows record rejections as well as successes; the rejections are the interesting ones. Secrets are encrypted at rest, masked in every UI, and never echoed back.</p>
 <h2>Narrowing the socket</h2>

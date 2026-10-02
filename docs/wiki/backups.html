@@ -24,12 +24,7 @@
 <h2>What goes in</h2>
 <p>The game registry knows where each recognised game keeps its saves and searches the server for those directories; you confirm once, and that choice is what every backup contains. For unrecognised games, add the directory yourself (the Files tab helps you find it). A backup with nothing configured is refused rather than quietly archiving the wrong thing.</p>
 <h2>Making and restoring</h2>
-<ul><li><strong>Back up now</strong> works while the server runs: games flush their saves</li></ul>
-<p>  continually, and a mostly-consistent copy beats none.</p>
-<ul><li><strong>Restore</strong> only works while the server is stopped, and never without a</li></ul>
-<p>  safety copy of what it is about to replace — a restore that turns out to be   the wrong call must itself be undoable. Restores overlay: files created   since the backup are left alone.</p>
-<ul><li>Each backup can be <strong>downloaded</strong> as a <code>.tar.gz</code> for a copy somewhere else</li></ul>
-<p>  entirely.</p>
+<ul><li><strong>Back up now</strong> works while the server runs: games flush their saves continually, and a mostly-consistent copy beats none.</li><li><strong>Restore</strong> only works while the server is stopped, and never without a safety copy of what it is about to replace — a restore that turns out to be the wrong call must itself be undoable. Restores overlay: files created since the backup are left alone.</li><li>Each backup can be <strong>downloaded</strong> as a <code>.tar.gz</code> for a copy somewhere else entirely.</li></ul>
 <h2>Rotation and storage</h2>
 <p>The newest ten per server are kept; safety copies made before a restore do not count against that. Backups live in the portal's own data volume, so they survive the game container being recreated and ride along with whatever backs up the portal itself.</p>
 <p>For a nightly backup, add a <strong>backup</strong> action on the Schedule tab.</p></article></div>

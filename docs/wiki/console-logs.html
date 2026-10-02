@@ -26,10 +26,7 @@
 <h2>Typing at the game</h2>
 <p>Under the live stream sits an input that writes one line to the game's own stdin — <code>save-all</code>, <code>say Restart in 5 minutes</code>, <code>kick &lt;name&gt;</code> — and the answer comes back through the same stream. One line per send, and every command lands in the activity log verbatim.</p>
 <p>Two container properties gate it, and GameKeepr says so instead of failing vaguely:</p>
-<ul><li>The container must have an <strong>interactive stdin</strong> (Unraid's &quot;Interactive&quot;</li></ul>
-<p>  toggle, <code>docker run -i</code>). Servers composed from the Steam tab have this out   of the box.</p>
-<ul><li>Containers set to close stdin after one attach (<code>StdinOnce</code>) are refused</li></ul>
-<p>  outright — a game that reads end-of-input as &quot;shut down&quot; would be stopped   by the very act of talking to it.</p>
+<ul><li>The container must have an <strong>interactive stdin</strong> (Unraid's &quot;Interactive&quot; toggle, <code>docker run -i</code>). Servers composed from the Steam tab have this out of the box.</li><li>Containers set to close stdin after one attach (<code>StdinOnce</code>) are refused outright — a game that reads end-of-input as &quot;shut down&quot; would be stopped by the very act of talking to it.</li></ul>
 <p>What a command <em>means</em> is the game's business: consult the game's own admin documentation for its console vocabulary.</p></article></div>
 <footer>
   <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>

@@ -8,6 +8,11 @@ releases.
 
 ## Unreleased
 
+- **Forwarding verified without a router.** The Network tab now asks the game
+  itself through the public address — an answer proves container port, forward
+  and router in one go, with no router integration needed. When nothing
+  answers and no router is connected, it says plainly which ports to forward
+  manually (with the NAT-hairpin caveat spelled out).
 - **Licence change: AGPL-3.0-or-later.** From the next release the core is
   AGPL: still genuinely open source and free to self-host; anyone offering
   GameKeepr as a service to others must publish their modifications. Versions

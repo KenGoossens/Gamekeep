@@ -95,9 +95,22 @@ export function renderMarkdown(markdown: string): string {
       const ordered = /^\d+\.\s+/.test(line);
       const items: string[] = [];
       const pattern = ordered ? /^\d+\.\s+/ : /^[-*]\s+/;
+      // Anything that would start a different block ends the current item;
+      // everything else is the same sentence, wrapped by an editor at 80
+      // columns. Without this, a two-line bullet became a bullet and a
+      // paragraph -- visible on the changelog page, quietly wrong everywhere.
+      const startsAnotherBlock = (l: string) =>
+        /^(#{1,4})\s|^```|^---+\s*$|^>|^\|/.test(l) || /^[-*]\s+/.test(l) || /^\d+\.\s+/.test(l);
       while (i < lines.length && pattern.test(lines[i]!)) {
-        items.push(`<li>${inline(escapeHtml(lines[i]!.replace(pattern, '')))}</li>`);
+        const parts = [lines[i]!.replace(pattern, '')];
         i++;
+        while (i < lines.length && lines[i]!.trim() !== '' && !startsAnotherBlock(lines[i]!)) {
+          parts.push(lines[i]!.trim());
+          i++;
+        }
+        items.push(`<li>${inline(escapeHtml(parts.join(' ')))}</li>`);
+        // A blank line between items keeps the list going; two end it.
+        if (lines[i]?.trim() === '' && pattern.test(lines[i + 1] ?? '')) i++;
       }
       out.push(ordered ? `<ol>${items.join('')}</ol>` : `<ul>${items.join('')}</ul>`);
       continue;

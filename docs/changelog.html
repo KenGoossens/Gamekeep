@@ -18,46 +18,16 @@
     <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
   </nav>
 </header>
-<main class="wiki"><article class="prose"><h1>Changelog</h1>
+<main class="solo"><article class="prose"><h1>Changelog</h1>
 <p>All notable changes to GameKeepr. The format follows <a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a>; versions follow <a href="https://semver.org" target="_blank" rel="noreferrer">semantic versioning</a>. The <code>latest</code> image on ghcr.io moves only when a version is released; <code>edge</code> tracks the main branch between releases.</p>
 <h2>Unreleased</h2>
-<ul><li><strong>Licence change: AGPL-3.0-or-later.</strong> From the next release the core is</li></ul>
-<p>  AGPL: still genuinely open source and free to self-host; anyone offering   GameKeepr as a service to others must publish their modifications. Versions   up to 1.1.0 were MIT and remain MIT.</p>
-<ul><li><strong>Start commands Steam never wrote down.</strong> When an app's Steam info lists no</li></ul>
-<p>  Linux launch entry, the registry now fills in the known start script for   recognised games (7 Days to Die, Project Zomboid), and for everything else   the command may stay empty: the server finds its own conventional start   script (<code>startserver.sh</code> and friends) on first boot — and refuses loudly   instead of guessing when none exists.</p>
-<ul><li><strong>Tournaments</strong> are in development: teams, brackets, and a CS2 match server</li></ul>
-<p>  provisioned per match with MatchZy reporting the results back. The   groundwork ships in 1.1.0 but nothing of it is visible yet.</p>
+<ul><li><strong>Forwarding verified without a router.</strong> The Network tab now asks the game itself through the public address — an answer proves container port, forward and router in one go, with no router integration needed. When nothing answers and no router is connected, it says plainly which ports to forward manually (with the NAT-hairpin caveat spelled out).</li><li><strong>Licence change: AGPL-3.0-or-later.</strong> From the next release the core is AGPL: still genuinely open source and free to self-host; anyone offering GameKeepr as a service to others must publish their modifications. Versions up to 1.1.0 were MIT and remain MIT.</li><li><strong>Start commands Steam never wrote down.</strong> When an app's Steam info lists no Linux launch entry, the registry now fills in the known start script for recognised games (7 Days to Die, Project Zomboid), and for everything else the command may stay empty: the server finds its own conventional start script (<code>startserver.sh</code> and friends) on first boot — and refuses loudly instead of guessing when none exists.</li><li><strong>Tournaments</strong> are in development: teams, brackets, and a CS2 match server provisioned per match with MatchZy reporting the results back. The groundwork ships in 1.1.0 but nothing of it is visible yet.</li></ul>
 <h2>1.1.0 — 2026-10-02</h2>
 <h3>Added</h3>
-<ul><li><strong>Joining, up front.</strong> Deploying a recognised game now asks for the join</li></ul>
-<p>  settings — password, world, server name — in their own section at the top of   the deploy form, instead of leaving them buried among template variables.</p>
-<ul><li><strong>A Joining card on every server's overview</strong>: address, port, server name,</li></ul>
-<p>  world and the password, visible to everyone who may see the server. A fresh   server's password used to be visible to nobody at all.</p>
-<ul><li><strong>Automatic port forwards.</strong> With a router connected, a deploy opens the</li></ul>
-<p>  game's ports by itself and says so in the deploy log. Administrative ports   (RCON, web consoles) are never opened automatically — those keep the   deliberate click on the Network tab.</p>
-<ul><li><strong>Rename from the card.</strong> Operators rename a server where they see it; the</li></ul>
-<p>  container, id and URLs stay put. Servers from <code>config/servers.json</code> are   declined with directions to the file.</p>
-<ul><li><strong>Delete from the card.</strong> Owners can delete a portal-deployed server: the</li></ul>
-<p>  container is stopped and removed, the portal forgets it — and the game's   data and backups deliberately stay on disk.</p>
-<ul><li><strong>A picture on every Steam server.</strong> Steam artwork now falls back through</li></ul>
-<p>  the store's capsule and header images, and a Steam deploy records which app   id its art belongs to (the game's, not the dedicated-server tool's). The   lettered tile is now a bug, not a fallback.</p>
-<ul><li><strong>Settings → Steam game server tokens</strong>: paste a Steam Web API key once and</li></ul>
-<p>  the portal mints and retires game server login tokens (GSLTs) itself —   groundwork for tournaments.</p>
+<ul><li><strong>Joining, up front.</strong> Deploying a recognised game now asks for the join settings — password, world, server name — in their own section at the top of the deploy form, instead of leaving them buried among template variables.</li><li><strong>A Joining card on every server's overview</strong>: address, port, server name, world and the password, visible to everyone who may see the server. A fresh server's password used to be visible to nobody at all.</li><li><strong>Automatic port forwards.</strong> With a router connected, a deploy opens the game's ports by itself and says so in the deploy log. Administrative ports (RCON, web consoles) are never opened automatically — those keep the deliberate click on the Network tab.</li><li><strong>Rename from the card.</strong> Operators rename a server where they see it; the container, id and URLs stay put. Servers from <code>config/servers.json</code> are declined with directions to the file.</li><li><strong>Delete from the card.</strong> Owners can delete a portal-deployed server: the container is stopped and removed, the portal forgets it — and the game's data and backups deliberately stay on disk.</li><li><strong>A picture on every Steam server.</strong> Steam artwork now falls back through the store's capsule and header images, and a Steam deploy records which app id its art belongs to (the game's, not the dedicated-server tool's). The lettered tile is now a bug, not a fallback.</li><li><strong>Settings → Steam game server tokens</strong>: paste a Steam Web API key once and the portal mints and retires game server login tokens (GSLTs) itself — groundwork for tournaments.</li></ul>
 <h2>1.0.0 — 2026-10-01</h2>
 <p>First public release, and the version submitted to Unraid Community Applications (listed in the catalog on 2026-10-02).</p>
-<ul><li>Restarts verified against the game itself, with per-game startup times, a</li></ul>
-<p>  cooldown, and an activity feed.</p>
-<ul><li>Three roles (owner, operator, member) with per-server exceptions; sessions,</li></ul>
-<p>  audit log, Discord notifications.</p>
-<ul><li>Install game servers from Unraid Community Applications templates (reviewed</li></ul>
-<p>  before anything runs) or from ~580 dedicated servers on Steam, composed on   Valve's official steamcmd image.</p>
-<ul><li>Schedules that skip when players are online, world backups with safe</li></ul>
-<p>  restores, live logs with a console, typed per-game settings, file editor.</p>
-<ul><li>Mod installs with hash verification, archive-safety checks and optional</li></ul>
-<p>  VirusTotal/ClamAV scanning; Steam Workshop declarations.</p>
-<ul><li>Cloudflare Access guest list management, UniFi port forwarding, metrics,</li></ul>
-<p>  and a built-in wiki documenting all of it.</p>
-<ul><li>Runs on any Docker host; hardened variant through docker-socket-proxy.</li></ul>
+<ul><li>Restarts verified against the game itself, with per-game startup times, a cooldown, and an activity feed.</li><li>Three roles (owner, operator, member) with per-server exceptions; sessions, audit log, Discord notifications.</li><li>Install game servers from Unraid Community Applications templates (reviewed before anything runs) or from ~580 dedicated servers on Steam, composed on Valve's official steamcmd image.</li><li>Schedules that skip when players are online, world backups with safe restores, live logs with a console, typed per-game settings, file editor.</li><li>Mod installs with hash verification, archive-safety checks and optional VirusTotal/ClamAV scanning; Steam Workshop declarations.</li><li>Cloudflare Access guest list management, UniFi port forwarding, metrics, and a built-in wiki documenting all of it.</li><li>Runs on any Docker host; hardened variant through docker-socket-proxy.</li></ul>
 <p>Release tags and diffs live on <a href="https://github.com/KenGoossens/Gamekeep/releases" target="_blank" rel="noreferrer">GitHub releases</a>.</p></article></main>
 <footer>
   <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>

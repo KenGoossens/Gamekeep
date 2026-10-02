@@ -50,7 +50,8 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
 
   if (!state) return <p className="empty">{error ?? 'Loading…'}</p>;
 
-  const { needed, missing, rules, configured, target, publicAddress, unpublished } = state;
+  const { needed, missing, rules, configured, target, publicAddress, unpublished, publicCheck } =
+    state;
   const isMissing = (port: string) => missing.some((m) => m.port === port);
   const absent = unpublished?.missing ?? [];
 
@@ -85,6 +86,28 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
           ? `This is your router's address as ${publicAddress.source} sees it. Most home connections keep it for a long time, but it is not guaranteed to stay — check here if friends suddenly cannot connect.`
           : `Could not be looked up${publicAddress.error ? `: ${publicAddress.error}` : ''}.`}
       </p>
+
+      {/* The one answer that needs no router integration: the game was asked
+          through the public address, so this verifies the entire chain. */}
+      {publicCheck?.state === 'reachable' ? (
+        <p className="hint ok">{publicCheck.detail}</p>
+      ) : publicCheck?.state === 'unreachable' ? (
+        <div className="hint bad">
+          <p>
+            {publicCheck.detail}{' '}
+            {configured
+              ? 'Check the rules below — a missing one can be created with one click.'
+              : 'No router is connected, so the ports below must be forwarded manually on your router for friends to join.'}
+          </p>
+          <p>
+            One caveat: some routers cannot loop traffic back to their own public address
+            (&ldquo;NAT hairpin&rdquo;). On those, this test fails from inside your network while
+            friends outside can actually join — when in doubt, ask one to try.
+          </p>
+        </div>
+      ) : publicCheck ? (
+        <p className="hint">Reachability not tested: {publicCheck.detail}</p>
+      ) : null}
 
       {/*
         Said above the forwarding list, because it is the one problem

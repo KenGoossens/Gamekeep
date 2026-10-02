@@ -596,6 +596,8 @@ export interface PortForwardState {
     known: boolean;
     missing: Array<{ port: number; protocol: 'tcp' | 'udp'; purpose: string; required: boolean }>;
   };
+  /** The game asked through the public address: the end-to-end proof. */
+  publicCheck: { state: 'reachable' | 'unreachable' | 'untested'; detail: string };
 }
 
 export interface UnifiStatus {

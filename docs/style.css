@@ -73,6 +73,9 @@ p code, li code, td code {
 footer { max-width: 1080px; margin: 50px auto 0; padding: 22px 20px 36px; border-top: 1px solid var(--border-soft); }
 footer p { color: var(--faint); font-size: 0.88rem; }
 
+/* A single article without the wiki's sidebar: the changelog. */
+.solo { max-width: 760px; margin: 10px auto; padding: 0 20px 40px; }
+
 /* ---- wiki layout ---- */
 .wiki {
   max-width: 1080px; margin: 10px auto; padding: 0 20px;

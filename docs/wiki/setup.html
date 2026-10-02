@@ -37,10 +37,7 @@ docker compose up -d</code></pre>
 <h2>3. Publishing it</h2>
 <p>Behind a Cloudflare Tunnel with Access in front is the tested shape: no open router ports for the portal, an email-code outer door, GameKeepr's own login inside. Point the tunnel at <code>http://gamekeep:8080</code> on the shared Docker network and delete the published port. The game servers still need real port forwards — see <em>Networking and ports</em>.</p>
 <h2>4. Unraid specifics</h2>
-<ul><li>Keep appdata on a pool: SQLite dislikes the <code>/mnt/user</code> FUSE layer — use</li></ul>
-<p>  <code>/mnt/cache/...</code> paths, and set the appdata share's mover action to   <strong>Array → Cache</strong> so the mover never migrates a live database off the pool.</p>
-<ul><li>Mount <code>/boot/config/plugins/dockerMan/templates-user</code> into the portal so</li></ul>
-<p>  deployed servers show properly in Unraid's Docker tab.</p>
+<ul><li>Keep appdata on a pool: SQLite dislikes the <code>/mnt/user</code> FUSE layer — use <code>/mnt/cache/...</code> paths, and set the appdata share's mover action to <strong>Array → Cache</strong> so the mover never migrates a live database off the pool.</li><li>Mount <code>/boot/config/plugins/dockerMan/templates-user</code> into the portal so deployed servers show properly in Unraid's Docker tab.</li></ul>
 <h2>5. After that</h2>
 <p>Work through <strong>Users, access and integrations</strong>: create accounts, connect the Discord webhook, optionally the malware scanners, the UniFi router and the Cloudflare Access guest list.</p></article></div>
 <footer>

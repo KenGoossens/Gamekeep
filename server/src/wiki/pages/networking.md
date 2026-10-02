@@ -28,6 +28,16 @@ are never opened by anything automatic. Those keep the deliberate click here,
 with the reason shown, because forwarding a game port lets people play and
 forwarding an admin console puts it on the internet.
 
+## The proof, router or no router
+
+The Network tab also asks the game itself — **through the public address**.
+An answer proves the whole chain at once: container port, forward, router.
+This needs no router integration at all; without one, an unreachable server
+shows exactly which ports to forward manually. One honest caveat applies:
+routers without NAT hairpin cannot loop the test back from inside the
+network, so a failure there can be a false alarm — have a friend outside
+try before rewiring anything.
+
 ## The check forwarding cannot do
 
 Forwarding only acts on ports a container publishes — it is blind to a port

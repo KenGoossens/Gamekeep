@@ -119,7 +119,9 @@ for (const page of WIKI_PAGES) {
 const changelog = renderMarkdown(readFileSync(join(root, 'CHANGELOG.md'), 'utf8'));
 writeFileSync(
   join(docs, 'changelog.html'),
-  shell('Changelog — GameKeepr', `<main class="wiki"><article class="prose">${changelog}</article></main>`, 0),
+  // Not .wiki: that class is a sidebar-plus-article grid, and a page without
+  // a sidebar then renders in the sidebar's 230px column.
+  shell('Changelog — GameKeepr', `<main class="solo"><article class="prose">${changelog}</article></main>`, 0),
 );
 
 // ---- the landing page ------------------------------------------------------

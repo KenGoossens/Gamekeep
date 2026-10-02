@@ -23,12 +23,7 @@
 <p>A schedule is a standing instruction per server: restart, stop, start or back up at a set time on set days. The classic one is a nightly restart at 05:00, when the memory leak has had its day and nobody is on.</p>
 <p>It is deliberately not cron — a time and weekdays are the whole vocabulary the job needs. No days selected means every day.</p>
 <h2>The three protective rules</h2>
-<ol><li><strong>A schedule never turns a stopped server back on.</strong> Someone stopped that</li></ol>
-<p>   server on purpose; a restart schedule skips and says so. Wanting a server    up at a fixed time is what the separate <em>start</em> action is for.</p>
-<ol><li><strong>&quot;Skip when players are online&quot;</strong> (default for restart and stop) asks the</li></ol>
-<p>   game itself at the moment of truth, not a cached count. Backups ignore it    — a backup kicks nobody.</p>
-<ol><li><strong>A missed run stays missed.</strong> If the portal was down at 05:00, the</li></ol>
-<p>   restart waits for the next 05:00 instead of firing whenever the portal    comes back.</p>
+<ol><li><strong>A schedule never turns a stopped server back on.</strong> Someone stopped that server on purpose; a restart schedule skips and says so. Wanting a server up at a fixed time is what the separate <em>start</em> action is for.</li><li><strong>&quot;Skip when players are online&quot;</strong> (default for restart and stop) asks the game itself at the moment of truth, not a cached count. Backups ignore it — a backup kicks nobody.</li><li><strong>A missed run stays missed.</strong> If the portal was down at 05:00, the restart waits for the next 05:00 instead of firing whenever the portal comes back.</li></ol>
 <h2>What a run looks like</h2>
 <p>Runs go through the same machinery as a button press: two-stage verification, cooldown, the activity feed and Discord all apply, with the schedule named as the actor. Each schedule's row shows its next run and what the last one did (&quot;Done&quot;, &quot;Skipped: 3 players are online&quot;, or the failure).</p>
 <h2>Whose clock</h2>

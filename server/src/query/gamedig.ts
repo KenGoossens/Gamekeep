@@ -96,7 +96,29 @@ export function createGameQuery() {
     cache.delete(serverId);
   }
 
-  return { getPlayers, getPlayersCached, invalidate };
+  /**
+   * One ad-hoc query against an arbitrary address, for the reachability test:
+   * asking the game through the PUBLIC address proves the whole chain — the
+   * container's port, the forward, the router. Uncached on purpose, short on
+   * purpose, and it answers a plain yes/no rather than throwing.
+   */
+  async function probe(type: string, host: string, port: number): Promise<boolean> {
+    try {
+      await GameDig.query({
+        type,
+        host,
+        port,
+        socketTimeout: 2_000,
+        attemptTimeout: 4_000,
+        maxRetries: 1,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return { getPlayers, getPlayersCached, invalidate, probe };
 }
 
 export type GameQuery = ReturnType<typeof createGameQuery>;

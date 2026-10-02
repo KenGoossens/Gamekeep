@@ -10,7 +10,43 @@ import { createPublicAddressLookup } from '../network/publicip.js';
 import '../router/unifi-provider.js';
 
 export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { registry, docker, db, env, guard } = ctx;
+  const { registry, docker, db, env, guard, gameQuery } = ctx;
+
+  /**
+   * Did the forwarding actually work? Asked of the game itself, through the
+   * public address, so the answer covers the whole chain and needs no router
+   * integration at all — which is the point: without one, this is the only
+   * way the portal can say more than "here are the rules to make by hand".
+   */
+  async function reachability(
+    server: { id: string; container: string; query?: { type: string; port: number } },
+    publicIp: string | null,
+  ): Promise<{ state: 'reachable' | 'unreachable' | 'untested'; detail: string }> {
+    if (!server.query) {
+      return {
+        state: 'untested',
+        detail:
+          'This game has no query protocol to test with, so forwarding cannot be verified from here.',
+      };
+    }
+    if (!publicIp) {
+      return { state: 'untested', detail: 'The public address could not be looked up.' };
+    }
+    const status = await docker.getStatus(server as never).catch(() => null);
+    if (!status?.running) {
+      return { state: 'untested', detail: 'The server is not running; start it to test.' };
+    }
+    const answered = await gameQuery.probe(server.query.type, publicIp, server.query.port);
+    return answered
+      ? {
+          state: 'reachable',
+          detail: 'The game answered through the public address — players can reach it.',
+        }
+      : {
+          state: 'unreachable',
+          detail: 'The game did not answer through the public address.',
+        };
+  }
   const publicIp = createPublicAddressLookup();
   const owner = { preHandler: guard.requireOwner };
 
@@ -204,8 +240,11 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
       // together instead of as two things to piece together.
       const publicAddress = await publicIp.get();
 
+      const publicCheck = await reachability(server, publicAddress.ip ?? null);
+
       if (!current) {
-        // Still useful without a router: these are the rules to make by hand.
+        // Still useful without a router: these are the rules to make by hand,
+        // and the reachability test says whether someone already made them.
         return reply.send({
           configured: false,
           target: to,
@@ -214,6 +253,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
           rules: [],
           missing: needed,
           unpublished,
+          publicCheck,
         });
       }
 
@@ -229,6 +269,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
           rules: mine,
           missing,
           unpublished,
+          publicCheck,
         });
       } catch (err) {
         const f = failure(err);
