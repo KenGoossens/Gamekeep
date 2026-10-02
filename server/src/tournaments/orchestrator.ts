@@ -5,6 +5,7 @@ import type { Env } from '../config.js';
 import type { Db } from '../db.js';
 import type { Deployer } from '../deploy.js';
 import type { DockerClient } from '../docker/client.js';
+import type { Notifier } from '../notify.js';
 import type { GsltService } from '../steam/gslt.js';
 import {
   CS2_SHARED_DIR,
@@ -45,6 +46,7 @@ export interface MatchOrchestratorDeps {
   gslt: GsltService;
   db: Db;
   env: Env;
+  notify: Notifier;
   log: (message: string) => void;
 }
 
@@ -53,7 +55,42 @@ export interface MatchOrchestratorDeps {
 const internalBase = (env: Env) => `http://${hostname()}:${env.PORT}`;
 
 export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
-  const { store, deployer, docker, gslt, db, env, log } = deps;
+  const { store, deployer, docker, gslt, db, env, notify, log } = deps;
+
+  /** "Alfa vs Bravo", or as much of it as the rows still know. */
+  function versus(match: MatchRow): string {
+    const name = (teamId: string | null) =>
+      teamId ? (store.getTeam(teamId)?.name ?? '?') : '?';
+    return `${name(match.teamA)} vs ${name(match.teamB)}`;
+  }
+
+  /**
+   * Says a decided match out loud, and the champion when it was the final.
+   * Called for game-reported results here and for overrides by the route --
+   * the channel should not care which way a result arrived.
+   */
+  function announceDecision(matchId: string): void {
+    const match = store.getMatch(matchId);
+    if (!match || !match.winner) return;
+    const tournament = store.getTournament(match.tournamentId);
+    const winner = store.getTeam(match.winner)?.name ?? '?';
+    const score = match.maps.length
+      ? ` (${match.maps.map((m) => `${m.scoreA}–${m.scoreB}`).join(', ')})`
+      : '';
+    notify.send({
+      kind: 'match-decided',
+      detail: `${tournament?.name ?? 'Tournament'}: ${versus(match)} — ${winner} wins${
+        match.status === 'forfeit' ? ' by forfeit' : score
+      }`,
+    });
+    const after = store.getTournament(match.tournamentId);
+    if (after?.status === 'finished') {
+      notify.send({
+        kind: 'tournament-finished',
+        detail: `${after.name}: 🏆 ${winner} takes it`,
+      });
+    }
+  }
   let timer: NodeJS.Timeout | null = null;
   let ticking = false;
 
@@ -175,6 +212,12 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
             log(
               `Match ${matchId.slice(0, 8)}: ${match.serverContainer} is ready on port ${match.connectPort}`,
             );
+            // The ping that makes match night work; the password stays in the
+            // portal, where only the two teams can read it.
+            notify.send({
+              kind: 'match-ready',
+              detail: `${store.getTournament(match.tournamentId)?.name ?? 'Tournament'}: ${versus(match)} — the server is up, join from the tournament page`,
+            });
             return;
           } finally {
             rcon.close();
@@ -377,6 +420,7 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
         // The bracket moves the moment the game says so: the winner lands in
         // the next round, and a decided final ends the tournament.
         advanceFrom(store, match.id);
+        announceDecision(match.id);
         log(`Match ${match.id.slice(0, 8)}: series ended, winner recorded.`);
         return;
       }
@@ -397,6 +441,7 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
     /** One pass, on demand -- used by tests and by routes that cannot wait. */
     tick,
     applyEvent,
+    announceDecision,
     buildConfigFor(match: MatchRow): Record<string, unknown> | null {
       const tournament = store.getTournament(match.tournamentId);
       if (!tournament || !match.teamA || !match.teamB) return null;

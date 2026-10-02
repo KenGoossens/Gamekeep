@@ -37,6 +37,7 @@ const RANK: Record<Role, number> = { member: 0, operator: 1, owner: 2 };
 export const WIKI_PAGES: WikiPageMeta[] = [
   { id: 'welcome', title: 'Welcome to GameKeepr', section: 'Using GameKeepr', role: 'member' },
   { id: 'servers', title: 'Servers and restarting', section: 'Using GameKeepr', role: 'member' },
+  { id: 'tournaments', title: 'Tournaments (beta)', section: 'Using GameKeepr', role: 'member' },
   { id: 'dashboard', title: 'The dashboard', section: 'Using GameKeepr', role: 'member' },
   { id: 'account', title: 'Your account', section: 'Using GameKeepr', role: 'member' },
   { id: 'roles', title: 'Roles and permissions', section: 'Using GameKeepr', role: 'member' },

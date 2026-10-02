@@ -114,6 +114,7 @@ async function main() {
     gslt,
     db,
     env,
+    notify,
     log: (message) => console.log(`[GameKeepr] ${message}`),
   });
   const scheduler = createScheduler({

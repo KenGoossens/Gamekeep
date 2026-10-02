@@ -455,6 +455,9 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
         detail: `Match ${match.id.slice(0, 8)} round ${match.round}: ${request.body?.forfeit ? 'forfeit' : 'result set'} — ${reason}`,
         ...originOf(request),
       });
+      // The channel hears a result the same way whether the game or the
+      // organizer decided it.
+      matches.announceDecision(match.id);
       return reply.send({ match: tournaments.getMatch(match.id) });
     },
   );

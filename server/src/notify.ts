@@ -24,7 +24,10 @@ export type EventKind =
   | 'server-recovered'
   | 'deployed'
   | 'mod-installed'
-  | 'access-granted';
+  | 'access-granted'
+  | 'match-ready'
+  | 'match-decided'
+  | 'tournament-finished';
 
 /**
  * Events the portal itself caused, as opposed to ones it merely noticed.
@@ -42,6 +45,12 @@ const DELIBERATE: EventKind[] = [
   'deployed',
   'mod-installed',
   'access-granted',
+  // Tournament pings each describe a different match; collapsing two
+  // "server ready" within ten minutes would eat exactly the second match
+  // of a two-court evening.
+  'match-ready',
+  'match-decided',
+  'tournament-finished',
 ];
 
 /**
@@ -126,6 +135,9 @@ export const ALL_EVENTS: Array<{ kind: EventKind; label: string }> = [
   { kind: 'deployed', label: 'A new server was deployed' },
   { kind: 'mod-installed', label: 'A mod was installed' },
   { kind: 'access-granted', label: 'Someone was given access to the portal' },
+  { kind: 'match-ready', label: 'A tournament match server is ready to join' },
+  { kind: 'match-decided', label: 'A tournament match was decided' },
+  { kind: 'tournament-finished', label: 'A tournament crowned its champion' },
 ];
 
 /** Colour and wording per event, so a glance at the channel is enough. */
@@ -140,6 +152,10 @@ const SHAPE: Record<EventKind, { title: string; colour: number }> = {
   deployed: { title: 'Server deployed', colour: 0x7c6cf2 },
   'mod-installed': { title: 'Mod installed', colour: 0x7c6cf2 },
   'access-granted': { title: 'Access granted', colour: 0x49c9f7 },
+  // Tournament gold, so match night reads differently from ops noise.
+  'match-ready': { title: 'Match server ready', colour: 0xe8b44c },
+  'match-decided': { title: 'Match decided', colour: 0xe8b44c },
+  'tournament-finished': { title: 'Champion crowned', colour: 0xe8b44c },
 };
 
 /**

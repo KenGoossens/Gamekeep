@@ -19,6 +19,8 @@ export const NOTIFY_KEY = 'notifications';
  * the setting quietly filters out every new event type ever added.
  */
 const ADDED_IN_V2: string[] = ['restarted', 'started', 'stopped'];
+const ADDED_IN_V3: string[] = ['match-ready', 'match-decided', 'tournament-finished'];
+const CURRENT_VERSION = 3;
 
 export function readNotifyConfig(ctx: Pick<AppContext, 'db' | 'env'>): NotifyConfig {
   const raw = ctx.db.getSetting(NOTIFY_KEY);
@@ -33,9 +35,11 @@ export function readNotifyConfig(ctx: Pick<AppContext, 'db' | 'env'>): NotifyCon
     return {};
   }
 
-  if (config.version !== 2 && config.events?.length) {
-    const events = [...new Set([...config.events, ...ADDED_IN_V2])];
-    config = { ...config, events, version: 2 };
+  const version = config.version ?? 1;
+  if (version < CURRENT_VERSION && config.events?.length) {
+    const added = [...(version < 2 ? ADDED_IN_V2 : []), ...(version < 3 ? ADDED_IN_V3 : [])];
+    const events = [...new Set([...config.events, ...added])];
+    config = { ...config, events, version: CURRENT_VERSION };
     ctx.db.setSetting(NOTIFY_KEY, encryptSecret(JSON.stringify(config), ctx.env.SESSION_SECRET));
   }
   return config;
@@ -91,7 +95,7 @@ export function registerNotifyRoutes(app: FastifyInstance, ctx: AppContext) {
         return reply.code(502).send({ error: 'unreachable', message: (err as Error).message });
       }
 
-      db.setSetting(NOTIFY_KEY, encryptSecret(JSON.stringify({ discordWebhook: webhook, events, version: 2 }), env.SESSION_SECRET));
+      db.setSetting(NOTIFY_KEY, encryptSecret(JSON.stringify({ discordWebhook: webhook, events, version: CURRENT_VERSION }), env.SESSION_SECRET));
       db.audit({
         userId: user.id,
         username: user.username,
