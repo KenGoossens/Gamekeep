@@ -225,10 +225,6 @@ body::after {
   color: #e8b44c;
   margin-left: 4px;
 }
-/* A list tile without poster art: same card, calmer face. */
-.tile.flat { min-height: 110px; background: var(--surface, rgba(22, 28, 46, 0.8)); }
-.tile.flat .tile-body { position: static; padding: 16px; }
-
 .teamcard {
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 12px;
@@ -238,7 +234,9 @@ body::after {
 .steamid { width: 180px; font-size: 0.8rem; }
 .rowtools { display: inline-flex; gap: 6px; align-items: center; }
 .fieldrow { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
-.fieldrow .field { flex: 1 1 160px; }
+.fieldrow .field { flex: 1 1 160px; margin: 0; }
+/* A button that lines up with the inputs beside it, not with their labels. */
+.fieldrow-action { align-self: end; margin-bottom: 2px; }
 
 .bracket { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 6px; }
 .bracket-round { min-width: 240px; display: flex; flex-direction: column; gap: 10px; }

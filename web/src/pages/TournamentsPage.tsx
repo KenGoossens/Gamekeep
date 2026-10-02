@@ -7,6 +7,7 @@ import {
   type TeamInfo,
   type TournamentSummary,
 } from '../api.ts';
+import { artworkUrl, fallbackHue } from '../api.ts';
 import { linkProps } from '../router.ts';
 
 const explain = (err: unknown, fallback: string): string =>
@@ -79,25 +80,60 @@ export function TournamentsPage({ me }: { me: Me }) {
       ) : (
         <div className="grid">
           {tournaments.map((t) => (
-            <a key={t.id} {...linkProps(`/tournaments/${encodeURIComponent(t.id)}`)} className="tile flat">
-              <div className="tile-body">
-                <span className="tile-name">{t.name}</span>
-                <span className="tile-meta">
-                  <span className={`pill ${t.status === 'running' ? 'ok' : 'plain'}`}>
-                    {STATUS_LABEL[t.status]}
-                  </span>
-                  <span>
-                    {t.teamSize}v{t.teamSize} · BO{t.bestOf} · {t.entryCount}/{t.maxTeams} teams
-                  </span>
-                </span>
-              </div>
-            </a>
+            <TournamentTile key={t.id} tournament={t} />
           ))}
         </div>
       )}
 
       <TeamsPanel me={me} teams={teams} people={people} onChanged={() => void load()} />
     </>
+  );
+}
+
+/**
+ * The same card a game server gets — poster art, status in the corner, name
+ * at the foot. A tournament has no server id, but its game has a poster like
+ * any other, served under the fixed game- namespace.
+ */
+function TournamentTile({ tournament: t }: { tournament: TournamentSummary }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <a
+      {...linkProps(`/tournaments/${encodeURIComponent(t.id)}`)}
+      className={`tile${t.status === 'running' ? '' : ' stopped'}`}
+      style={{ '--hue': fallbackHue(t.id) } as React.CSSProperties}
+    >
+      {!failed ? (
+        <img
+          className="poster"
+          src={artworkUrl(`game-${t.game}`, 'poster')}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div className="fallback" aria-hidden="true">
+          {t.name.charAt(0).toUpperCase()}
+        </div>
+      )}
+      <div className="tile-top">
+        <span className={`pill ${t.status === 'running' ? 'ok' : 'plain'}`}>
+          <span className="dot" />
+          {STATUS_LABEL[t.status]}
+        </span>
+      </div>
+      <div className="tile-body">
+        <span className="tile-name">{t.name}</span>
+        <span className="tile-meta">
+          <span>
+            {t.teamSize}v{t.teamSize} · BO{t.bestOf}
+          </span>
+          <span>
+            {t.entryCount}/{t.maxTeams} teams
+          </span>
+        </span>
+      </div>
+    </a>
   );
 }
 
@@ -225,26 +261,23 @@ function TeamsPanel({
           <span>Your Steam64 ID (optional, 17 digits)</span>
           <input value={steamId} onChange={(e) => setSteamId(e.target.value)} />
         </label>
-        <div className="field">
-          <span>&nbsp;</span>
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={name.trim().length < 2}
-            onClick={async () => {
-              setError(null);
-              try {
-                await api.createTeam(name.trim(), steamId.trim() || undefined);
-                setName('');
-                onChanged();
-              } catch (err) {
-                setError(explain(err, 'Could not create the team.'));
-              }
-            }}
-          >
-            Create
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn-primary fieldrow-action"
+          disabled={name.trim().length < 2}
+          onClick={async () => {
+            setError(null);
+            try {
+              await api.createTeam(name.trim(), steamId.trim() || undefined);
+              setName('');
+              onChanged();
+            } catch (err) {
+              setError(explain(err, 'Could not create the team.'));
+            }
+          }}
+        >
+          Create
+        </button>
       </div>
       {error ? <p className="hint bad">{error}</p> : null}
 

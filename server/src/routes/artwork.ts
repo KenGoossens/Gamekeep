@@ -14,15 +14,20 @@ export function registerArtworkRoutes(app: FastifyInstance, ctx: AppContext) {
     '/artwork/:id/:kind',
     { preHandler: guard.requireActiveUser },
     async (request, reply) => {
-      // Routed through the server whitelist like everything else, so the path
-      // can never be steered by the client.
+      /*
+       * Routed through the server whitelist like everything else, so the path
+       * can never be steered by the client. The one exception is the fixed
+       * `game-` namespace: art for a game rather than a server (tournament
+       * cards wear it), still a closed set the portal itself fetched.
+       */
       const server = registry.get(request.params.id);
+      const gameArt = /^game-[a-z0-9]{1,16}$/.test(request.params.id);
       const kind = request.params.kind as ArtworkKind;
-      if (!server || !ARTWORK_KINDS.includes(kind)) {
+      if ((!server && !gameArt) || !ARTWORK_KINDS.includes(kind)) {
         return reply.code(404).send({ error: 'not-found' });
       }
 
-      const path = await artwork.resolve(server.id, kind);
+      const path = await artwork.resolve(server?.id ?? request.params.id, kind);
       if (!path) return reply.code(404).send({ error: 'no-artwork' });
 
       return reply

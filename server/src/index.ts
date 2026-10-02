@@ -282,9 +282,17 @@ async function main() {
   }).start();
 
   // Fetched in the background: a slow or blocked Steam CDN must not hold up
-  // the portal, and a missing image only costs a lettered tile.
+  // the portal, and a missing image only costs a lettered tile. The pseudo
+  // entry fetches the game art tournament cards wear -- tournaments have no
+  // server id of their own, but their game has a poster like any other.
   void artwork
-    .ensure(registry.list(), (message) => app.log.info(message))
+    .ensure(
+      [
+        ...registry.list(),
+        { id: 'game-cs2', displayName: 'Counter-Strike 2', steamAppId: 730 } as (typeof servers)[number],
+      ],
+      (message) => app.log.info(message),
+    )
     .catch((err) => app.log.warn({ err }, 'artwork fetch failed'));
 
   // Printed to the container log, never written to disk: creating the first
