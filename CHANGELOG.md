@@ -24,8 +24,9 @@ releases.
   script (`startserver.sh` and friends) on first boot — and refuses loudly
   instead of guessing when none exists.
 - **Tournaments** are in development: teams, brackets, and a CS2 match server
-  provisioned per match with MatchZy reporting the results back. The
-  groundwork ships in 1.1.0 but nothing of it is visible yet.
+  provisioned per match with MatchZy reporting the results back. The feature
+  will ship behind a **beta** label until it has been tested and validated
+  end to end.
 
 ## 1.1.0 — 2026-10-02
 

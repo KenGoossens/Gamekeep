@@ -42,7 +42,14 @@ export type AuditAction =
   | 'server-access-changed'
   | 'match-server-created'
   | 'match-server-removed'
-  | 'server-renamed';
+  | 'server-renamed'
+  | 'tournament-created'
+  | 'tournament-changed'
+  | 'tournament-removed'
+  | 'team-created'
+  | 'team-changed'
+  | 'team-removed'
+  | 'match-overridden';
 
 
 export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';

@@ -13,6 +13,7 @@ import {
   buildMatchZyConfig,
   ensureCs2Addons,
 } from './cs2.js';
+import { advanceFrom } from './engine.js';
 import { rconConnect } from './rcon.js';
 import type { MapResult, MatchRow, TournamentStore } from './store.js';
 
@@ -373,6 +374,9 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
         const winner = winnerOf(payload.winner);
         if (!winner) return;
         store.decideMatch({ id: match.id, status: 'decided', winner });
+        // The bracket moves the moment the game says so: the winner lands in
+        // the next round, and a decided final ends the tournament.
+        advanceFrom(store, match.id);
         log(`Match ${match.id.slice(0, 8)}: series ended, winner recorded.`);
         return;
       }
