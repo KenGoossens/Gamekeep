@@ -53,6 +53,7 @@ function shell(title: string, body: string, depth: 0 | 1): string {
   <a class="brand" href="${base}index.html"><img src="${base}images/logo.png" alt="" /> GameKeepr</a>
   <nav>
     <a href="${base}wiki/welcome.html">Wiki</a>
+    <a href="${base}changelog.html">Changelog</a>
     <a href="${GITHUB}">GitHub</a>
   </nav>
 </header>
@@ -102,6 +103,16 @@ for (const page of WIKI_PAGES) {
     ),
   );
 }
+
+// ---- the changelog ---------------------------------------------------------
+// The same CHANGELOG.md that lives in the repository, rendered as a page, so
+// "what changed" has a link people can be given rather than a file to find.
+
+const changelog = renderMarkdown(readFileSync(join(root, 'CHANGELOG.md'), 'utf8'));
+writeFileSync(
+  join(docs, 'changelog.html'),
+  shell('Changelog — GameKeepr', `<main class="wiki"><article class="prose">${changelog}</article></main>`, 0),
+);
 
 // ---- the landing page ------------------------------------------------------
 
@@ -169,13 +180,10 @@ curl -LO https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/docker-comp
 curl -Lo .env https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/.env.example
 # edit .env: PUBLIC_URL, SESSION_SECRET, TZ
 docker compose up -d</code></pre>
-  <p>On Unraid, install from Community Applications instead — or, until it
-  lands there, fetch the template once from the Unraid terminal:
-  <code>curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml
-  https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml</code>
-  and pick GameKeepr under Docker → Add Container.</p>
+  <p>On Unraid it is one search away: <strong>Apps → “GameKeepr” → Install</strong> —
+  GameKeepr is in Community Applications.</p>
   <p>First boot prints a one-time setup token in the container log; open the portal and create the
-  owner account with it. On Unraid, install from Community Applications instead. The
+  owner account with it. The
   <a href="wiki/setup.html">setup guide</a> walks through the rest — including the one honest
   warning: the portal holds the Docker socket, and the
   <a href="wiki/security.html">security model</a> explains what that means and what is done

@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
@@ -62,6 +62,18 @@ import type { AppContext } from './context.js';
 const here = dirname(fileURLToPath(import.meta.url));
 // Resolves to <repo>/web/dist from both src (tsx dev) and dist (built).
 const WEB_ROOT = resolve(here, '../../web/dist');
+
+/** From package.json, so the version people report matches the changelog. */
+const VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(resolve(here, '../package.json'), 'utf8')) as {
+      version?: string;
+    };
+    return pkg.version ?? 'dev';
+  } catch {
+    return 'dev';
+  }
+})();
 
 async function main() {
   const env = loadEnv();
@@ -198,7 +210,9 @@ async function main() {
 
   app.get('/api/health', async (_request, reply) => {
     const dockerOk = await docker.ping();
-    return reply.code(dockerOk ? 200 : 503).send({ ok: dockerOk, servers: registry.list().length });
+    return reply
+      .code(dockerOk ? 200 : 503)
+      .send({ ok: dockerOk, version: VERSION, servers: registry.list().length });
   });
 
   registerAuthRoutes(app, ctx);
@@ -306,7 +320,7 @@ async function main() {
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info(
-    { servers: registry.list().map((s) => s.id), users: db.userCount() },
+    { version: VERSION, servers: registry.list().map((s) => s.id), users: db.userCount() },
     'GameKeepr ready',
   );
 }

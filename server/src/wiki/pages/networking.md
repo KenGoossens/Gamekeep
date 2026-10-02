@@ -19,6 +19,15 @@ Per server, three answers side by side:
 - **What the router says** — when a UniFi router is connected, the actual
   rules, with one-click creation of the missing ones.
 
+## Forwards happen at deploy time
+
+With a router connected and `LAN_ADDRESS` set, a **deploy opens the game's
+ports by itself** and reports each rule in the deploy log and the activity
+feed. One deliberate exception: administrative ports — RCON, web consoles —
+are never opened by anything automatic. Those keep the deliberate click here,
+with the reason shown, because forwarding a game port lets people play and
+forwarding an admin console puts it on the internet.
+
 ## The check forwarding cannot do
 
 Forwarding only acts on ports a container publishes — it is blind to a port

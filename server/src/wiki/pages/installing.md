@@ -34,18 +34,37 @@ GameKeepr writes, which lands in the server's own files where you can read it.
 
 ## What both routes share
 
+- **Joining, asked up front**: for recognised games the form opens with the
+  join settings — password, world, server name — so the server is ready for
+  friends the moment it is up. Everything can still be changed later on the
+  Settings tab, and the server's overview shows a Joining card with the
+  address, port and password for everyone who may see it.
 - **Ports**: GameKeepr's game registry knows what each recognised game needs
   and fills in anything the template or your list forgot — a Project Zomboid
   with only one of its two UDP ports looks healthy and is unjoinable, which is
   exactly the failure this prevents. The deploy log says what was added.
 - **Network**: every deployed server joins GameKeepr's own Docker network, so
   the portal can reach it by name for player counts.
+- **Forwards**: with a router connected (see *Networking and ports*), the
+  deploy opens the game's ports on it automatically and says so in the deploy
+  log. Administrative ports (RCON, web consoles) are never opened
+  automatically.
 - **Registration**: the new server appears in the portal immediately, with
   player queries, mods, backups and typed settings wherever the registry
   recognises the game.
 
-## Removing
+## Renaming and removing
 
-Removing a portal-deployed server takes it off the list (with its schedules
-and access exceptions); the container itself is left alone, so nothing is
-destroyed by an accidental click.
+Operators can **rename** a server from its card (the pencil on hover): only
+the display name changes — the container, the URLs and the artwork stay put.
+Servers listed by hand in `config/servers.json` are renamed in that file.
+
+Two ways out, with very different weight:
+
+- **Remove from the portal** (operators): takes the server off the list, with
+  its schedules and access exceptions; the container itself is left running,
+  so nothing is destroyed by an accidental click.
+- **Delete** (the owner only, the bin on the card): stops and removes the
+  container and forgets the server. The game's data directory and its backups
+  deliberately stay on disk — worlds do not die by button. Clean the disk by
+  hand when you are sure.

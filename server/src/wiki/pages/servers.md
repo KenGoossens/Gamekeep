@@ -3,7 +3,18 @@
 ![The Servers page: one full-picture card per server, running ones first](/api/wiki/images/servers.png)
 
 The Servers page shows every server you may see, running ones first. The
-search box filters by name.
+search box filters by name. Hovering a card shows its quick actions:
+operators get a pencil to **rename** the server (presentation only — nothing
+technical changes), the owner also gets a bin to **delete** it (see
+*Installing game servers* for exactly what a delete does and does not touch).
+
+## How do I get in?
+
+Open a server and its overview starts with the **Joining card**: the public
+address and port, the server's name, the world, and — when the game has one —
+the password, in the clear. That is deliberate: the password is the game's
+door key, and the people who can open this page are exactly the people it was
+set for. Hand a friend the card's contents and they are in.
 
 ## What the status means
 

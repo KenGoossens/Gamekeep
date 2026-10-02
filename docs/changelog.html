@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Changelog — GameKeepr</title>
+<meta name="description" content="GameKeepr — the self-hosted game server portal for your friends. Restart, schedule, back up and mod game servers on your own machine." />
+<link rel="icon" href="images/logo.png" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><img src="images/logo.png" alt="" /> GameKeepr</a>
+  <nav>
+    <a href="wiki/welcome.html">Wiki</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
+  </nav>
+</header>
+<main class="wiki"><article class="prose"><h1>Changelog</h1>
+<p>All notable changes to GameKeepr. The format follows <a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a>; versions follow <a href="https://semver.org" target="_blank" rel="noreferrer">semantic versioning</a>. The <code>latest</code> image on ghcr.io moves only when a version is released; <code>edge</code> tracks the main branch between releases.</p>
+<h2>Unreleased</h2>
+<ul><li><strong>Tournaments</strong> are in development: teams, brackets, and a CS2 match server</li></ul>
+<p>  provisioned per match with MatchZy reporting the results back. The   groundwork ships in 1.1.0 but nothing of it is visible yet.</p>
+<h2>1.1.0 — 2026-10-02</h2>
+<h3>Added</h3>
+<ul><li><strong>Joining, up front.</strong> Deploying a recognised game now asks for the join</li></ul>
+<p>  settings — password, world, server name — in their own section at the top of   the deploy form, instead of leaving them buried among template variables.</p>
+<ul><li><strong>A Joining card on every server's overview</strong>: address, port, server name,</li></ul>
+<p>  world and the password, visible to everyone who may see the server. A fresh   server's password used to be visible to nobody at all.</p>
+<ul><li><strong>Automatic port forwards.</strong> With a router connected, a deploy opens the</li></ul>
+<p>  game's ports by itself and says so in the deploy log. Administrative ports   (RCON, web consoles) are never opened automatically — those keep the   deliberate click on the Network tab.</p>
+<ul><li><strong>Rename from the card.</strong> Operators rename a server where they see it; the</li></ul>
+<p>  container, id and URLs stay put. Servers from <code>config/servers.json</code> are   declined with directions to the file.</p>
+<ul><li><strong>Delete from the card.</strong> Owners can delete a portal-deployed server: the</li></ul>
+<p>  container is stopped and removed, the portal forgets it — and the game's   data and backups deliberately stay on disk.</p>
+<ul><li><strong>A picture on every Steam server.</strong> Steam artwork now falls back through</li></ul>
+<p>  the store's capsule and header images, and a Steam deploy records which app   id its art belongs to (the game's, not the dedicated-server tool's). The   lettered tile is now a bug, not a fallback.</p>
+<ul><li><strong>Settings → Steam game server tokens</strong>: paste a Steam Web API key once and</li></ul>
+<p>  the portal mints and retires game server login tokens (GSLTs) itself —   groundwork for tournaments.</p>
+<h2>1.0.0 — 2026-10-01</h2>
+<p>First public release, and the version submitted to Unraid Community Applications (listed in the catalog on 2026-10-02).</p>
+<ul><li>Restarts verified against the game itself, with per-game startup times, a</li></ul>
+<p>  cooldown, and an activity feed.</p>
+<ul><li>Three roles (owner, operator, member) with per-server exceptions; sessions,</li></ul>
+<p>  audit log, Discord notifications.</p>
+<ul><li>Install game servers from Unraid Community Applications templates (reviewed</li></ul>
+<p>  before anything runs) or from ~580 dedicated servers on Steam, composed on   Valve's official steamcmd image.</p>
+<ul><li>Schedules that skip when players are online, world backups with safe</li></ul>
+<p>  restores, live logs with a console, typed per-game settings, file editor.</p>
+<ul><li>Mod installs with hash verification, archive-safety checks and optional</li></ul>
+<p>  VirusTotal/ClamAV scanning; Steam Workshop declarations.</p>
+<ul><li>Cloudflare Access guest list management, UniFi port forwarding, metrics,</li></ul>
+<p>  and a built-in wiki documenting all of it.</p>
+<ul><li>Runs on any Docker host; hardened variant through docker-socket-proxy.</li></ul>
+<p>Release tags and diffs live on <a href="https://github.com/KenGoossens/Gamekeep/releases" target="_blank" rel="noreferrer">GitHub releases</a>.</p></article></main>
+<footer>
+  <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.</p>
+</footer>
+</body>
+</html>

@@ -58,16 +58,12 @@ gets two extras — see [On Unraid](#on-unraid).
 
 ### On Unraid (recommended there)
 
-Once GameKeepr is in Community Applications: **Apps → search "GameKeepr" →
-Install**. Until then (Unraid 7 removed the old "Template Repositories"
-field), fetch the template once from the Unraid terminal:
-
-```bash
-curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml   https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml
-```
-
-Then *Docker → Add Container* → pick **GameKeepr** from the Template dropdown
-(under User templates) — every field prefills. Set `PUBLIC_URL` and a
+GameKeepr is in Community Applications: **Apps → search "GameKeepr" →
+Install** — every field prefills. (If your Apps tab has not caught up yet,
+fetch the template once from the Unraid terminal with
+`curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml
+https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml`
+and pick GameKeepr under *Docker → Add Container*.) Set `PUBLIC_URL` and a
 `SESSION_SECRET` (`openssl rand -hex 32`), start it, and read the container
 log for the one-time **setup token** — the portal asks for it to create the
 owner account.
@@ -107,6 +103,15 @@ hand-managed containers in `config/servers.json`:
   ]
 }
 ```
+
+### Versions
+
+`:latest` is the release channel — it moves only when a version is tagged, and
+[CHANGELOG.md](CHANGELOG.md) (also on
+[the website](https://kengoossens.github.io/Gamekeep/changelog.html)) says
+what each version changed. Pin `:1.1` or `:1.1.0` to stay put; run `:edge` to
+track the main branch between releases. The running version shows in
+`/api/health` and the container log's first lines.
 
 ### From source
 

@@ -14,6 +14,7 @@
   <a class="brand" href="../index.html"><img src="../images/logo.png" alt="" /> GameKeepr</a>
   <nav>
     <a href="../wiki/welcome.html">Wiki</a>
+    <a href="../changelog.html">Changelog</a>
     <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
   </nav>
 </header>
@@ -26,9 +27,7 @@ curl -LO https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/docker-comp
 curl -Lo .env https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/.env.example
 # edit .env: see below
 docker compose up -d</code></pre>
-<p>On Unraid, skip all of this: install from Community Applications once it is listed. Until then, fetch the template from the Unraid terminal —</p>
-<pre><code>curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml   https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml</code></pre>
-<p>— then Docker → Add Container → pick GameKeepr from the Template dropdown.</p>
+<p>On Unraid, skip all of this: <strong>Apps → search “GameKeepr” → Install</strong> — the portal is in Community Applications. (If your Apps tab has not caught up yet, fetching the template by hand still works: <code>curl -Lo /boot/config/plugins/dockerMan/templates-user/gamekeep.xml https://raw.githubusercontent.com/KenGoossens/Gamekeep/main/templates/gamekeep.xml</code>, then Docker → Add Container → pick GameKeepr.)</p>
 <p>The <code>.env</code> essentials:</p>
 <table><thead><tr><th>Variable</th><th>What it is</th></tr></thead><tbody><tr><td><code>PUBLIC_URL</code></td><td>The address people will use, e.g. <code>https://portal.example.org</code></td></tr><tr><td><code>SESSION_SECRET</code></td><td><code>openssl rand -hex 32</code> — also the key that encrypts stored integration secrets</td></tr><tr><td><code>TZ</code></td><td>e.g. <code>Europe/Brussels</code> — schedules run on this clock</td></tr><tr><td><code>APPDATA_ROOT</code> / <code>APPDATA_HOST_ROOT</code></td><td>where deployed game servers keep their data, as the portal and the host see it</td></tr><tr><td><code>GAME_NETWORK</code></td><td>the Docker network deployed servers join (default <code>gamekeep-servers</code>)</td></tr></tbody></table>
 <p>The one mount that makes everything work is the Docker socket — which is also the security model's centre of gravity; read <em>The security model</em> before exposing anything.</p>

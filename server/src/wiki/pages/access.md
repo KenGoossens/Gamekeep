@@ -43,6 +43,17 @@ hash — the file itself never leaves the machine) and/or a **ClamAV** daemon
 you run yourself. With neither configured, mod reports say "no scanner is
 configured" — never "clean".
 
+## Steam game server tokens
+
+Settings → Steam takes a **Steam Web API key** (steamcommunity.com/dev/apikey;
+the account must not be limited). With it, the portal mints and retires
+Steam's game server login tokens itself — the tokens some dedicated servers
+(CS2 among them) must present to register with Steam. This is groundwork for
+the tournaments feature, where every match gets its own short-lived server and
+nobody should be minting tokens by hand on a Steam web page first. The key is
+checked against Steam before it is stored, never echoed back, and encrypted at
+rest like every other integration secret.
+
 ## The router
 
 Settings → Router connects a UniFi controller with an API key, after which

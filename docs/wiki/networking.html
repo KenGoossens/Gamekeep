@@ -14,6 +14,7 @@
   <a class="brand" href="../index.html"><img src="../images/logo.png" alt="" /> GameKeepr</a>
   <nav>
     <a href="../wiki/welcome.html">Wiki</a>
+    <a href="../changelog.html">Changelog</a>
     <a href="https://github.com/KenGoossens/Gamekeep">GitHub</a>
   </nav>
 </header>
@@ -26,6 +27,8 @@
 <p>  administrative-looking ones (RCON, web consoles) flagged and never   pre-selected: forwarding a game port lets people play, forwarding an admin   console puts it on the internet.</p>
 <ul><li><strong>What the router says</strong> — when a UniFi router is connected, the actual</li></ul>
 <p>  rules, with one-click creation of the missing ones.</p>
+<h2>Forwards happen at deploy time</h2>
+<p>With a router connected and <code>LAN_ADDRESS</code> set, a <strong>deploy opens the game's ports by itself</strong> and reports each rule in the deploy log and the activity feed. One deliberate exception: administrative ports — RCON, web consoles — are never opened by anything automatic. Those keep the deliberate click here, with the reason shown, because forwarding a game port lets people play and forwarding an admin console puts it on the internet.</p>
 <h2>The check forwarding cannot do</h2>
 <p>Forwarding only acts on ports a container publishes — it is blind to a port the container never opened. GameKeepr's game registry knows what each recognised game actually needs and says outright when one is missing: <em>&quot;this container does not publish 16262/udp, which this game needs.&quot;</em> That is the failure where a server looks healthy, appears in the browser, and nobody can join. Fixing it means adding the port mapping on the container (Unraid → edit container) or redeploying — new deploys get missing required ports filled in automatically.</p>
 <h2>Which network a server joins</h2>
