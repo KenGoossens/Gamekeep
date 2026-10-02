@@ -39,7 +39,9 @@ export type AuditAction =
   | 'backup-restored'
   | 'backup-removed'
   | 'console-command'
-  | 'server-access-changed';
+  | 'server-access-changed'
+  | 'match-server-created'
+  | 'match-server-removed';
 
 
 export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';

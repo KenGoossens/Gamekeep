@@ -26,6 +26,7 @@ import { createBackupService } from './backup.js';
 import { createSteamCatalog } from './steam/catalog.js';
 import { createGsltService } from './steam/gslt.js';
 import { createTournamentStore } from './tournaments/store.js';
+import { createMatchOrchestrator } from './tournaments/orchestrator.js';
 import { createHelperRunner } from './docker/helper.js';
 import { createNotifier } from './notify.js';
 import { createWatcher } from './watch.js';
@@ -55,6 +56,7 @@ import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
 import { registerNotifyRoutes, readNotifyConfig } from './routes/notify.js';
 import { registerGsltRoutes } from './routes/gslt.js';
+import { registerTournamentRoutes } from './routes/tournaments.js';
 import type { AppContext } from './context.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -93,6 +95,15 @@ async function main() {
   const steam = createSteamCatalog();
   const gslt = createGsltService(db, env);
   const tournaments = createTournamentStore(db.raw);
+  const matches = createMatchOrchestrator({
+    store: tournaments,
+    deployer,
+    docker,
+    gslt,
+    db,
+    env,
+    log: (message) => console.log(`[GameKeepr] ${message}`),
+  });
   const scheduler = createScheduler({
     db,
     registry,
@@ -134,6 +145,7 @@ async function main() {
     steam,
     gslt,
     tournaments,
+    matches,
     health,
     sessions,
     setup,
@@ -211,6 +223,7 @@ async function main() {
   registerAccessRoutes(app, ctx);
   registerNotifyRoutes(app, ctx);
   registerGsltRoutes(app, ctx);
+  registerTournamentRoutes(app, ctx);
 
   if (existsSync(join(WEB_ROOT, 'index.html'))) {
     await app.register(fastifyStatic, { root: WEB_ROOT });
@@ -244,6 +257,7 @@ async function main() {
   sessions.startSweeper();
   metrics.start();
   scheduler.start();
+  matches.start();
   createWatcher({
     registry,
     docker,

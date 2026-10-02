@@ -50,13 +50,22 @@ export interface TournamentRow {
   finishedAt: number | null;
 }
 
+export interface TeamMember {
+  userId: string;
+  /**
+   * Steam64 id, for games whose match layer gates player slots on it (CS2's
+   * does). Null for members who have not given one yet.
+   */
+  steamId: string | null;
+}
+
 export interface TeamRow {
   id: string;
   name: string;
   captainUserId: string;
   createdAt: number;
-  /** User ids, captain included. */
-  members: string[];
+  /** Captain included. */
+  members: TeamMember[];
 }
 
 export interface EntryRow {
@@ -222,8 +231,9 @@ export function createTournamentStore(db: DatabaseSync) {
     );
 
     CREATE TABLE IF NOT EXISTS team_members (
-      team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      team_id  TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      steam_id TEXT,
       PRIMARY KEY (team_id, user_id)
     );
 
@@ -346,9 +356,14 @@ export function createTournamentStore(db: DatabaseSync) {
       `SELECT t.* FROM teams t JOIN team_members m ON m.team_id = t.id
        WHERE m.user_id = ? ORDER BY t.name COLLATE NOCASE`,
     ),
-    addMember: db.prepare('INSERT OR IGNORE INTO team_members (team_id, user_id) VALUES (?, ?)'),
+    addMember: db.prepare(
+      'INSERT OR IGNORE INTO team_members (team_id, user_id, steam_id) VALUES (?, ?, ?)',
+    ),
+    setSteamId: db.prepare(
+      'UPDATE team_members SET steam_id = ? WHERE team_id = ? AND user_id = ?',
+    ),
     removeMember: db.prepare('DELETE FROM team_members WHERE team_id = ? AND user_id = ?'),
-    listMembers: db.prepare('SELECT user_id FROM team_members WHERE team_id = ?'),
+    listMembers: db.prepare('SELECT user_id, steam_id FROM team_members WHERE team_id = ?'),
 
     insertEntry: db.prepare(
       'INSERT INTO tournament_entries (tournament_id, team_id, seed, registered_at) VALUES (?, ?, NULL, ?)',
@@ -501,10 +516,10 @@ export function createTournamentStore(db: DatabaseSync) {
       return (st.isOrganizer.get(tournamentId, userId) as { n: number }).n > 0;
     },
 
-    createTeam(name: string, captainUserId: string): TeamRow {
+    createTeam(name: string, captainUserId: string, captainSteamId: string | null = null): TeamRow {
       const id = randomUUID();
       st.insertTeam.run(id, name, captainUserId, Date.now());
-      st.addMember.run(id, captainUserId);
+      st.addMember.run(id, captainUserId, captainSteamId);
       return this.getTeam(id)!;
     },
 
@@ -518,9 +533,9 @@ export function createTournamentStore(db: DatabaseSync) {
         name: raw.name,
         captainUserId: raw.captain_user_id,
         createdAt: raw.created_at,
-        members: (st.listMembers.all(raw.id) as unknown as Array<{ user_id: string }>).map(
-          (r) => r.user_id,
-        ),
+        members: (
+          st.listMembers.all(raw.id) as unknown as Array<{ user_id: string; steam_id: string | null }>
+        ).map((r) => ({ userId: r.user_id, steamId: r.steam_id })),
       };
     },
 
@@ -542,7 +557,10 @@ export function createTournamentStore(db: DatabaseSync) {
     renameTeam: (id: string, name: string) => void st.renameTeam.run(name, id),
     setTeamCaptain: (id: string, userId: string) => void st.setCaptain.run(userId, id),
     removeTeam: (id: string) => void st.deleteTeam.run(id),
-    addTeamMember: (teamId: string, userId: string) => void st.addMember.run(teamId, userId),
+    addTeamMember: (teamId: string, userId: string, steamId: string | null = null) =>
+      void st.addMember.run(teamId, userId, steamId),
+    setMemberSteamId: (teamId: string, userId: string, steamId: string | null) =>
+      void st.setSteamId.run(steamId, teamId, userId),
     removeTeamMember: (teamId: string, userId: string) =>
       void st.removeMember.run(teamId, userId),
 
