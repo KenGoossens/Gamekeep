@@ -98,10 +98,18 @@ function sidebar(activeId: string): string {
 }
 
 for (const page of WIKI_PAGES) {
-  const markdown = readFileSync(join(pagesDir, `${page.id}.md`), 'utf8')
-    // The portal serves images behind sign-in; the public site serves them flat.
-    .replaceAll('/api/wiki/images/', '../images/');
-  const html = renderMarkdown(markdown);
+  const markdown = readFileSync(join(pagesDir, `${page.id}.md`), 'utf8');
+  /*
+   * Render first, rewrite after. The renderer's image rule deliberately only
+   * accepts the portal's own /api/wiki/images/ paths — rewriting the markdown
+   * beforehand made every image fail that rule and land on the public site as
+   * literal ![...](...) text. The portal serves images behind sign-in; the
+   * public site serves the same files flat, so only the src differs.
+   */
+  const html = renderMarkdown(markdown).replaceAll(
+    'src="/api/wiki/images/',
+    'src="../images/',
+  );
   writeFileSync(
     join(docs, 'wiki', `${page.id}.html`),
     shell(
