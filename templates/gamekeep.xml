@@ -36,8 +36,8 @@ On first start the log prints a one-time SETUP TOKEN - open the WebUI, paste it,
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>
-  <DonateText/>
-  <DonateLink/>
+  <DonateText>If GameKeepr saves your evening, a coffee is always appreciated.</DonateText>
+  <DonateLink>https://ko-fi.com/kengoossens</DonateLink>
   <Requires/>
 
   <Config Name="WebUI Port" Target="8080" Default="8088" Mode="tcp" Description="Port for the portal. Not needed if you put a reverse proxy or Cloudflare Tunnel on the same Docker network." Type="Port" Display="always" Required="true" Mask="false">8088</Config>

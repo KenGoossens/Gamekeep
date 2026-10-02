@@ -666,6 +666,11 @@ INI section the list lives in, and which key. `server/src/mods/declare.ts` does
 the rest — it searches the container for that file rather than assuming a path,
 and rewrites one line while leaving every comment and unrelated setting alone.
 
+## Support the project
+
+GameKeepr is free, and its core will stay free. If it saves your evening, a
+coffee is always appreciated: [ko-fi.com/kengoossens](https://ko-fi.com/kengoossens).
+
 ## Licence
 
 **AGPL-3.0-or-later** (from v1.2.0). Self-hosting for yourself and your

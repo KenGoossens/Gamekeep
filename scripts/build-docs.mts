@@ -67,7 +67,8 @@ function shell(title: string, body: string, depth: 0 | 1): string {
 </header>
 ${body}
 <footer>
-  <p>GameKeepr is open source. <a href="${GITHUB}">Source, issues and releases on GitHub</a>.</p>
+  <p>GameKeepr is open source. <a href="${GITHUB}">Source, issues and releases on GitHub</a>.
+  If it saves your evening: <a href="https://ko-fi.com/kengoossens" rel="noreferrer">buy Ken a coffee</a>.</p>
 </footer>
 </body>
 </html>
