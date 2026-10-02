@@ -668,4 +668,9 @@ and rewrites one line while leaving every comment and unrelated setting alone.
 
 ## Licence
 
-MIT
+**AGPL-3.0-or-later** (from v1.2.0). Self-hosting for yourself and your
+friends is completely unaffected; what the AGPL adds is that anyone offering
+GameKeepr as a service to others must publish their modifications. Versions up
+to and including v1.1.0 were released under MIT and remain MIT forever — see
+[docs/adr/0002](docs/adr/0002-agpl-for-the-core.md) for why the switch.
+Contributions are accepted under the project licence.

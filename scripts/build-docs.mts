@@ -24,7 +24,15 @@ const imagesDir = join(root, 'server/src/wiki/images');
 
 const GITHUB = 'https://github.com/KenGoossens/Gamekeep';
 
-rmSync(docs, { recursive: true, force: true });
+/*
+ * docs/ serves two masters: GitHub Pages reads the generated site from it,
+ * and docs/adr/ holds the architecture decision records, which are sources,
+ * not output. So the wipe is selective — deleting the whole directory is how
+ * ADR-0001 briefly vanished from history.
+ */
+for (const generated of ['wiki', 'images', 'index.html', 'changelog.html', 'style.css', '.nojekyll']) {
+  rmSync(join(docs, generated), { recursive: true, force: true });
+}
 mkdirSync(join(docs, 'wiki'), { recursive: true });
 // GitHub Pages must not run this through Jekyll; it is already HTML.
 writeFileSync(join(docs, '.nojekyll'), '');

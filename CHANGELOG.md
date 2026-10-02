@@ -8,6 +8,10 @@ releases.
 
 ## Unreleased
 
+- **Licence change: AGPL-3.0-or-later.** From the next release the core is
+  AGPL: still genuinely open source and free to self-host; anyone offering
+  GameKeepr as a service to others must publish their modifications. Versions
+  up to 1.1.0 were MIT and remain MIT.
 - **Start commands Steam never wrote down.** When an app's Steam info lists no
   Linux launch entry, the registry now fills in the known start script for
   recognised games (7 Days to Die, Project Zomboid), and for everything else
