@@ -7,7 +7,7 @@ import { connectSettings, gameByQueryType, missingPorts, type GamePort } from '.
 import { buildProvider, listProviders } from '../router/provider.js';
 import { loadRouter as loadStoredRouter, ROUTER_SETTING_KEY } from '../router/stored.js';
 import { createPublicAddressLookup } from '../network/publicip.js';
-import '../router/unifi-provider.js';
+import '../router/all-providers.js';
 
 export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, docker, db, env, guard, gameQuery } = ctx;
@@ -240,11 +240,12 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
       // together instead of as two things to piece together.
       const publicAddress = await publicIp.get();
 
-      const publicCheck = await reachability(server, publicAddress.ip ?? null);
-
       if (!current) {
         // Still useful without a router: these are the rules to make by hand,
         // and the reachability test says whether someone already made them.
+        // With a router connected the probe is skipped on purpose — the rules
+        // listing is the authoritative answer there, and the probe costs
+        // seconds plus the occasional NAT-hairpin false alarm.
         return reply.send({
           configured: false,
           target: to,
@@ -253,7 +254,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
           rules: [],
           missing: needed,
           unpublished,
-          publicCheck,
+          publicCheck: await reachability(server, publicAddress.ip ?? null),
         });
       }
 
@@ -269,7 +270,6 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
           rules: mine,
           missing,
           unpublished,
-          publicCheck,
         });
       } catch (err) {
         const f = failure(err);

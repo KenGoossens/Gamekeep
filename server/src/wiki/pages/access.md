@@ -56,8 +56,27 @@ rest like every other integration secret.
 
 ## The router
 
-Settings → Router connects a UniFi controller with an API key, after which
-the per-server Network tab can create port forwards instead of only listing
-what is missing. The controller's TLS certificate is pinned on first contact.
+Settings → Router connects your router, after which the per-server Network
+tab can create port forwards instead of only listing what is missing — and
+deploys open their game ports automatically. Pick the vendor from the
+dropdown:
+
+- **UniFi** (Dream Machine, Cloud Key, controller) — API key; the TLS
+  certificate is pinned on first contact. The battle-tested one.
+- **Fritz!Box** — TR-064 with a Fritz!Box user and password; switch on
+  "Allow access for applications" in the Fritz!Box home network settings.
+- **MikroTik** (RouterOS 7) — REST API with user and password; certificate
+  pinned on first contact like UniFi.
+- **UPnP** — most consumer routers (TP-Link, Netgear, ASUS, many ISP boxes)
+  with UPnP enabled; just the router's address, no login.
+
+Honesty note: UniFi runs in production; the other three are written to their
+vendors' published APIs and await real-hardware confirmation — a connect
+always performs a real test call, so a problem shows up when you connect,
+never silently later. Reports welcome on the forum thread.
+
+Without any router connected, the Network tab still proves reachability by
+asking the game itself through the public address, and says which ports to
+forward by hand.
 
 All stored integration secrets are encrypted at rest with `SESSION_SECRET`.

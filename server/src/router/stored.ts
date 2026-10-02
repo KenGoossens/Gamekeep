@@ -4,9 +4,9 @@ import type { DockerClient } from '../docker/client.js';
 import { decryptSecret } from '../secrets.js';
 import { coveredBy, requiredForwards } from '../unifi.js';
 import { buildProvider, type RouterProvider } from './provider.js';
-// Registers the UniFi provider, so loading a stored connection never depends
-// on which route file happened to be imported first.
-import './unifi-provider.js';
+// Registers every provider, so loading a stored connection never depends on
+// which route file happened to be imported first.
+import './all-providers.js';
 
 /** Where the router connection lives in app_settings. */
 export const ROUTER_SETTING_KEY = 'router';

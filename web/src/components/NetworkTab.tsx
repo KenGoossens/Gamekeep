@@ -94,10 +94,8 @@ export function NetworkTab({ serverId, isOwner }: { serverId: string; isOwner: b
       ) : publicCheck?.state === 'unreachable' ? (
         <div className="hint bad">
           <p>
-            {publicCheck.detail}{' '}
-            {configured
-              ? 'Check the rules below — a missing one can be created with one click.'
-              : 'No router is connected, so the ports below must be forwarded manually on your router for friends to join.'}
+            {publicCheck.detail} No router is connected, so the ports below must be forwarded
+            manually on your router for friends to join.
           </p>
           <p>
             One caveat: some routers cannot loop traffic back to their own public address

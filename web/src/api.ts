@@ -658,8 +658,9 @@ export interface PortForwardState {
     known: boolean;
     missing: Array<{ port: number; protocol: 'tcp' | 'udp'; purpose: string; required: boolean }>;
   };
-  /** The game asked through the public address: the end-to-end proof. */
-  publicCheck: { state: 'reachable' | 'unreachable' | 'untested'; detail: string };
+  /** The game asked through the public address — only when no router is
+   * connected; with one, the rules listing is the authoritative answer. */
+  publicCheck?: { state: 'reachable' | 'unreachable' | 'untested'; detail: string };
 }
 
 export interface UnifiStatus {

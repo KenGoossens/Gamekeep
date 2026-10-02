@@ -8,6 +8,13 @@ releases.
 
 ## Unreleased
 
+- **Three more router vendors.** Settings → Router now also offers
+  **Fritz!Box** (TR-064), **MikroTik** (RouterOS 7 REST, certificate pinned on
+  first contact) and generic **UPnP** for most consumer routers, next to
+  UniFi. Written to the vendors' published APIs and awaiting real-hardware
+  confirmation — the connect test is a real call, so problems surface at
+  connect time. The public reachability probe now runs only when no router is
+  connected; with one, the rules listing is the authoritative answer.
 - **Forwarding verified without a router.** The Network tab now asks the game
   itself through the public address — an answer proves container port, forward
   and router in one go, with no router integration needed. When nothing
