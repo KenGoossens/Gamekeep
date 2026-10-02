@@ -185,6 +185,14 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
         id: serverId,
         displayName: name,
         container: plan.containerName,
+        /*
+         * For the artwork. A dedicated-server app is usually a tool with a
+         * grey placeholder for art (Soulmask's server is app 3017300; the
+         * game is 2646460), so a recognised game's own id wins. The deploy's
+         * id is the fallback that keeps an unrecognised server off the
+         * lettered tile: every Steam app has at least a header image.
+         */
+        steamAppId: game?.steamAppId ?? appId,
         cooldownSeconds: 300,
         query:
           game && ports.length > 0

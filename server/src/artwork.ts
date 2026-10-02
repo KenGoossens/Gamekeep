@@ -5,11 +5,17 @@ import { gameByQueryType } from './games.js';
 
 export type ArtworkKind = 'poster' | 'hero' | 'logo' | 'icon';
 
-/** Steam art, for anything with an app id. */
-const STEAM_FILES: Record<'poster' | 'hero' | 'logo', string> = {
-  poster: 'library_600x900.jpg',
-  hero: 'library_hero.jpg',
-  logo: 'logo.png',
+/**
+ * Steam art, for anything with an app id. The poster is a chain, not one
+ * file: smaller titles never got library assets (Soulmask sat on a lettered
+ * tile for exactly this), but header.jpg exists for essentially every app on
+ * the store, so walking the chain is what makes "a card always has a picture"
+ * a guarantee instead of a hope.
+ */
+const STEAM_FILES: Record<'poster' | 'hero' | 'logo', string[]> = {
+  poster: ['library_600x900.jpg', 'capsule_616x368.jpg', 'header.jpg'],
+  hero: ['library_hero.jpg', 'capsule_616x368.jpg', 'header.jpg'],
+  logo: ['logo.png'],
 };
 
 export const ARTWORK_KINDS: ArtworkKind[] = ['poster', 'hero', 'logo', 'icon'];
@@ -104,12 +110,15 @@ export function createArtworkStore(databasePath: string) {
     for (const kind of ['poster', 'hero', 'logo'] as const) {
       if (await resolve(server.id, kind)) continue;
       const file = join(root, server.id, `${kind}.${kind === 'logo' ? 'png' : 'jpg'}`);
-      const url = `https://cdn.cloudflare.steamstatic.com/steam/apps/${steamIdOf(server)}/${STEAM_FILES[kind]}`;
-      log(
-        (await download(url, file))
-          ? `artwork: fetched ${server.id}/${kind}`
-          : `artwork: no ${kind} for ${server.id}`,
-      );
+      let got: string | null = null;
+      for (const candidate of STEAM_FILES[kind]) {
+        const url = `https://cdn.cloudflare.steamstatic.com/steam/apps/${steamIdOf(server)}/${candidate}`;
+        if (await download(url, file)) {
+          got = candidate;
+          break;
+        }
+      }
+      log(got ? `artwork: fetched ${server.id}/${kind} (${got})` : `artwork: no ${kind} for ${server.id}`);
     }
   }
 

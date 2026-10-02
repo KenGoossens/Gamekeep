@@ -717,6 +717,13 @@ export const api = {
 
   connectInfo: (id: string) =>
     request<ConnectInfo>(`/api/servers/${encodeURIComponent(id)}/connect`),
+  renameServer: (id: string, name: string) =>
+    request<{ displayName: string }>(`/api/servers/${encodeURIComponent(id)}/name`, {
+      ...json({ name }),
+      method: 'PUT',
+    }),
+  deleteServer: (id: string) =>
+    request<{ ok: true }>(`/api/servers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   portForwards: (id: string) =>
     request<PortForwardState>(`/api/servers/${encodeURIComponent(id)}/portforward`),
   openPortForwards: (id: string, ports: string[]) =>

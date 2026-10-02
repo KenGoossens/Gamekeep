@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
+import { originOf } from '../auth/origin.js';
 import type { ServerConfig } from '../config.js';
 import type { Job } from '../docker/actions.js';
 
@@ -103,6 +104,116 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
         }));
 
       return reply.send({ server: { ...(await describe(server)), yourAccess: access }, history });
+    },
+  );
+
+  /*
+   * Renames what people see. The container, the id, the artwork and the URLs
+   * all stay: a display name is presentation, and tying it to identity is how
+   * "SoulmaskFor-Linux" ends up carved on a card forever. Only servers the
+   * portal deployed can be renamed here -- the config file is the operator's
+   * own text, and this portal does not edit it.
+   */
+  app.put<{ Params: { id: string }; Body: { name?: string } }>(
+    '/api/servers/:id/name',
+    { preHandler: guard.requireServerOperator },
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const name = String(request.body?.name ?? '')
+        .replace(/[\r\n]/g, ' ')
+        .trim();
+      if (name.length < 2 || name.length > 48) {
+        return reply
+          .code(400)
+          .send({ error: 'bad-name', message: 'Give it a name of 2 to 48 characters.' });
+      }
+
+      const managed = ctx.db.listManagedServers().find((m) => m.id === server.id);
+      if (!managed) {
+        return reply.code(409).send({
+          error: 'config-managed',
+          message: 'This server comes from config/servers.json — rename it there.',
+        });
+      }
+
+      const previous = server.displayName;
+      ctx.db.updateManagedServer(server.id, {
+        ...(managed.definition as Record<string, unknown>),
+        displayName: name,
+      });
+      registry.reload();
+
+      ctx.db.audit({
+        userId: user.id,
+        username: user.username,
+        serverId: server.id,
+        action: 'server-renamed',
+        result: 'success',
+        detail: `"${previous}" is now "${name}"`,
+        ...originOf(request),
+      });
+      return reply.send({ displayName: name });
+    },
+  );
+
+  /*
+   * Really deletes a server: the container is stopped and removed, the portal
+   * forgets it. Owner only -- this is the one server action that cannot be
+   * walked back with a start button. What is deliberately NOT touched: the
+   * game's data directory and any backups. Worlds do not die by button; the
+   * disk is cleaned by hand, by someone looking at what they are deleting.
+   */
+  app.delete<{ Params: { id: string } }>(
+    '/api/servers/:id',
+    { preHandler: guard.requireOwner },
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const managed = ctx.db.listManagedServers().some((m) => m.id === server.id);
+      if (!managed) {
+        return reply.code(409).send({
+          error: 'config-managed',
+          message:
+            'This server comes from config/servers.json. Remove it there; the portal will not touch servers it did not deploy.',
+        });
+      }
+
+      try {
+        const container = docker.docker.getContainer(server.container);
+        await container.stop({ t: 20 }).catch((err) => {
+          if ((err as { statusCode?: number }).statusCode !== 304) throw err;
+        });
+        await container.remove({ force: true });
+      } catch (err) {
+        if ((err as { statusCode?: number }).statusCode !== 404) {
+          // A container that will not die stays listed, so nothing is half-gone.
+          return reply
+            .code(502)
+            .send({ error: 'remove-failed', message: (err as Error).message });
+        }
+      }
+
+      ctx.db.removeManagedServer(server.id);
+      ctx.db.removeSchedulesFor(server.id);
+      ctx.db.clearServerRoleOverrides(server.id);
+      registry.reload();
+      docker.invalidate(server);
+
+      ctx.db.audit({
+        userId: user.id,
+        username: user.username,
+        serverId: server.id,
+        action: 'server-removed',
+        result: 'success',
+        detail: `Deleted ${server.displayName}: container stopped and removed; game data and backups left on disk`,
+        ...originOf(request),
+      });
+      return reply.send({ ok: true });
     },
   );
 }

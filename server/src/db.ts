@@ -41,7 +41,8 @@ export type AuditAction =
   | 'console-command'
   | 'server-access-changed'
   | 'match-server-created'
-  | 'match-server-removed';
+  | 'match-server-removed'
+  | 'server-renamed';
 
 
 export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';
@@ -569,6 +570,7 @@ export function openDatabase(path: string) {
     insertManaged: db.prepare(
       'INSERT INTO managed_servers (id, definition, created_at, created_by) VALUES (?, ?, ?, ?)',
     ),
+    updateManaged: db.prepare('UPDATE managed_servers SET definition = ? WHERE id = ?'),
     deleteManaged: db.prepare('DELETE FROM managed_servers WHERE id = ?'),
 
     listMods: db.prepare(
@@ -739,6 +741,11 @@ export function openDatabase(path: string) {
 
     addManagedServer(id: string, definition: unknown, createdBy: string | null) {
       st.insertManaged.run(id, JSON.stringify(definition), Date.now(), createdBy);
+    },
+
+    /** Replaces a deployed server's definition; the id never changes. */
+    updateManagedServer(id: string, definition: unknown) {
+      st.updateManaged.run(JSON.stringify(definition), id);
     },
 
     removeManagedServer(id: string) {

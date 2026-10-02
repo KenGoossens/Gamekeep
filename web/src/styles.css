@@ -214,7 +214,27 @@ body::after {
   font-size: 0.8rem;
   color: var(--muted);
 }
-.tile-top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; }
+.tile-top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+
+/* Card actions: present but quiet, loud on intent. Always visible on touch
+   screens, where hover does not exist. */
+.tile-actions { display: inline-flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
+.tile:hover .tile-actions, .tile:focus-within .tile-actions { opacity: 1; }
+@media (hover: none) { .tile-actions { opacity: 1; } }
+.tile-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 7px;
+  background: rgba(10, 14, 24, 0.72);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+}
+.tile-action:hover { background: rgba(30, 38, 58, 0.95); color: #fff; }
+.tile-action.danger:hover { background: rgba(120, 30, 40, 0.95); }
 
 /* ---- status pill ---- */
 .pill {
