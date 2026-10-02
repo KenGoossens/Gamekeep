@@ -4,6 +4,7 @@ import { originOf } from '../auth/origin.js';
 import { canOperate, type SessionUser } from '../db.js';
 import { slugify } from '../deploy.js';
 import { BracketError, generateBracket, overrideResult, scheduleRound } from '../tournaments/engine.js';
+import { buildPublicData, renderFragment, renderPublicPage } from '../tournaments/publicPage.js';
 import type { BestOf, TournamentRow } from '../tournaments/store.js';
 
 /**
@@ -604,6 +605,41 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       action: 'team-removed', result: 'success', detail: team.name, ...originOf(request),
     });
     return reply.send({ ok: true });
+  });
+
+  // ---- the public tournament page (no auth at all) -------------------------
+
+  /*
+   * The shareable link: /t/<slug>. Read-only by construction — the renderer
+   * is handed a PublicTournament that simply does not contain ids, connect
+   * info or override details, so there is nothing here to leak. Drafts stay
+   * invisible: a tournament becomes public the moment registration opens.
+   */
+  function publicTournament(slug: string): TournamentRow | null {
+    if (!/^[a-z0-9-]{1,40}$/.test(slug)) return null;
+    const tournament = tournaments.getTournamentBySlug(slug);
+    return tournament && tournament.status !== 'draft' ? tournament : null;
+  }
+
+  app.get<{ Params: { slug: string } }>('/t/:slug', async (request, reply) => {
+    const tournament = publicTournament(request.params.slug);
+    if (!tournament) {
+      return reply
+        .code(404)
+        .type('text/html')
+        .send('<!doctype html><title>Not found</title><p style="font-family:system-ui">No such tournament.</p>');
+    }
+    return reply
+      .type('text/html')
+      .send(renderPublicPage(tournament.slug, buildPublicData(tournaments, db, tournament)));
+  });
+
+  app.get<{ Params: { slug: string } }>('/t/:slug/fragment', async (request, reply) => {
+    const tournament = publicTournament(request.params.slug);
+    if (!tournament) return reply.code(404).send({ error: 'unknown-tournament' });
+    return reply
+      .type('text/html')
+      .send(renderFragment(buildPublicData(tournaments, db, tournament)));
   });
 
   // ---- the match server's own endpoints (token-authenticated) -------------

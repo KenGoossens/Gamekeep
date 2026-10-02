@@ -84,6 +84,15 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
           <p>
             {tournament.teamSize}v{tournament.teamSize} · BO{tournament.bestOf} · map pool:{' '}
             {tournament.mapPool.join(', ')} · {tournament.status}
+            {tournament.status !== 'draft' ? (
+              <>
+                {' · '}
+                {/* The shareable, no-login view — hand this to spectators. */}
+                <a href={`/t/${encodeURIComponent(tournament.slug)}`} target="_blank" rel="noreferrer">
+                  public page ↗
+                </a>
+              </>
+            ) : null}
           </p>
         </div>
         {yourOrganizer ? (
