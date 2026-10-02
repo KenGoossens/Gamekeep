@@ -212,6 +212,68 @@ export interface NotifySettings {
   available: Array<{ kind: string; label: string }>;
 }
 
+export interface TeamMemberInfo {
+  userId: string;
+  steamId: string | null;
+}
+
+export interface TeamInfo {
+  id: string;
+  name: string;
+  captainUserId: string;
+  createdAt: number;
+  members: TeamMemberInfo[];
+}
+
+export interface TournamentSummary {
+  id: string;
+  slug: string;
+  name: string;
+  game: string;
+  format: string;
+  teamSize: number;
+  maxTeams: number;
+  bestOf: 1 | 3 | 5;
+  mapPool: string[];
+  status: 'draft' | 'registration' | 'running' | 'finished';
+  publicRosters: boolean;
+  createdAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+  entryCount: number;
+  organizers: string[];
+  beta: true;
+}
+
+export interface TournamentMatch {
+  id: string;
+  round: number;
+  slot: number;
+  teamA: string | null;
+  teamB: string | null;
+  scheduledAt: number | null;
+  bestOf: number;
+  status: 'pending' | 'provisioning' | 'ready' | 'live' | 'decided' | 'forfeit';
+  maps: Array<{ map: string; scoreA: number; scoreB: number }>;
+  winner: string | null;
+  forfeitTeam: string | null;
+  overrideBy: string | null;
+}
+
+export interface TournamentEntry {
+  teamId: string;
+  seed: number | null;
+  registeredAt: number;
+  team: { name: string; captainUserId: string; members: TeamMemberInfo[] } | null;
+}
+
+export interface TournamentDetail {
+  tournament: TournamentSummary;
+  yourOrganizer: boolean;
+  entries: TournamentEntry[];
+  matches: TournamentMatch[];
+}
+
 export interface SteamGsltStatus {
   configured: boolean;
   ok: boolean | null;
@@ -763,6 +825,76 @@ export const api = {
     }),
   disableNotifications: () =>
     request<{ configured: false }>('/api/integrations/notifications', { method: 'DELETE' }),
+
+  tournaments: () => request<{ beta: true; tournaments: TournamentSummary[] }>('/api/tournaments'),
+  createTournament: (body: {
+    name: string;
+    teamSize: number;
+    maxTeams: number;
+    bestOf: number;
+    mapPool: string[];
+    publicRosters: boolean;
+  }) => request<{ tournament: TournamentSummary }>('/api/tournaments', { ...json(body), method: 'POST' }),
+  tournament: (id: string) => request<TournamentDetail>(`/api/tournaments/${encodeURIComponent(id)}`),
+  deleteTournament: (id: string) =>
+    request<{ ok: true }>(`/api/tournaments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  openTournament: (id: string) =>
+    request<{ status: string }>(`/api/tournaments/${encodeURIComponent(id)}/open`, { method: 'POST' }),
+  startTournament: (id: string) =>
+    request<{ status: string; matches: number }>(`/api/tournaments/${encodeURIComponent(id)}/start`, {
+      method: 'POST',
+    }),
+  registerTeam: (id: string, teamId: string) =>
+    request<{ ok: true; warning: string | null }>(`/api/tournaments/${encodeURIComponent(id)}/register`, {
+      ...json({ teamId }),
+      method: 'POST',
+    }),
+  withdrawTeam: (id: string, teamId: string) =>
+    request<{ ok: true }>(
+      `/api/tournaments/${encodeURIComponent(id)}/register/${encodeURIComponent(teamId)}`,
+      { method: 'DELETE' },
+    ),
+  setSeeds: (id: string, order: string[]) =>
+    request<{ ok: true }>(`/api/tournaments/${encodeURIComponent(id)}/seeds`, {
+      ...json({ order }),
+      method: 'PUT',
+    }),
+  scheduleTournamentRound: (id: string, round: number, at: number | null) =>
+    request<{ changed: number }>(
+      `/api/tournaments/${encodeURIComponent(id)}/rounds/${round}/schedule`,
+      { ...json({ at }), method: 'PUT' },
+    ),
+  overrideMatch: (matchId: string, body: { winner: string; forfeit?: boolean; reason: string }) =>
+    request<{ match: TournamentMatch }>(
+      `/api/tournaments/matches/${encodeURIComponent(matchId)}/override`,
+      { ...json(body), method: 'POST' },
+    ),
+  matchConnect: (matchId: string) =>
+    request<{ host: string; port: number; password: string; connect: string }>(
+      `/api/tournaments/matches/${encodeURIComponent(matchId)}/connect`,
+    ),
+
+  teams: () => request<{ teams: TeamInfo[] }>('/api/teams'),
+  teamPeople: () => request<{ people: Array<{ id: string; username: string }> }>('/api/teams/people'),
+  createTeam: (name: string, steamId?: string) =>
+    request<{ team: TeamInfo }>('/api/teams', { ...json({ name, steamId }), method: 'POST' }),
+  addTeamMember: (teamId: string, userId: string, steamId?: string) =>
+    request<{ team: TeamInfo }>(`/api/teams/${encodeURIComponent(teamId)}/members`, {
+      ...json({ userId, steamId }),
+      method: 'POST',
+    }),
+  setTeamMemberSteamId: (teamId: string, userId: string, steamId: string) =>
+    request<{ team: TeamInfo }>(
+      `/api/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`,
+      { ...json({ steamId }), method: 'PUT' },
+    ),
+  removeTeamMember: (teamId: string, userId: string) =>
+    request<{ team: TeamInfo }>(
+      `/api/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`,
+      { method: 'DELETE' },
+    ),
+  deleteTeam: (teamId: string) =>
+    request<{ ok: true }>(`/api/teams/${encodeURIComponent(teamId)}`, { method: 'DELETE' }),
 
   steamTokens: () => request<SteamGsltStatus>('/api/integrations/steam'),
   saveSteamKey: (apiKey: string) =>

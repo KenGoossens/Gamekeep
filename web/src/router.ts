@@ -24,9 +24,20 @@ export function navigate(to: string) {
 }
 
 export interface Route {
-  page: 'dashboard' | 'servers' | 'server' | 'activity' | 'users' | 'catalog' | 'settings' | 'wiki';
+  page:
+    | 'dashboard'
+    | 'servers'
+    | 'server'
+    | 'activity'
+    | 'users'
+    | 'catalog'
+    | 'settings'
+    | 'wiki'
+    | 'tournaments'
+    | 'tournament';
   serverId?: string;
   wikiPage?: string;
+  tournamentId?: string;
 }
 
 export function parseRoute(path: string): Route {
@@ -37,6 +48,10 @@ export function parseRoute(path: string): Route {
   if (parts[0] === 'catalog') return { page: 'catalog' };
   if (parts[0] === 'settings') return { page: 'settings' };
   if (parts[0] === 'wiki') return { page: 'wiki', wikiPage: parts[1] ? decodeURIComponent(parts[1]) : undefined };
+  if (parts[0] === 'tournaments' && parts[1]) {
+    return { page: 'tournament', tournamentId: decodeURIComponent(parts[1]) };
+  }
+  if (parts[0] === 'tournaments') return { page: 'tournaments' };
   if (parts[0] === 'servers' && parts[1]) {
     return { page: 'server', serverId: decodeURIComponent(parts[1]) };
   }

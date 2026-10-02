@@ -216,6 +216,59 @@ body::after {
 }
 .tile-top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
 
+/* ---- tournaments (beta) ---- */
+.beta-tag {
+  font-size: 0.58em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #e8b44c;
+  margin-left: 4px;
+}
+/* A list tile without poster art: same card, calmer face. */
+.tile.flat { min-height: 110px; background: var(--surface, rgba(22, 28, 46, 0.8)); }
+.tile.flat .tile-body { position: static; padding: 16px; }
+
+.teamcard {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+.steamid { width: 180px; font-size: 0.8rem; }
+.rowtools { display: inline-flex; gap: 6px; align-items: center; }
+.fieldrow { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.fieldrow .field { flex: 1 1 160px; }
+
+.bracket { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 6px; }
+.bracket-round { min-width: 240px; display: flex; flex-direction: column; gap: 10px; }
+.bracket-round > .subhead { margin: 0; }
+.roundtime { font-size: 0.8rem; }
+.bracket-match {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(10, 14, 24, 0.45);
+}
+.bracket-match.yours { border-color: #e8b44c88; }
+.bracket-team {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 2px;
+  color: var(--muted, #aab);
+}
+.bracket-team.winner { color: #fff; font-weight: 650; }
+.bracket-team .score { font-variant-numeric: tabular-nums; }
+.bracket-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--faint, #778);
+}
+
 /* Card actions: present but quiet, loud on intent. Always visible on touch
    screens, where hover does not exist. */
 .tile-actions { display: inline-flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }

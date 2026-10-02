@@ -464,6 +464,51 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
     return reply.send({ teams: tournaments.listTeams() });
   });
 
+  /**
+   * Who can be put on a roster: id and username, nothing else. The full user
+   * list stays owner-only; a captain picking teammates needs names, not
+   * roles, addresses or login history.
+   */
+  app.get('/api/teams/people', member, async (_request, reply) => {
+    return reply.send({
+      people: db
+        .listUsers()
+        .filter((u) => !u.disabled)
+        .map((u) => ({ id: u.id, username: u.username })),
+    });
+  });
+
+  /**
+   * How the two teams get in. Participants and organizers only, and only
+   * while a server exists: the password is minted per match and dies with it.
+   */
+  app.get<{ Params: { matchId: string } }>(
+    '/api/tournaments/matches/:matchId/connect',
+    member,
+    async (request, reply) => {
+      const user = request.user!;
+      const match = tournaments.getMatch(request.params.matchId);
+      if (!match) return reply.code(404).send({ error: 'unknown-match' });
+
+      const playsIn = [match.teamA, match.teamB]
+        .filter((id): id is string => id !== null)
+        .map((id) => tournaments.getTeam(id))
+        .some((team) => team?.members.some((m) => m.userId === user.id));
+      if (!playsIn && !organizes(user, match.tournamentId)) {
+        return reply.code(403).send({ error: 'not-your-match' });
+      }
+      if (!match.serverContainer || (match.status !== 'ready' && match.status !== 'live')) {
+        return reply.code(409).send({ error: 'not-ready', status: match.status });
+      }
+      return reply.send({
+        host: match.connectHost,
+        port: match.connectPort,
+        password: match.connectPassword,
+        connect: `connect ${match.connectHost}:${match.connectPort}; password ${match.connectPassword}`,
+      });
+    },
+  );
+
   app.post<{ Body: { name?: string; steamId?: string } }>('/api/teams', member, async (request, reply) => {
     const user = request.user!;
     const name = String(request.body?.name ?? '').replace(/[\r\n]/g, ' ').trim();

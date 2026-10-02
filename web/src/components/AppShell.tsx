@@ -15,6 +15,8 @@ export function AppShell({ me, current, onSignedOut, children }: Props) {
   const tabs = [
     { href: '/', label: 'Dashboard', key: 'dashboard' },
     { href: '/servers', label: 'Servers', key: 'servers' },
+    // Beta until it has been tested and validated end to end; the tag says so.
+    { href: '/tournaments', label: 'Tournaments', key: 'tournaments', beta: true },
     { href: '/activity', label: 'Activity', key: 'activity' },
     ...(canOperate(me.role) ? [{ href: '/catalog', label: 'Add server', key: 'catalog' }] : []),
     ...(me.role === 'owner'
@@ -42,12 +44,15 @@ export function AppShell({ me, current, onSignedOut, children }: Props) {
               {...linkProps(tab.href)}
               // The detail page belongs to the Servers tab.
               aria-current={
-                tab.key === current || (tab.key === 'servers' && current === 'server')
+                tab.key === current ||
+                (tab.key === 'servers' && current === 'server') ||
+                (tab.key === 'tournaments' && current === 'tournament')
                   ? 'page'
                   : undefined
               }
             >
               {tab.label}
+              {'beta' in tab && tab.beta ? <sup className="beta-tag">beta</sup> : null}
             </a>
           ))}
         </div>

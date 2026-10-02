@@ -13,6 +13,8 @@ import { UsersPage } from './pages/UsersPage.tsx';
 import { CatalogPage } from './pages/CatalogPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { WikiPage } from './pages/WikiPage.tsx';
+import { TournamentsPage } from './pages/TournamentsPage.tsx';
+import { TournamentDetailPage } from './pages/TournamentDetailPage.tsx';
 
 const POLL_IDLE_MS = 5000;
 const POLL_BUSY_MS = 2000;
@@ -119,6 +121,10 @@ export function App() {
       {route.page === 'catalog' && canOperate(me.role) ? <CatalogPage /> : null}
       {route.page === 'settings' && me.role === 'owner' ? <SettingsPage /> : null}
       {route.page === 'wiki' ? <WikiPage pageId={route.wikiPage} /> : null}
+      {route.page === 'tournaments' ? <TournamentsPage me={me} /> : null}
+      {route.page === 'tournament' && route.tournamentId ? (
+        <TournamentDetailPage id={route.tournamentId} me={me} />
+      ) : null}
     </AppShell>
   );
 }
