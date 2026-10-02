@@ -125,6 +125,18 @@ export interface SettingSpec {
   min?: number;
   max?: number;
   options?: string[];
+  /**
+   * Marks the settings a player needs to join: the server's name, its world,
+   * its password. Tagged semantically rather than by key, because every image
+   * spells them differently (SERVER_PASS, SERVER_PASSWORD, ...). These are
+   * offered at deploy time and shown as the server's connect info afterwards.
+   */
+  connect?: 'name' | 'world' | 'password';
+}
+
+/** The connect-tagged specs for one game, if it is known at all. */
+export function connectSettings(game: GameProfile | null): SettingSpec[] {
+  return (game?.settings ?? []).filter((spec) => spec.connect);
 }
 
 /**
@@ -245,17 +257,19 @@ export const GAMES: GameProfile[] = [
     ],
     saves: ['worlds_local'],
     settings: [
-      { key: 'SERVER_NAME', label: 'Server name', type: 'text' },
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
       {
         key: 'WORLD_NAME',
         label: 'World',
         type: 'text',
+        connect: 'world',
         help: 'A different name starts a brand-new world. The old one stays on disk.',
       },
       {
         key: 'SERVER_PASS',
         label: 'Password',
         type: 'text',
+        connect: 'password',
         help: 'Five characters minimum, or the server refuses to boot.',
       },
       { key: 'SERVER_PUBLIC', label: 'Listed in the public server browser', type: 'boolean' },
@@ -296,7 +310,7 @@ export const GAMES: GameProfile[] = [
     ],
     saves: ['worlds'],
     settings: [
-      { key: 'SERVER_NAME', label: 'Server name', type: 'text' },
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
       {
         key: 'GAMEMODE',
         label: 'Game mode',
@@ -315,6 +329,7 @@ export const GAMES: GameProfile[] = [
         key: 'LEVEL_NAME',
         label: 'World',
         type: 'text',
+        connect: 'world',
         help: 'A different name starts a brand-new world. The old one stays on disk.',
       },
     ],
@@ -423,8 +438,8 @@ export const GAMES: GameProfile[] = [
     ],
     saves: ['savegame'],
     settings: [
-      { key: 'SERVER_NAME', label: 'Server name', type: 'text' },
-      { key: 'SERVER_PASSWORD', label: 'Password', type: 'text' },
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
+      { key: 'SERVER_PASSWORD', label: 'Password', type: 'text', connect: 'password' },
       { key: 'SERVER_SLOT_COUNT', label: 'Player limit', type: 'number', min: 1, max: 16 },
     ],
     match: [/enshrouded/i],
@@ -445,9 +460,9 @@ export const GAMES: GameProfile[] = [
     ],
     saves: ['Pal/Saved'],
     settings: [
-      { key: 'SERVER_NAME', label: 'Server name', type: 'text' },
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
       { key: 'PLAYERS', label: 'Player limit', type: 'number', min: 1, max: 32 },
-      { key: 'SERVER_PASSWORD', label: 'Password', type: 'text' },
+      { key: 'SERVER_PASSWORD', label: 'Password', type: 'text', connect: 'password' },
       { key: 'COMMUNITY', label: 'Listed in the community server browser', type: 'boolean' },
     ],
     match: [/palworld/i],

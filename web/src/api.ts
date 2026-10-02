@@ -111,6 +111,15 @@ export interface TemplateField {
   description: string;
 }
 
+export interface GameConnectSetting {
+  key: string;
+  label: string;
+  help?: string;
+  type: 'text' | 'number' | 'boolean' | 'select';
+  options?: string[];
+  connect: 'name' | 'world' | 'password';
+}
+
 export interface CatalogTemplate {
   app: CatalogApp;
   template: {
@@ -121,7 +130,19 @@ export interface CatalogTemplate {
     icon: string | null;
     fields: TemplateField[];
   };
+  /** Password, world and server name for a recognised game, asked up front. */
+  gameSettings: GameConnectSetting[];
   suggestedName: string;
+}
+
+export interface ConnectInfo {
+  publicAddress: { ip: string | null; source?: string; error?: string };
+  lanAddress: string | null;
+  port: number | null;
+  game: string | null;
+  name: string | null;
+  world: string | null;
+  password: string | null;
 }
 
 export interface MetricPoint {
@@ -694,6 +715,8 @@ export const api = {
       { ...json({ path, content }), method: 'PUT' },
     ),
 
+  connectInfo: (id: string) =>
+    request<ConnectInfo>(`/api/servers/${encodeURIComponent(id)}/connect`),
   portForwards: (id: string) =>
     request<PortForwardState>(`/api/servers/${encodeURIComponent(id)}/portforward`),
   openPortForwards: (id: string, ports: string[]) =>

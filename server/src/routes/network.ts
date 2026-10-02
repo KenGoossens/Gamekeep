@@ -1,19 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
 import { originOf } from '../auth/origin.js';
-import { decryptSecret, encryptSecret } from '../secrets.js';
+import { encryptSecret } from '../secrets.js';
 import { coveredBy, requiredForwards, UnifiError } from '../unifi.js';
-import { gameByQueryType, missingPorts, type GamePort } from '../games.js';
-import { buildProvider, listProviders, type RouterProvider } from '../router/provider.js';
+import { connectSettings, gameByQueryType, missingPorts, type GamePort } from '../games.js';
+import { buildProvider, listProviders } from '../router/provider.js';
+import { loadRouter as loadStoredRouter, ROUTER_SETTING_KEY } from '../router/stored.js';
 import { createPublicAddressLookup } from '../network/publicip.js';
 import '../router/unifi-provider.js';
-
-const SETTING_KEY = 'router';
-
-interface StoredRouter {
-  provider: string;
-  config: Record<string, string>;
-}
 
 export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
   const { registry, docker, db, env, guard } = ctx;
@@ -56,21 +50,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
   }
   const operator = { preHandler: guard.requireServerOperator };
 
-  /** Decrypts the stored connection, or null when no router is connected. */
-  function loadRouter(): { stored: StoredRouter; provider: RouterProvider } | null {
-    const raw = db.getSetting(SETTING_KEY);
-    if (!raw) return null;
-    const plain = decryptSecret(raw, env.SESSION_SECRET);
-    if (!plain) return null;
-
-    try {
-      const stored = JSON.parse(plain) as StoredRouter;
-      const provider = buildProvider(stored.provider, stored.config);
-      return provider ? { stored, provider } : null;
-    } catch {
-      return null;
-    }
-  }
+  const loadRouter = () => loadStoredRouter(db, env);
 
   /**
    * Where forwards should point. Without it the portal can still say which
@@ -121,7 +101,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
         if (result.fingerprint) config.fingerprint = result.fingerprint;
 
         db.setSetting(
-          SETTING_KEY,
+          ROUTER_SETTING_KEY,
           encryptSecret(JSON.stringify({ provider: id, config }), env.SESSION_SECRET),
         );
 
@@ -144,7 +124,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
 
   app.delete('/api/integrations/router', owner, async (request, reply) => {
     const user = request.user!;
-    db.deleteSetting(SETTING_KEY);
+    db.deleteSetting(ROUTER_SETTING_KEY);
     db.audit({
       userId: user.id,
       username: user.username,
@@ -156,6 +136,57 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
     });
     return reply.send({ configured: false });
   });
+  // ---- how to join: member level ---------------------------------------
+  /*
+   * The answer to "how do I get in?", in one place: address, port, and -- for
+   * recognised games -- the password, world and server name read straight
+   * from the container. Member level on purpose: the password here is the
+   * game's door key, and the members are exactly the people it was set for.
+   * Deploying a server used to leave its password visible to nobody at all.
+   */
+  app.get<{ Params: { id: string } }>(
+    '/api/servers/:id/connect',
+    { preHandler: guard.requireServerMember },
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const game = gameByQueryType(server.query?.type);
+      const specs = connectSettings(game);
+
+      let values: Record<string, string> = {};
+      try {
+        const info = await docker.docker.getContainer(server.container).inspect();
+        const envEntries = new Map(
+          (info.Config?.Env ?? []).map((entry) => {
+            const index = entry.indexOf('=');
+            return [entry.slice(0, index), entry.slice(index + 1)] as const;
+          }),
+        );
+        values = Object.fromEntries(
+          specs
+            .map((spec) => [spec.connect!, envEntries.get(spec.key) ?? ''] as const)
+            .filter(([, value]) => value !== ''),
+        );
+      } catch {
+        // A container that cannot be inspected still has an address to show.
+      }
+
+      const forwards = await requiredForwards(docker, server).catch(() => []);
+      const joinPort = forwards.find((f) => !f.sensitive)?.port ?? null;
+
+      return reply.send({
+        publicAddress: await publicIp.get(),
+        lanAddress: target() || null,
+        port: joinPort ? Number(joinPort) : null,
+        game: game?.label ?? null,
+        name: values.name ?? null,
+        world: values.world ?? null,
+        password: values.password ?? null,
+      });
+    },
+  );
+
   // ---- per-server forwards: operator level -----------------------------
   app.get<{ Params: { id: string } }>(
     '/api/servers/:id/portforward',

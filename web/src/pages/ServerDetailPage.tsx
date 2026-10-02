@@ -17,6 +17,7 @@ import { MetricsTab } from '../components/MetricsTab.tsx';
 import { SettingsTab } from '../components/SettingsTab.tsx';
 import { FilesTab } from '../components/FilesTab.tsx';
 import { NetworkTab } from '../components/NetworkTab.tsx';
+import { ConnectCard } from '../components/ConnectCard.tsx';
 import { ModsTab } from '../components/ModsTab.tsx';
 import { LogsTab } from '../components/LogsTab.tsx';
 import { ScheduleTab } from '../components/ScheduleTab.tsx';
@@ -321,6 +322,7 @@ export function ServerDetailPage({
 
       {tab !== 'overview' ? null : (
       <>
+      <ConnectCard serverId={server.id} />
       <WorldCard serverId={server.id} />
       <section className="card">
         <div className="card-head">

@@ -208,7 +208,30 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
     };
   }, [app.id]);
 
-  const variables = template.fields.filter((f) => f.type === 'Variable');
+  /*
+   * The join settings — password, world, server name — get their own section
+   * at the top instead of being buried among a template's dozen variables.
+   * A spec whose variable the template declares edits that same variable; one
+   * the template never mentions is sent as an extra variable, which the
+   * ich777-style images read all the same.
+   */
+  const gameSettings = detail.gameSettings ?? [];
+  const connectKeys = new Set(gameSettings.map((s) => s.key));
+  const templateTargets = new Set(
+    template.fields.filter((f) => f.type === 'Variable').map((f) => f.target),
+  );
+  const [connectValues, setConnectValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (detail.gameSettings ?? []).map((s) => [
+        s.key,
+        template.fields.find((f) => f.type === 'Variable' && f.target === s.key)?.value ?? '',
+      ]),
+    ),
+  );
+
+  const variables = template.fields.filter(
+    (f) => f.type === 'Variable' && !connectKeys.has(f.target),
+  );
   const portFields = template.fields.filter((f) => f.type === 'Port');
   const paths = template.fields.filter((f) => f.type === 'Path');
 
@@ -216,12 +239,21 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
     setBusy(true);
     setError(null);
     try {
+      const connectAsVariables: Record<string, string> = {};
+      const connectAsExtra: Array<{ name: string; value: string }> = [];
+      for (const spec of gameSettings) {
+        const value = (connectValues[spec.key] ?? '').trim();
+        // A template-declared variable is always sent, so clearing the field
+        // means "no password" rather than silently keeping the default.
+        if (templateTargets.has(spec.key)) connectAsVariables[spec.key] = value;
+        else if (value) connectAsExtra.push({ name: spec.key, value });
+      }
       const result = await api.deploy({
         appId: app.id,
         name,
         acknowledge: Boolean(review?.needsAcknowledgement),
-        extra,
-        variables: values,
+        extra: { ...extra, variables: [...extra.variables, ...connectAsExtra] },
+        variables: { ...values, ...connectAsVariables },
         ports: Object.fromEntries(
           Object.entries(ports).map(([k, v]) => [k, Number(v)]).filter(([, v]) => Number.isFinite(v)),
         ) as Record<string, number>,
@@ -307,6 +339,33 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
                   value={ports[f.target] ?? ''}
                   inputMode="numeric"
                   onChange={(e) => setPorts((p) => ({ ...p, [f.target]: e.target.value }))}
+                />
+              </label>
+            ))}
+          </>
+        ) : null}
+
+        {gameSettings.length > 0 ? (
+          <>
+            <div className="card-head">
+              <h2>Joining</h2>
+            </div>
+            <p className="notes">
+              What friends need to get in. Set it here and it is ready the moment the server is —
+              everything can still be changed later on the Settings tab.
+            </p>
+            {gameSettings.map((spec) => (
+              <label className="field" key={spec.key}>
+                <span>
+                  {spec.label}
+                  {spec.help ? ` — ${spec.help}` : ''}
+                </span>
+                <input
+                  value={connectValues[spec.key] ?? ''}
+                  autoComplete="off"
+                  onChange={(e) =>
+                    setConnectValues((v) => ({ ...v, [spec.key]: e.target.value }))
+                  }
                 />
               </label>
             ))}

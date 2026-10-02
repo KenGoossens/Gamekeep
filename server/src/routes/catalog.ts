@@ -5,7 +5,8 @@ import type { AppContext } from '../context.js';
 import { DeployError, planDeployment, slugify, type ExtraParameters } from '../deploy.js';
 import { passes, uncertain } from '../findings.js';
 import { reviewImage, reviewTemplate } from '../review/deploy.js';
-import { identifyGame } from '../games.js';
+import { connectSettings, identifyGame } from '../games.js';
+import { autoForward } from '../router/stored.js';
 
 const escapeXml = (value: string): string =>
   value.replace(/[&<>"']/g, (c) =>
@@ -125,6 +126,13 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
           // Never echo a secret back into the browser from a template default.
           fields: parsed.fields.map((f) => (f.masked ? { ...f, value: '' } : f)),
         },
+        /*
+         * The settings a player needs to join -- password, world, server name
+         * -- for a recognised game, so the deploy form can ask for them up
+         * front instead of leaving them to be discovered on the Settings tab
+         * after friends already failed to connect.
+         */
+        gameSettings: connectSettings(identifyGame(found.name, parsed.repository)),
         suggestedName: found.name.replace(/[^A-Za-z0-9._-]/g, ''),
       });
     } catch (err) {
@@ -310,6 +318,18 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
       };
       db.addManagedServer(serverId, definition, user.id);
       registry.reload();
+
+      // The ports were decided above; making them reachable is part of the
+      // same decision, not a second button on another tab.
+      const deployed = registry.get(serverId);
+      if (deployed) {
+        for (const message of await autoForward({ db, env, docker: ctx.docker }, deployed, {
+          userId: user.id,
+          username: user.username,
+        })) {
+          steps.push(message);
+        }
+      }
 
       void artwork
         .ensure(registry.list(), (message) => request.log.info(message))

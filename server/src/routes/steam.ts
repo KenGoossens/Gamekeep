@@ -9,6 +9,7 @@ import { inspectSteamApp, proposeCommand } from '../steam/appinfo.js';
 import { buildComposeFile, buildStartScript, buildSteamPlan, STEAM_IMAGE } from '../steam/compose.js';
 import { notifyServer } from '../notify.js';
 import { identifyGame } from '../games.js';
+import { autoForward } from '../router/stored.js';
 
 /**
  * Deploying any dedicated server Steam carries, from a container the portal
@@ -194,6 +195,18 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
       db.addManagedServer(serverId, definition, user.id);
       registry.reload();
       gameQuery.invalidate(serverId);
+
+      // Same as the catalogue path: the deploy decided the ports, so a
+      // connected router opens them now instead of after a forgotten click.
+      const forwarded = registry.get(serverId);
+      if (forwarded) {
+        for (const message of await autoForward({ db, env, docker: ctx.docker }, forwarded, {
+          userId: user.id,
+          username: user.username,
+        })) {
+          steps.push(message);
+        }
+      }
 
       db.audit({
         userId: user.id,
