@@ -24,6 +24,8 @@ import { createWorkshopDeclarations } from './mods/declare.js';
 import { createScheduler } from './schedule.js';
 import { createBackupService } from './backup.js';
 import { createSteamCatalog } from './steam/catalog.js';
+import { createGsltService } from './steam/gslt.js';
+import { createTournamentStore } from './tournaments/store.js';
 import { createHelperRunner } from './docker/helper.js';
 import { createNotifier } from './notify.js';
 import { createWatcher } from './watch.js';
@@ -52,6 +54,7 @@ import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerLogRoutes } from './routes/logs.js';
 import { registerAccessRoutes } from './routes/access.js';
 import { registerNotifyRoutes, readNotifyConfig } from './routes/notify.js';
+import { registerGsltRoutes } from './routes/gslt.js';
 import type { AppContext } from './context.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -88,6 +91,8 @@ async function main() {
   const workshop = createWorkshopDeclarations(docker);
   const backups = createBackupService({ docker, db, backupDir: env.BACKUP_DIR });
   const steam = createSteamCatalog();
+  const gslt = createGsltService(db, env);
+  const tournaments = createTournamentStore(db.raw);
   const scheduler = createScheduler({
     db,
     registry,
@@ -127,6 +132,8 @@ async function main() {
     scheduler,
     backups,
     steam,
+    gslt,
+    tournaments,
     health,
     sessions,
     setup,
@@ -203,6 +210,7 @@ async function main() {
   registerLogRoutes(app, ctx);
   registerAccessRoutes(app, ctx);
   registerNotifyRoutes(app, ctx);
+  registerGsltRoutes(app, ctx);
 
   if (existsSync(join(WEB_ROOT, 'index.html'))) {
     await app.register(fastifyStatic, { root: WEB_ROOT });

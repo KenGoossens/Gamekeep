@@ -17,6 +17,8 @@ import type { WorkshopDeclarations } from './mods/declare.js';
 import type { Scheduler } from './schedule.js';
 import type { BackupService } from './backup.js';
 import type { SteamCatalog } from './steam/catalog.js';
+import type { GsltService } from './steam/gslt.js';
+import type { TournamentStore } from './tournaments/store.js';
 import type { Notifier } from './notify.js';
 import type { Sessions } from './auth/session.js';
 import type { SetupGuard } from './auth/setup.js';
@@ -53,6 +55,10 @@ export interface AppContext {
   backups: BackupService;
   /** Which dedicated servers Steam carries, and the key that unlocks the full list. */
   steam: SteamCatalog;
+  /** Mints and retires Steam game server login tokens for match servers. */
+  gslt: GsltService;
+  /** Tournaments: teams, entries, brackets and their matches. */
+  tournaments: TournamentStore;
   /** Read-only status of every connection the portal depends on. */
   health: HealthReporter;
   sessions: Sessions;

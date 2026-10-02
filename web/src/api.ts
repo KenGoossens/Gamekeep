@@ -191,6 +191,14 @@ export interface NotifySettings {
   available: Array<{ kind: string; label: string }>;
 }
 
+export interface SteamGsltStatus {
+  configured: boolean;
+  ok: boolean | null;
+  tokenCount: number | null;
+  banned: boolean | null;
+  error: string | null;
+}
+
 export interface LogFile {
   path: string;
   label: string;
@@ -723,6 +731,12 @@ export const api = {
     }),
   disableNotifications: () =>
     request<{ configured: false }>('/api/integrations/notifications', { method: 'DELETE' }),
+
+  steamTokens: () => request<SteamGsltStatus>('/api/integrations/steam'),
+  saveSteamKey: (apiKey: string) =>
+    request<SteamGsltStatus>('/api/integrations/steam', { ...json({ apiKey }), method: 'PUT' }),
+  disableSteamTokens: () =>
+    request<SteamGsltStatus>('/api/integrations/steam', { method: 'DELETE' }),
 
   logFiles: (serverId: string) =>
     request<{ files: LogFile[] }>(`/api/servers/${encodeURIComponent(serverId)}/logs/files`),

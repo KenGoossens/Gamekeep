@@ -3,6 +3,7 @@ import { ApiError, api, type RouterStatus } from '../api.ts';
 import { HealthPanel, ScannerSettings } from '../components/HealthPanel.tsx';
 import { AccessPanel } from '../components/AccessPanel.tsx';
 import { NotifyPanel } from '../components/NotifyPanel.tsx';
+import { SteamPanel } from '../components/SteamPanel.tsx';
 
 /**
  * Owner-only. The router connection is optional: without it the portal still
@@ -38,6 +39,7 @@ export function SettingsPage() {
       <HealthPanel />
       <NotifyPanel />
       <AccessPanel />
+      <SteamPanel />
       <ScannerSettings />
     </>
   );
