@@ -16,8 +16,10 @@ export function GameTile({ server }: { server: GameServer }) {
   const style = failed ? 'none' : server.artworkStyle;
   const displayName = renamed ?? server.displayName;
 
-  const canOperate = server.yourAccess === 'owner' || server.yourAccess === 'operator';
-  const isOwner = server.yourAccess === 'owner';
+  const canOperate =
+    !server.transient && (server.yourAccess === 'owner' || server.yourAccess === 'operator');
+  const isOwner = !server.transient && server.yourAccess === 'owner';
+  const artId = server.artworkId ?? server.id;
 
   if (gone) return null;
 
@@ -73,7 +75,7 @@ export function GameTile({ server }: { server: GameServer }) {
       {style === 'poster' ? (
         <img
           className="poster"
-          src={artworkUrl(server.id, 'poster')}
+          src={artworkUrl(artId, 'poster')}
           alt=""
           loading="lazy"
           onError={() => setFailed(true)}
@@ -84,9 +86,9 @@ export function GameTile({ server }: { server: GameServer }) {
            reads as a full-picture card without inventing artwork the game
            never had. */
         <div className="iconart" aria-hidden="true">
-          <img className="iconcover" src={artworkUrl(server.id, 'icon')} alt="" loading="lazy" />
+          <img className="iconcover" src={artworkUrl(artId, 'icon')} alt="" loading="lazy" />
           <img
-            src={artworkUrl(server.id, 'icon')}
+            src={artworkUrl(artId, 'icon')}
             alt=""
             loading="lazy"
             onError={() => setFailed(true)}
@@ -105,6 +107,7 @@ export function GameTile({ server }: { server: GameServer }) {
           activeJob={activeJob}
           error={status.error}
         />
+        {server.transient ? <span className="pill plain beta-tag-pill">match</span> : null}
         {canOperate ? (
           <span className="tile-actions">
             <button type="button" className="tile-action" title="Rename" onClick={rename}>

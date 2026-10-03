@@ -219,6 +219,8 @@ body::after {
 .tile-top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
 
 /* ---- tournaments (beta) ---- */
+.beta-tag-pill { color: #e8b44c; border-color: #e8b44c55; }
+
 .beta-tag {
   font-size: 0.58em;
   font-weight: 700;

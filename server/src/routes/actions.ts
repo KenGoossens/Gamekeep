@@ -81,6 +81,17 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
         return reply.code(404).send({ error: 'unknown-server' });
       }
 
+      // A match server's lifecycle belongs to the tournament alone: a restart
+      // mid-match reloads the game and loses MatchZy's state, so nobody gets
+      // the button — not even the owner, who has Docker if it truly burns.
+      if (server.transient) {
+        return reply.code(403).send({
+          error: 'match-managed',
+          message: 'The tournament runs this server; it retires by itself when the match is decided.',
+        });
+      }
+
+
       const running = actions.activeJobFor(server.id);
       if (running) {
         db.audit({
@@ -166,6 +177,17 @@ export function registerActionRoutes(app: FastifyInstance, ctx: AppContext) {
           );
           return reply.code(404).send({ error: 'unknown-server' });
         }
+
+      // A match server's lifecycle belongs to the tournament alone: a restart
+      // mid-match reloads the game and loses MatchZy's state, so nobody gets
+      // the button — not even the owner, who has Docker if it truly burns.
+      if (server.transient) {
+        return reply.code(403).send({
+          error: 'match-managed',
+          message: 'The tournament runs this server; it retires by itself when the match is decided.',
+        });
+      }
+
 
         const running = actions.activeJobFor(server.id);
         if (running) {

@@ -4,6 +4,14 @@
 
 ### Added
 
+- **Match servers are servers now.** While a tournament match server lives it
+  stands in Servers like any other card — match badge, its game's poster,
+  player count, performance charts, live logs, console and Files through the
+  existing tabs. What it never gets is a steering wheel: restart, stop,
+  rename, delete and the standing-server tabs are refused, because its
+  lifecycle belongs to the tournament, and the card disappears on its own at
+  teardown (which the watcher knows is not an outage). Team management on the
+  Tournaments page folded into a collapsible section while it was at it.
 - **Tournaments for any game.** The game picker now offers
   games where team-vs-team is real (Minecraft, V Rising, Palworld, Terraria)
   next to Counter-Strike 2, plus a free "Other game…" field for any contest.

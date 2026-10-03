@@ -285,12 +285,18 @@ function TeamsPanel({
 
   return (
     <section className="card">
-      <div className="card-head">
-        <h2>Teams</h2>
-      </div>
+      {/* Collapsed by default: teams outlive tournaments (that is the point —
+          Rocket Goats enters every cup), but roster admin should not dominate
+          the page you open to see the brackets. */}
+      <details className="connect">
+        <summary>
+          <strong>Teams</strong> — {teams.length} team{teams.length === 1 ? '' : 's'}; create and
+          manage rosters here
+        </summary>
       <p className="notes">
-        A team is captained by whoever creates it. Steam IDs matter: the match server reserves
-        player slots by Steam64 ID, so a member without one cannot claim their seat.
+        A team is captained by whoever creates it, and outlives any one tournament. Steam IDs
+        matter for CS2: the match server reserves player slots by Steam64 ID, so a member without
+        one cannot claim their seat.
       </p>
 
       <div className="fieldrow">
@@ -341,6 +347,7 @@ function TeamsPanel({
           </ul>
         </>
       ) : null}
+      </details>
     </section>
   );
 }

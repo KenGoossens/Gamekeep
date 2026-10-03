@@ -6,6 +6,7 @@ import type { Db } from '../db.js';
 import type { Deployer } from '../deploy.js';
 import type { DockerClient } from '../docker/client.js';
 import type { Notifier } from '../notify.js';
+import type { ServerRegistry } from '../registry.js';
 import type { GsltService } from '../steam/gslt.js';
 import {
   CS2_SHARED_DIR,
@@ -47,6 +48,7 @@ export interface MatchOrchestratorDeps {
   db: Db;
   env: Env;
   notify: Notifier;
+  registry: ServerRegistry;
   log: (message: string) => void;
 }
 
@@ -55,7 +57,29 @@ export interface MatchOrchestratorDeps {
 const internalBase = (env: Env) => `http://${hostname()}:${env.PORT}`;
 
 export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
-  const { store, deployer, docker, gslt, db, env, notify, log } = deps;
+  const { store, deployer, docker, gslt, db, env, notify, registry, log } = deps;
+
+  /**
+   * While a match server lives, it is a server like any other: a card in
+   * Servers wearing a match badge, metrics, live logs, console and Files
+   * through the machinery that already exists. The entry is transient — the
+   * registry forgets it at teardown, lifecycle actions are refused for it,
+   * and the watcher knows a planned retirement from a crash.
+   */
+  function registerMatchServer(match: MatchRow, containerName: string, port: number): void {
+    const tournament = store.getTournament(match.tournamentId);
+    registry.addTransient({
+      id: containerName.toLowerCase(),
+      displayName: `Match: ${versus(match)}`,
+      container: containerName,
+      transient: true,
+      steamAppId: 730,
+      artworkId: `game-${tournament?.game ?? 'cs2'}`,
+      query: { type: 'counterstrike2', host: containerName, port },
+      cooldownSeconds: 300,
+      notes: `${tournament?.name ?? 'Tournament'} — this server is run by the tournament and retires when its match is decided.`,
+    } as never);
+  }
 
   /** "Alfa vs Bravo", or as much of it as the rows still know. */
   function versus(match: MatchRow): string {
@@ -153,6 +177,7 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
       }
     }
     store.detachServer(match.id);
+    registry.removeTransient(name.toLowerCase());
 
     // The token was minted for this match alone; it retires with it.
     if (gslt.configured()) {
@@ -343,6 +368,7 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
       result: 'success',
       detail: `${containerName} on port ${port} for ${teamA.name} vs ${teamB.name}`,
     });
+    registerMatchServer(store.getMatch(match.id) ?? match, containerName, port);
     void readyLoop(match.id);
   }
 
@@ -389,8 +415,12 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
         if (match.status === 'provisioning' || match.status === 'ready' || match.status === 'live') {
           store.setMatchStatus(match.id, 'pending');
         }
-      } else if (match.status === 'provisioning') {
-        void readyLoop(match.id);
+      } else {
+        // The container survived the portal restart; put its card back.
+        if (match.serverContainer && match.connectPort) {
+          registerMatchServer(match, match.serverContainer, match.connectPort);
+        }
+        if (match.status === 'provisioning') void readyLoop(match.id);
       }
     }
   }

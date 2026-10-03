@@ -36,6 +36,12 @@ your Steam profile URL, or via steamid.io — it is the 17-digit number.)
 2. **Registration** — captains enter their teams. The organizer can nudge the
    seeding (the arrows next to each entry); random is fair, but two top teams
    meeting in round one is worth preventing.
+While a match server lives, it also stands on the **Servers page** like any
+other card, wearing a *match* badge: open it for player counts, performance
+charts, live logs, the console and Files. What it refuses is a steering
+wheel — no restart, stop or settings — because its lifecycle belongs to the
+tournament, and the card retires itself with the match.
+
 3. **Running** — starting builds the bracket. Uneven fields get byes: the top
    seeds skip round one, visibly. The organizer schedules each round;
    **fifteen minutes before** a match's time the portal builds its server —

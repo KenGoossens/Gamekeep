@@ -193,22 +193,30 @@ export function ServerDetailPage({
           [
             ['overview', 'Overview', false],
             ['metrics', 'Performance', false],
-            ...(canOperate
-              ? ([
+            ...(canOperate && server.transient
+              ? // A match server is watched, never configured: the standing-
+                // server tabs (settings, schedules, backups, mods) would act
+                // on a container that retires by itself within the hour.
+                ([
                   ['logs', 'Logs', false],
-                  // The third flag means changes need the server stopped, not
-                  // that the tab does. Refusing to open them at all is why a
-                  // freshly deployed server's configuration was invisible: the
-                  // moment you most want to check what a template set is the
-                  // moment the server is running.
-                  ['settings', 'Settings', true],
                   ['files', 'Files', true],
-                  ['mods', 'Mods', true],
-                  ['network', 'Network', false],
-                  ['schedule', 'Schedule', false],
-                  ['backups', 'Backups', false],
                 ] as Array<[Tab, string, boolean]>)
-              : []),
+              : canOperate
+                ? ([
+                    ['logs', 'Logs', false],
+                    // The third flag means changes need the server stopped, not
+                    // that the tab does. Refusing to open them at all is why a
+                    // freshly deployed server's configuration was invisible: the
+                    // moment you most want to check what a template set is the
+                    // moment the server is running.
+                    ['settings', 'Settings', true],
+                    ['files', 'Files', true],
+                    ['mods', 'Mods', true],
+                    ['network', 'Network', false],
+                    ['schedule', 'Schedule', false],
+                    ['backups', 'Backups', false],
+                  ] as Array<[Tab, string, boolean]>)
+                : []),
           ] as Array<[Tab, string, boolean]>
         ).map(([key, label, needsStopped]) => {
           const readOnly = needsStopped && status.running;
@@ -332,15 +340,24 @@ export function ServerDetailPage({
         {/* Straight to the log: the interesting part of a restart is what the
             server prints while it comes back, not the spinner. Only for
             operators, since that tab is theirs. */}
-        <RestartButton
-          server={server}
-          onAction={refresh}
-          canOperate={canOperate}
-          onStarted={canOperate ? () => setTab('logs') : undefined}
-        />
-        {canOperate ? (
-          <AdminControls server={server} onAction={refresh} onStarted={() => setTab('logs')} />
-        ) : null}
+        {server.transient ? (
+          <p className="hint">
+            This is a tournament match server: it was built for one match and retires by itself
+            when the result is in. Watch it here; drive the tournament from its own page.
+          </p>
+        ) : (
+          <>
+            <RestartButton
+              server={server}
+              onAction={refresh}
+              canOperate={canOperate}
+              onStarted={canOperate ? () => setTab('logs') : undefined}
+            />
+            {canOperate ? (
+              <AdminControls server={server} onAction={refresh} onStarted={() => setTab('logs')} />
+            ) : null}
+          </>
+        )}
       </section>
 
       {players && players.names.length > 0 ? (

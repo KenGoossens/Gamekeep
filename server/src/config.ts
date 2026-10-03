@@ -121,6 +121,15 @@ export const serverSchema = z.object({
    */
   steamAppId: z.number().int().positive().optional(),
   /**
+   * A server the tournament machinery runs: visible while it lives, gone at
+   * teardown, and its lifecycle is the orchestrator's alone — restart, stop,
+   * rename, delete and the standing-server tabs are all refused for it.
+   */
+  transient: z.boolean().optional(),
+  /** Serve another entry's cached artwork instead of fetching per id — match
+   * servers share their game's poster rather than refetching it per match. */
+  artworkId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/).optional(),
+  /**
    * Artwork for a game that is not on Steam. Leave it out and the portal tries
    * the dashboard-icons set using this server's id as the slug, which already
    * covers most games; set it explicitly when that guess is wrong.

@@ -34,9 +34,18 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
       notes: server.notes ?? null,
       updateStrategy: server.updateStrategy,
       accent: server.accent ?? null,
+      /** True for tournament match servers: badge on the card, no lifecycle
+       * buttons, and only the observe-tabs on the detail page. */
+      transient: server.transient === true,
+      /** Which artwork entry to show; match servers wear their game's. */
+      artworkId: server.artworkId ?? null,
       // 'poster' is full-bleed Steam art, 'icon' is a logo centred on a tint,
       // 'none' means the UI draws a lettered tile.
-      artworkStyle: await artwork.styleFor(server),
+      // A server that borrows another entry's art (match servers wear their
+      // game's poster) is judged by that entry's files.
+      artworkStyle: await artwork.styleFor(
+        server.artworkId ? ({ ...server, id: server.artworkId } as typeof server) : server,
+      ),
       status: {
         state: status.state,
         running: status.running,
@@ -131,6 +140,12 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
           .send({ error: 'bad-name', message: 'Give it a name of 2 to 48 characters.' });
       }
 
+            if (server.transient) {
+        return reply.code(403).send({
+          error: 'match-managed',
+          message: 'The tournament runs this server; it retires by itself.',
+        });
+      }
       const managed = ctx.db.listManagedServers().find((m) => m.id === server.id);
       if (!managed) {
         return reply.code(409).send({
@@ -174,6 +189,12 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
 
+            if (server.transient) {
+        return reply.code(403).send({
+          error: 'match-managed',
+          message: 'The tournament runs this server; it retires by itself.',
+        });
+      }
       const managed = ctx.db.listManagedServers().some((m) => m.id === server.id);
       if (!managed) {
         return reply.code(409).send({

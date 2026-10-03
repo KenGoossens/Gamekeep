@@ -67,6 +67,10 @@ export type ServerAccess = 'owner' | 'operator' | 'member';
 export interface GameServer {
   /** What the signed-in caller may do on this one server. */
   yourAccess?: ServerAccess;
+  /** A tournament match server: watch it, never drive it. */
+  transient?: boolean;
+  /** Whose artwork this card wears when not its own. */
+  artworkId?: string | null;
   id: string;
   displayName: string;
   notes: string | null;

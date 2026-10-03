@@ -44,6 +44,9 @@ export function createWatcher(deps: {
 
   async function tick(): Promise<void> {
     for (const server of deps.registry.list()) {
+      // A match server's whole life is planned stops; announcing its
+      // retirement as "went down without anyone asking" would be crying wolf.
+      if (server.transient) continue;
       let isRunning: boolean;
       try {
         isRunning = (await deps.docker.getStatus(server)).running;

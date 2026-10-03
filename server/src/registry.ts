@@ -12,6 +12,13 @@ import type { Db } from './db.js';
 export function createServerRegistry(fileServers: ServerConfig[], db: Db) {
   let cache: ServerConfig[] = [];
   let byId = new Map<string, ServerConfig>();
+  /**
+   * Servers that exist only while something runs them — tournament match
+   * servers. In memory only, never persisted: a portal restart re-registers
+   * the ones whose containers still exist, and anything else is gone, which
+   * is exactly what transient means.
+   */
+  const transient = new Map<string, ServerConfig>();
 
   function reload(): void {
     const managed: ServerConfig[] = [];
@@ -24,9 +31,12 @@ export function createServerRegistry(fileServers: ServerConfig[], db: Db) {
     }
 
     // The config file wins on a duplicate id -- an operator editing the file
-    // should never be overridden by something the portal wrote.
+    // should never be overridden by something the portal wrote. Transient
+    // entries come last and never shadow a real server.
     const seen = new Set(fileServers.map((s) => s.id));
-    cache = [...fileServers, ...managed.filter((s) => !seen.has(s.id))];
+    const durable = [...fileServers, ...managed.filter((s) => !seen.has(s.id))];
+    const durableIds = new Set(durable.map((s) => s.id));
+    cache = [...durable, ...[...transient.values()].filter((s) => !durableIds.has(s.id))];
     byId = new Map(cache.map((s) => [s.id, s]));
   }
 
@@ -39,6 +49,13 @@ export function createServerRegistry(fileServers: ServerConfig[], db: Db) {
     has: (id: string): boolean => byId.has(id),
     /** Called after a deploy or removal so the new server is live immediately. */
     reload,
+    addTransient(server: ServerConfig): void {
+      transient.set(server.id, { ...server, transient: true });
+      reload();
+    },
+    removeTransient(id: string): void {
+      if (transient.delete(id)) reload();
+    },
   };
 }
 

@@ -115,6 +115,7 @@ async function main() {
     db,
     env,
     notify,
+    registry,
     log: (message) => console.log(`[GameKeepr] ${message}`),
   });
   const scheduler = createScheduler({
