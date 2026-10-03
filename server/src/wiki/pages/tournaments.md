@@ -20,10 +20,10 @@ end — expect rough edges, and say what you hit.
 
 ## Teams first
 
-Everyone can create a team on the Tournaments page; whoever creates it is its
+Everyone can create a team on a tournament's **Teams tab**; whoever creates it is its
 **captain** and manages the roster. One thing matters more than it looks:
 **Steam64 IDs**. The match server reserves player slots by Steam ID, so a
-member without one cannot claim their seat. Fill them in on the team card —
+member without one cannot claim their seat. Fill them in on the Teams tab —
 each member can set their own, the captain can fix anyone's. (Find yours on
 your Steam profile URL, or via steamid.io — it is the 17-digit number.)
 

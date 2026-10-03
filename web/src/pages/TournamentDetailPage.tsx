@@ -8,6 +8,7 @@ import {
   type TournamentMatch,
 } from '../api.ts';
 import { Modal } from '../components/Modal.tsx';
+import { TeamsPanel } from '../components/TeamsPanel.tsx';
 import { linkProps, navigate } from '../router.ts';
 
 const explain = (err: unknown, fallback: string): string =>
@@ -26,15 +27,18 @@ const MATCH_STATUS: Record<TournamentMatch['status'], string> = {
 export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
   const [teams, setTeams] = useState<TeamInfo[]>([]);
+  const [people, setPeople] = useState<Array<{ id: string; username: string }>>([]);
+  const [tab, setTab] = useState<'tournament' | 'teams'>('tournament');
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [override, setOverride] = useState<TournamentMatch | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [d, t] = await Promise.all([api.tournament(id), api.teams()]);
+      const [d, t, p] = await Promise.all([api.tournament(id), api.teams(), api.teamPeople()]);
       setDetail(d);
       setTeams(t.teams);
+      setPeople(p.people);
     } catch {
       setError('Could not load this tournament.');
     }
@@ -141,13 +145,37 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
       {error ? <p className="hint bad">{error}</p> : null}
       {note ? <p className="hint ok">{note}</p> : null}
 
-      {tournament.status === 'draft' ? (
+      {/* The same tab strip the server page wears: the bracket is the show,
+          team administration its own room. */}
+      <nav className="tabs">
+        {(
+          [
+            ['tournament', 'Tournament'],
+            ['teams', 'Teams'],
+          ] as Array<['tournament' | 'teams', string]>
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className={tab === key ? 'tab active' : 'tab'}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'teams' ? (
+        <TeamsPanel me={me} teams={teams} people={people} onChanged={() => void load()} />
+      ) : null}
+
+      {tab === 'tournament' && tournament.status === 'draft' ? (
         <p className="empty">
           A draft: only organizers see it does anything. Open registration to let captains enter.
         </p>
       ) : null}
 
-      {tournament.status === 'registration' ? (
+      {tab === 'tournament' && tournament.status === 'registration' ? (
         <Registration
           detail={detail}
           me={me}
@@ -159,9 +187,9 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
         />
       ) : null}
 
-      {matches.length > 0 ? <Standings matches={matches} teamName={teamName} /> : null}
+      {tab === 'tournament' && matches.length > 0 ? <Standings matches={matches} teamName={teamName} /> : null}
 
-      {matches.length > 0 ? (
+      {tab === 'tournament' && matches.length > 0 ? (
         <Bracket
           matches={matches}
           teamName={teamName}
@@ -259,7 +287,7 @@ function Registration({
         </div>
       ) : (
         <p className="notes">
-          Teams are entered by their captain. Create or fill yours on the Tournaments page first.
+          Teams are entered by their captain. Create or fill yours on the Teams tab above.
         </p>
       )}
 

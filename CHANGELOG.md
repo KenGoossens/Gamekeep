@@ -10,8 +10,8 @@
   existing tabs. What it never gets is a steering wheel: restart, stop,
   rename, delete and the standing-server tabs are refused, because its
   lifecycle belongs to the tournament, and the card disappears on its own at
-  teardown (which the watcher knows is not an outage). Team management on the
-  Tournaments page folded into a collapsible section while it was at it.
+  teardown (which the watcher knows is not an outage). Team management moved off the
+  Tournaments list onto each tournament's own Teams tab, beside the bracket.
 - **Tournaments for any game.** The game picker now offers
   games where team-vs-team is real (Minecraft, V Rising, Palworld, Terraria)
   next to Counter-Strike 2, plus a free "Other game…" field for any contest.

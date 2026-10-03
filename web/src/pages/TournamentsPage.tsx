@@ -4,7 +4,6 @@ import {
   api,
   canOperate,
   type Me,
-  type TeamInfo,
   type TournamentSummary,
 } from '../api.ts';
 import { artworkUrl, fallbackHue } from '../api.ts';
@@ -21,22 +20,19 @@ const STATUS_LABEL: Record<TournamentSummary['status'], string> = {
 };
 
 /**
- * Tournaments (beta) and the teams that enter them. Everyone sees the list
+ * Tournaments (beta). Everyone sees the list; teams live on each
+ * tournament's own Teams tab.
  * and manages their own team; owners and operators also create tournaments.
  */
 export function TournamentsPage({ me }: { me: Me }) {
   const [tournaments, setTournaments] = useState<TournamentSummary[] | null>(null);
-  const [teams, setTeams] = useState<TeamInfo[]>([]);
-  const [people, setPeople] = useState<Array<{ id: string; username: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [t, tm, p] = await Promise.all([api.tournaments(), api.teams(), api.teamPeople()]);
+      const t = await api.tournaments();
       setTournaments(t.tournaments);
-      setTeams(tm.teams);
-      setPeople(p.people);
     } catch {
       setError('Could not load the tournaments.');
     }
@@ -85,7 +81,6 @@ export function TournamentsPage({ me }: { me: Me }) {
         </div>
       )}
 
-      <TeamsPanel me={me} teams={teams} people={people} onChanged={() => void load()} />
     </>
   );
 }
@@ -261,203 +256,5 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
         </button>
       </div>
     </section>
-  );
-}
-
-function TeamsPanel({
-  me,
-  teams,
-  people,
-  onChanged,
-}: {
-  me: Me;
-  teams: TeamInfo[];
-  people: Array<{ id: string; username: string }>;
-  onChanged: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [steamId, setSteamId] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const nameOf = (id: string) => people.find((p) => p.id === id)?.username ?? '…';
-
-  const mine = teams.filter((t) => t.captainUserId === me.id);
-  const others = teams.filter((t) => t.captainUserId !== me.id);
-
-  return (
-    <section className="card">
-      {/* Collapsed by default: teams outlive tournaments (that is the point —
-          Rocket Goats enters every cup), but roster admin should not dominate
-          the page you open to see the brackets. */}
-      <details className="connect">
-        <summary>
-          <strong>Teams</strong> — {teams.length} team{teams.length === 1 ? '' : 's'}; create and
-          manage rosters here
-        </summary>
-      <p className="notes">
-        A team is captained by whoever creates it, and outlives any one tournament. Steam IDs
-        matter for CS2: the match server reserves player slots by Steam64 ID, so a member without
-        one cannot claim their seat.
-      </p>
-
-      <div className="fieldrow">
-        <label className="field">
-          <span>New team</span>
-          <input value={name} placeholder="Team name" onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Your Steam64 ID (optional, 17 digits)</span>
-          <input value={steamId} onChange={(e) => setSteamId(e.target.value)} />
-        </label>
-        <button
-          type="button"
-          className="btn-primary fieldrow-action"
-          disabled={name.trim().length < 2}
-          onClick={async () => {
-            setError(null);
-            try {
-              await api.createTeam(name.trim(), steamId.trim() || undefined);
-              setName('');
-              onChanged();
-            } catch (err) {
-              setError(explain(err, 'Could not create the team.'));
-            }
-          }}
-        >
-          Create
-        </button>
-      </div>
-      {error ? <p className="hint bad">{error}</p> : null}
-
-      {mine.map((team) => (
-        <TeamEditor key={team.id} team={team} people={people} onChanged={onChanged} />
-      ))}
-
-      {others.length > 0 ? (
-        <>
-          <h4 className="subhead">Other teams</h4>
-          <ul className="feed">
-            {others.map((t) => (
-              <li key={t.id}>
-                <span>
-                  <strong>{t.name}</strong> — {t.members.map((m) => nameOf(m.userId)).join(', ')}
-                  {t.members.some((m) => m.userId === me.id) ? ' (you play here)' : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      </details>
-    </section>
-  );
-}
-
-function TeamEditor({
-  team,
-  people,
-  onChanged,
-}: {
-  team: TeamInfo;
-  people: Array<{ id: string; username: string }>;
-  onChanged: () => void;
-}) {
-  const [adding, setAdding] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const nameOf = (id: string) => people.find((p) => p.id === id)?.username ?? '…';
-  const available = people.filter((p) => !team.members.some((m) => m.userId === p.id));
-
-  return (
-    <div className="teamcard">
-      <div className="card-head">
-        <h3>{team.name}</h3>
-        <button
-          type="button"
-          className="btn-ghost danger small"
-          onClick={async () => {
-            if (!confirm(`Delete ${team.name}?`)) return;
-            try {
-              await api.deleteTeam(team.id);
-              onChanged();
-            } catch (err) {
-              setError(explain(err, 'Could not delete it.'));
-            }
-          }}
-        >
-          Delete team
-        </button>
-      </div>
-      <ul className="feed">
-        {team.members.map((m) => (
-          <li key={m.userId}>
-            <span>
-              <strong>{nameOf(m.userId)}</strong>
-              {m.userId === team.captainUserId ? ' (captain)' : ''}
-            </span>
-            <span className="rowtools">
-              <input
-                className="steamid"
-                defaultValue={m.steamId ?? ''}
-                placeholder="Steam64 ID"
-                onBlur={async (e) => {
-                  const value = e.target.value.trim();
-                  if (value === (m.steamId ?? '')) return;
-                  try {
-                    await api.setTeamMemberSteamId(team.id, m.userId, value);
-                    onChanged();
-                  } catch (err) {
-                    setError(explain(err, 'Could not save the Steam ID.'));
-                  }
-                }}
-              />
-              {m.userId !== team.captainUserId ? (
-                <button
-                  type="button"
-                  className="btn-ghost danger small"
-                  onClick={async () => {
-                    try {
-                      await api.removeTeamMember(team.id, m.userId);
-                      onChanged();
-                    } catch (err) {
-                      setError(explain(err, 'Could not remove them.'));
-                    }
-                  }}
-                >
-                  Remove
-                </button>
-              ) : null}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {available.length > 0 ? (
-        <div className="actions">
-          <select className="rolepick" value={adding} onChange={(e) => setAdding(e.target.value)}>
-            <option value="">Add a member…</option>
-            {available.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.username}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={!adding}
-            onClick={async () => {
-              try {
-                await api.addTeamMember(team.id, adding);
-                setAdding('');
-                onChanged();
-              } catch (err) {
-                setError(explain(err, 'Could not add them.'));
-              }
-            }}
-          >
-            Add
-          </button>
-        </div>
-      ) : null}
-      {error ? <p className="hint bad">{error}</p> : null}
-    </div>
   );
 }
