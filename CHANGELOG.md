@@ -10,6 +10,13 @@ releases.
 
 ### Fixed
 
+- **The 7d window shows seven days now.** Metrics retention was 24 hours, so
+  the dashboard's 7d button silently showed the same single day as 24h.
+  Retention is a week, long series are downsampled server-side (charts and
+  phones get ~400 points, with counter rates and player peaks preserved), the
+  per-server Metrics tab gained its own 7d range, and the restart counters
+  are counted over the whole log in SQL instead of the last 500 rows — which
+  could quietly undercount on a busy window.
 - **CPU is of the machine now.** Metrics used docker-stats' one-core
   convention, so a server using just over one core showed "104% CPU" on a
   sixteen-core box. The percentage is now of the whole machine (0-100), with

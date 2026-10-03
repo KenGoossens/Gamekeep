@@ -101,13 +101,8 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: AppContext) {
        * never answered, which is the single most useful thing this screen can
        * tell someone, and folding it into either bucket would hide it.
        */
-      const audit = db.recentAudit(500).filter((row) => row.ts >= since);
-      const outcomes = audit
-        .filter((row) => ['restart', 'pull-recreate', 'start', 'stop'].includes(row.action))
-        .reduce<Record<string, number>>((acc, row) => {
-          acc[row.result] = (acc[row.result] ?? 0) + 1;
-          return acc;
-        }, {});
+      const outcomes = db.outcomesSince(since);
+      const audit = db.auditSince(since, 12);
 
       const jobs = list
         .map((server) => actions.activeJobFor(server.id))

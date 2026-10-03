@@ -22,7 +22,8 @@ are on" is the social heartbeat of a friends server; "2 online" is not.
 Recent actions (restarts, starts, stops and who did them) and — for operators
 — CPU, memory and network charts per server over a chosen window. A memory
 line that climbs for days and drops at each restart is the classic sign of a
-game that wants its nightly restart schedule.
+game that wants its nightly restart schedule — and with a week of history
+kept, that multi-day pattern is actually visible.
 
 Two CPU numbers, on purpose: the percentage is **of the whole machine**
 (100% means the box has nothing left), and next to it stand the **cores in

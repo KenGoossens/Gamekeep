@@ -677,6 +677,20 @@ export function openDatabase(path: string) {
       `SELECT id, ts, user_id, username, server_id, action, result, detail, ip, user_agent
        FROM audit_log ORDER BY ts DESC, id DESC LIMIT ?`,
     ),
+    /*
+     * Counted in SQL rather than by filtering "the last 500 rows": on a busy
+     * portal 500 rows do not reach a week back, and a dashboard that
+     * undercounts quietly is worse than one that says nothing.
+     */
+    outcomesSince: db.prepare(
+      `SELECT result, COUNT(*) AS n FROM audit_log
+       WHERE ts >= ? AND action IN ('restart', 'pull-recreate', 'start', 'stop')
+       GROUP BY result`,
+    ),
+    auditSince: db.prepare(
+      `SELECT id, ts, user_id, username, server_id, action, result, detail, ip, user_agent
+       FROM audit_log WHERE ts >= ? ORDER BY ts DESC, id DESC LIMIT ?`,
+    ),
     lastSuccessfulAction: db.prepare(
       `SELECT MAX(ts) AS ts FROM audit_log
        WHERE server_id = ? AND result IN ('success', 'unconfirmed')
@@ -1090,6 +1104,39 @@ export function openDatabase(path: string) {
         ip: entry.ip ?? null,
         userAgent: entry.userAgent ? entry.userAgent.slice(0, 300) : null,
       });
+    },
+
+    /** Restart/start/stop outcomes in a window, counted over the whole log. */
+    outcomesSince(since: number): Record<string, number> {
+      const rows = st.outcomesSince.all(since) as unknown as Array<{ result: string; n: number }>;
+      return Object.fromEntries(rows.map((r) => [r.result, r.n]));
+    },
+
+    auditSince(since: number, limit: number): AuditRow[] {
+      const rows = st.auditSince.all(since, limit) as unknown as Array<{
+        id: number;
+        ts: number;
+        user_id: string | null;
+        username: string;
+        server_id: string | null;
+        action: AuditAction;
+        result: AuditResult;
+        detail: string | null;
+        ip: string | null;
+        user_agent: string | null;
+      }>;
+      return rows.map((r) => ({
+        id: r.id,
+        ts: r.ts,
+        userId: r.user_id,
+        username: r.username,
+        serverId: r.server_id,
+        action: r.action,
+        result: r.result,
+        detail: r.detail,
+        ip: r.ip,
+        userAgent: r.user_agent,
+      }));
     },
 
     recentAudit(limit: number): AuditRow[] {

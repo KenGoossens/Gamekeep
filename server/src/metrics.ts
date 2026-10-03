@@ -26,7 +26,46 @@ export interface MetricSample {
 }
 
 const SAMPLE_INTERVAL_MS = 30_000;
-export const RETENTION_MS = 24 * 60 * 60 * 1000;
+/**
+ * A week, not a day: "a memory line that climbs for days and drops at each
+ * restart" is the pattern this screen exists to show, and a 24-hour window
+ * cannot contain it. The cost is ~20k rows per server per day in SQLite,
+ * which is nothing; the browser is protected by downsampling below.
+ */
+export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** More points than any chart has pixels for. */
+const MAX_POINTS = 420;
+
+/**
+ * Buckets a long history down to something a chart (and a phone) can carry.
+ *
+ * Gauges (cpu, memory) average within the bucket; counters (network, disk)
+ * take the bucket's last value, so the UI's delta-based rate stays the true
+ * average rate across the bucket; players take the max, because "someone was
+ * on at 21:00" must survive the squeeze.
+ */
+export function downsample(points: MetricSample[], maxPoints = MAX_POINTS): MetricSample[] {
+  if (points.length <= maxPoints) return points;
+  const perBucket = Math.ceil(points.length / maxPoints);
+  const out: MetricSample[] = [];
+  for (let start = 0; start < points.length; start += perBucket) {
+    const bucket = points.slice(start, start + perBucket);
+    const last = bucket[bucket.length - 1]!;
+    const avg = (pick: (p: MetricSample) => number) =>
+      bucket.reduce((sum, p) => sum + pick(p), 0) / bucket.length;
+    const playersSeen = bucket.map((p) => p.players).filter((p): p is number => p !== null);
+    out.push({
+      ...last,
+      cpuPercent: Math.round(avg((p) => p.cpuPercent) * 100) / 100,
+      cpuCores:
+        last.cpuCores === null ? null : Math.round(avg((p) => p.cpuCores ?? 0) * 100) / 100,
+      memBytes: Math.round(avg((p) => p.memBytes)),
+      players: playersSeen.length > 0 ? Math.max(...playersSeen) : null,
+    });
+  }
+  return out;
+}
 
 /** Docker reports counters; these are the deltas we care about. */
 interface DockerStats {
@@ -164,7 +203,7 @@ export function createMetricsCollector(
   }
 
   function history(serverId: string, sinceMs: number): MetricSample[] {
-    return db.readMetrics(serverId, Date.now() - sinceMs);
+    return downsample(db.readMetrics(serverId, Date.now() - sinceMs));
   }
 
   return { start, current, history, collect };

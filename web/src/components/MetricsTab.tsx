@@ -22,6 +22,9 @@ const RANGES = [
   { label: '1h', ms: 60 * 60 * 1000 },
   { label: '6h', ms: 6 * 60 * 60 * 1000 },
   { label: '24h', ms: 24 * 60 * 60 * 1000 },
+  // Only offered because retention genuinely holds a week: a range button
+  // that silently shows less than it names is how 7d used to behave.
+  { label: '7d', ms: 7 * 24 * 60 * 60 * 1000 },
 ];
 
 export function MetricsTab({ serverId }: { serverId: string }) {
