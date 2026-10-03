@@ -156,6 +156,8 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
         />
       ) : null}
 
+      {matches.length > 0 ? <Standings matches={matches} teamName={teamName} /> : null}
+
       {matches.length > 0 ? (
         <Bracket
           matches={matches}
@@ -324,6 +326,80 @@ function Registration({
       ) : (
         <p className="empty">No teams yet.</p>
       )}
+    </section>
+  );
+}
+
+/** Wins first, then map difference, then rounds — only settled matches count. */
+function Standings({
+  matches,
+  teamName,
+}: {
+  matches: TournamentMatch[];
+  teamName: (id: string | null) => string | null;
+}) {
+  const rows = new Map<
+    string,
+    { wins: number; losses: number; mapsWon: number; mapsLost: number; roundDiff: number }
+  >();
+  const row = (teamId: string) => {
+    if (!rows.has(teamId)) rows.set(teamId, { wins: 0, losses: 0, mapsWon: 0, mapsLost: 0, roundDiff: 0 });
+    return rows.get(teamId)!;
+  };
+  for (const match of matches) {
+    if ((match.status !== 'decided' && match.status !== 'forfeit') || !match.teamA || !match.teamB || !match.winner)
+      continue;
+    const a = row(match.teamA);
+    const b = row(match.teamB);
+    (match.winner === match.teamA ? a : b).wins++;
+    (match.winner === match.teamA ? b : a).losses++;
+    for (const map of match.maps) {
+      if (map.scoreA > map.scoreB) (a.mapsWon++, b.mapsLost++);
+      else if (map.scoreB > map.scoreA) (b.mapsWon++, a.mapsLost++);
+      a.roundDiff += map.scoreA - map.scoreB;
+      b.roundDiff += map.scoreB - map.scoreA;
+    }
+  }
+  const sorted = [...rows.entries()].sort(
+    ([, x], [, y]) =>
+      y.wins - x.wins || y.mapsWon - y.mapsLost - (x.mapsWon - x.mapsLost) || y.roundDiff - x.roundDiff,
+  );
+  if (sorted.length === 0) return null;
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Standings</h2>
+      </div>
+      <table className="standings">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Team</th>
+            <th>W</th>
+            <th>L</th>
+            <th>Maps</th>
+            <th>Rounds ±</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(([teamId, s], index) => (
+            <tr key={teamId}>
+              <td className="pos">{index + 1}</td>
+              <td>{teamName(teamId)}</td>
+              <td>{s.wins}</td>
+              <td>{s.losses}</td>
+              <td>
+                {s.mapsWon}–{s.mapsLost}
+              </td>
+              <td>
+                {s.roundDiff > 0 ? '+' : ''}
+                {s.roundDiff}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }

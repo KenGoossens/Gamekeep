@@ -132,6 +132,8 @@ body::after {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 18px;
+  /* Cards and whatever section follows them breathe the same 18px. */
+  margin-bottom: 18px;
 }
 
 .tile {
@@ -237,6 +239,20 @@ body::after {
 .fieldrow .field { flex: 1 1 160px; margin: 0; }
 /* A button that lines up with the inputs beside it, not with their labels. */
 .fieldrow-action { align-self: end; margin-bottom: 2px; }
+
+.standings { width: 100%; border-collapse: collapse; }
+.standings th, .standings td { padding: 8px 12px; text-align: left; }
+.standings th {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--faint); border-bottom: 1px solid var(--border-soft); font-weight: 650;
+}
+.standings td {
+  border-bottom: 1px solid var(--border-soft);
+  font-variant-numeric: tabular-nums; color: var(--muted);
+}
+.standings td:nth-child(2) { color: var(--text); font-weight: 600; }
+.standings tr:last-child td { border-bottom: none; }
+.standings .pos { color: var(--faint); width: 30px; }
 
 .bracket { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 6px; }
 .bracket-round { min-width: 240px; display: flex; flex-direction: column; gap: 10px; }

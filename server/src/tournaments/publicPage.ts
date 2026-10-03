@@ -40,6 +40,57 @@ export interface PublicTournament {
   beta: true;
 }
 
+export interface StandingRow {
+  team: string;
+  played: number;
+  wins: number;
+  losses: number;
+  mapsWon: number;
+  mapsLost: number;
+  roundDiff: number;
+}
+
+/**
+ * The leaderboard, derived from nothing but the matches: wins first, then map
+ * difference, then round difference. Only settled matches count — a live
+ * score is news, not a standing.
+ */
+export function computeStandings(
+  teams: Array<{ name: string }>,
+  matches: PublicMatch[],
+): StandingRow[] {
+  const rows = new Map<string, StandingRow>(
+    teams.map((t) => [
+      t.name,
+      { team: t.name, played: 0, wins: 0, losses: 0, mapsWon: 0, mapsLost: 0, roundDiff: 0 },
+    ]),
+  );
+  for (const match of matches) {
+    if (match.state !== 'decided' && match.state !== 'forfeit') continue;
+    if (!match.teamA || !match.teamB || !match.winner) continue;
+    const a = rows.get(match.teamA);
+    const b = rows.get(match.teamB);
+    if (!a || !b) continue;
+    a.played++;
+    b.played++;
+    (match.winner === match.teamA ? a : b).wins++;
+    (match.winner === match.teamA ? b : a).losses++;
+    for (const map of match.maps) {
+      if (map.scoreA > map.scoreB) (a.mapsWon++, b.mapsLost++);
+      else if (map.scoreB > map.scoreA) (b.mapsWon++, a.mapsLost++);
+      a.roundDiff += map.scoreA - map.scoreB;
+      b.roundDiff += map.scoreB - map.scoreA;
+    }
+  }
+  return [...rows.values()].sort(
+    (x, y) =>
+      y.wins - x.wins ||
+      y.mapsWon - y.mapsLost - (x.mapsWon - x.mapsLost) ||
+      y.roundDiff - x.roundDiff ||
+      x.team.localeCompare(y.team),
+  );
+}
+
 const publicState = (match: MatchRow): PublicMatch['state'] => {
   if (match.status === 'decided') return 'decided';
   if (match.status === 'forfeit') return 'forfeit';
@@ -131,6 +182,25 @@ export function renderFragment(data: PublicTournament): string {
           : ''
     }`;
 
+  const standings = computeStandings(data.teams, data.matches);
+  const leaderboard =
+    standings.some((row) => row.played > 0)
+      ? `<section><h2>Standings</h2><table class="standings">
+          <thead><tr><th></th><th>Team</th><th>W</th><th>L</th><th>Maps</th><th>Rounds ±</th></tr></thead>
+          <tbody>${standings
+            .map(
+              (row, index) =>
+                `<tr${data.champion === row.team ? ' class="top"' : ''}>
+                   <td class="pos">${index + 1}</td>
+                   <td>${data.champion === row.team ? '🏆 ' : ''}${esc(row.team)}</td>
+                   <td>${row.wins}</td><td>${row.losses}</td>
+                   <td>${row.mapsWon}–${row.mapsLost}</td>
+                   <td>${row.roundDiff > 0 ? '+' : ''}${row.roundDiff}</td>
+                 </tr>`,
+            )
+            .join('')}</tbody></table></section>`
+      : '';
+
   const teams =
     data.teams.length > 0
       ? `<section><h2>Teams</h2><ul class="teams">${data.teams
@@ -175,7 +245,7 @@ export function renderFragment(data: PublicTournament): string {
           .join('')}</div></section>`
       : '';
 
-  return header + teams + bracket;
+  return header + leaderboard + bracket + teams;
 }
 
 /** The whole page: shell, theme slot, and a refresh loop while play is on. */
@@ -189,45 +259,84 @@ export function renderPublicPage(slug: string, data: PublicTournament): string {
 <meta name="robots" content="noindex" />
 <title>${esc(data.name)} — GameKeepr</title>
 <style>
-/* The branding layer: the later white-label feature replaces these tokens. */
+/*
+ * The portal's own look, token for token, so the public page is unmistakably
+ * the same product -- and the branding stays one swappable layer: the later
+ * white-label feature replaces these tokens and the brand row, nothing else.
+ */
 :root {
-  --bg: #0b0e18; --surface: #141a2b; --border: #232b42;
-  --text: #e8ecf6; --muted: #9aa3bd; --accent: #e8b44c; --live: #4caf7d;
+  --bg: #090e1c; --surface: #121a30; --surface-2: #1a2440;
+  --border: #273252; --border-soft: #1d2740;
+  --text: #eef1f8; --muted: #9aa5c4; --faint: #6b779c;
+  --accent: #7c6cf2; --accent-cyan: #49c9f7;
+  --ok: #4ade80; --gold: #e8b44c; --radius: 16px;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
-main { max-width: 980px; margin: 0 auto; padding: 28px 20px 60px; }
-h1 { margin: 0; font-size: 1.6rem; }
-h2 { margin: 28px 0 10px; font-size: 1.05rem; }
-.beta { font-size: 0.6em; color: var(--accent); text-transform: uppercase;
-  letter-spacing: 0.08em; vertical-align: super; margin-left: 6px; }
-.meta { color: var(--muted); margin: 6px 0; }
-.champion { font-size: 1.2rem; margin: 10px 0; }
+body {
+  margin: 0; background: var(--bg); color: var(--text); min-height: 100vh;
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+/* The portal's grid backdrop: hairlines fading out, plus a soft glow. */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(900px 480px at 75% -10%, rgba(124, 108, 242, 0.14), transparent 65%),
+    radial-gradient(700px 420px at 15% 0%, rgba(73, 201, 247, 0.07), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 44px);
+  mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 95%);
+}
+main { max-width: 1020px; margin: 0 auto; padding: 22px 20px 60px; }
+.brand {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 26px;
+  color: var(--muted); font-weight: 650; font-size: 0.95rem;
+}
+.brand img { width: 26px; height: 26px; }
+h1 { margin: 0; font-size: 1.7rem; letter-spacing: -0.01em; }
+h2 { margin: 30px 0 10px; font-size: 1.02rem; }
+.beta { font-size: 0.55em; color: var(--gold); text-transform: uppercase;
+  letter-spacing: 0.08em; vertical-align: super; margin-left: 7px; font-weight: 700; }
+.meta { color: var(--muted); margin: 6px 0 0; }
+.champion { font-size: 1.15rem; margin: 12px 0 0; }
+.standings { width: 100%; border-collapse: collapse; background: var(--surface);
+  border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; }
+.standings th, .standings td { padding: 9px 14px; text-align: left; }
+.standings th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--faint); border-bottom: 1px solid var(--border-soft); font-weight: 650; }
+.standings td { border-bottom: 1px solid var(--border-soft);
+  font-variant-numeric: tabular-nums; color: var(--muted); }
+.standings td:nth-child(2) { color: var(--text); font-weight: 600; }
+.standings tr:last-child td { border-bottom: none; }
+.standings tr.top td { background: rgba(232, 180, 76, 0.07); }
+.standings .pos { color: var(--faint); width: 30px; }
 .teams { list-style: none; margin: 0; padding: 0; display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
-.teams li { background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 10px 14px; }
-.roster { display: block; color: var(--muted); font-size: 0.85rem; }
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.teams li { background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: 12px; padding: 11px 15px; }
+.roster { display: block; color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
 .bracket { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; }
-.round { min-width: 230px; display: flex; flex-direction: column; gap: 10px; }
-.round h3 { margin: 0 0 2px; font-size: 0.8rem; text-transform: uppercase;
-  letter-spacing: 0.06em; color: var(--muted); }
-.match { background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 8px 12px; }
-.match.live { border-color: var(--live); }
+.round { min-width: 235px; display: flex; flex-direction: column; gap: 10px; }
+.round h3 { margin: 0 0 2px; font-size: 0.74rem; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--faint); }
+.match { background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: 12px; padding: 9px 13px; }
+.match.live { border-color: var(--ok); box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.25); }
 .team { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0;
   color: var(--muted); }
 .team.winner { color: var(--text); font-weight: 650; }
 .score { font-variant-numeric: tabular-nums; }
-.state { margin-top: 6px; font-size: 0.75rem; color: var(--muted); }
-.match.live .state { color: var(--live); }
-footer { margin-top: 40px; color: var(--muted); font-size: 0.85rem; }
-footer a { color: inherit; }
+.state { margin-top: 6px; font-size: 0.74rem; color: var(--faint); }
+.match.live .state { color: var(--ok); }
+footer { margin-top: 44px; color: var(--faint); font-size: 0.84rem;
+  border-top: 1px solid var(--border-soft); padding-top: 16px; }
+footer a { color: var(--muted); }
 </style>
 </head>
 <body>
 <main>
+  <div class="brand"><img src="/logo.png" alt="" width="26" height="26" /> GameKeepr</div>
   <h1>${esc(data.name)}<sup class="beta">beta</sup></h1>
   <div id="live">${renderFragment(data)}</div>
   <footer>Run with <a href="https://kengoossens.github.io/Gamekeep/" rel="noreferrer">GameKeepr</a>,
