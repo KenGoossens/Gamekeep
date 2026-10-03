@@ -345,6 +345,16 @@ export function openDatabase(path: string) {
      * are they still there". Existing sessions keep working; they simply show
      * nothing for these until the next sign-in.
      */
+    /*
+     * CPU grew a second number: cores in use beside percent-of-machine. Old
+     * rows keep their one-core-convention percent for at most the 24h
+     * retention window and then age out; rewriting them is impossible anyway,
+     * since the core count was never stored.
+     */
+    if (tableExists('metrics') && !hasColumn('metrics', 'cpu_cores')) {
+      db.exec('ALTER TABLE metrics ADD COLUMN cpu_cores REAL');
+      db.exec('ALTER TABLE metrics ADD COLUMN cpu_count INTEGER');
+    }
     if (tableExists('sessions') && !hasColumn('sessions', 'ip')) {
       db.exec('ALTER TABLE sessions ADD COLUMN ip TEXT');
       db.exec('ALTER TABLE sessions ADD COLUMN user_agent TEXT');
@@ -476,6 +486,8 @@ export function openDatabase(path: string) {
       server_id   TEXT NOT NULL,
       ts          INTEGER NOT NULL,
       cpu_percent REAL NOT NULL,
+      cpu_cores   REAL,
+      cpu_count   INTEGER,
       mem_bytes   INTEGER NOT NULL,
       mem_limit   INTEGER NOT NULL,
       net_rx      INTEGER NOT NULL,
@@ -648,11 +660,11 @@ export function openDatabase(path: string) {
     deleteSetting: db.prepare('DELETE FROM app_settings WHERE key = ?'),
 
     insertMetric: db.prepare(
-      `INSERT INTO metrics (server_id, ts, cpu_percent, mem_bytes, mem_limit, net_rx, net_tx, blk_read, blk_write, players)
-       VALUES (@serverId, @ts, @cpuPercent, @memBytes, @memLimit, @netRx, @netTx, @blkRead, @blkWrite, @players)`,
+      `INSERT INTO metrics (server_id, ts, cpu_percent, cpu_cores, cpu_count, mem_bytes, mem_limit, net_rx, net_tx, blk_read, blk_write, players)
+       VALUES (@serverId, @ts, @cpuPercent, @cpuCores, @cpuCount, @memBytes, @memLimit, @netRx, @netTx, @blkRead, @blkWrite, @players)`,
     ),
     readMetrics: db.prepare(
-      `SELECT ts, cpu_percent, mem_bytes, mem_limit, net_rx, net_tx, blk_read, blk_write, players
+      `SELECT ts, cpu_percent, cpu_cores, cpu_count, mem_bytes, mem_limit, net_rx, net_tx, blk_read, blk_write, players
        FROM metrics WHERE server_id = ? AND ts >= ? ORDER BY ts`,
     ),
     pruneMetrics: db.prepare('DELETE FROM metrics WHERE ts < ?'),
@@ -953,6 +965,8 @@ export function openDatabase(path: string) {
       point: {
         ts: number;
         cpuPercent: number;
+        cpuCores: number | null;
+        cpuCount: number | null;
         memBytes: number;
         memLimit: number;
         netRx: number;
@@ -970,6 +984,8 @@ export function openDatabase(path: string) {
       return rows.map((r) => ({
         ts: r.ts as number,
         cpuPercent: r.cpu_percent as number,
+        cpuCores: r.cpu_cores as number | null,
+        cpuCount: r.cpu_count as number | null,
         memBytes: r.mem_bytes as number,
         memLimit: r.mem_limit as number,
         netRx: r.net_rx as number,

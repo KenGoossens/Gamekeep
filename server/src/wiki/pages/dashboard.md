@@ -23,3 +23,10 @@ Recent actions (restarts, starts, stops and who did them) and — for operators
 — CPU, memory and network charts per server over a chosen window. A memory
 line that climbs for days and drops at each restart is the classic sign of a
 game that wants its nightly restart schedule.
+
+Two CPU numbers, on purpose: the percentage is **of the whole machine**
+(100% means the box has nothing left), and next to it stand the **cores in
+use**. The second one matters for games: a single-threaded server pegging one
+core of sixteen reads 6% machine-wide while being completely CPU-bound — the
+"1.0 cores" beside it is what says so. Memory follows `docker stats`: usage
+without the page cache.

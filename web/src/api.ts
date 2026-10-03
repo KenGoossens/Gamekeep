@@ -147,7 +147,11 @@ export interface ConnectInfo {
 
 export interface MetricPoint {
   ts: number;
+  /** Of the whole machine, 0-100. */
   cpuPercent: number;
+  /** Cores in use (1.04 = just over one core); null on pre-upgrade samples. */
+  cpuCores: number | null;
+  cpuCount: number | null;
   memBytes: number;
   memLimit: number;
   netRx: number;

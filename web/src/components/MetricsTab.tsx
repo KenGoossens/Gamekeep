@@ -86,6 +86,13 @@ export function MetricsTab({ serverId }: { serverId: string }) {
           <div>
             <span className="stat-label">CPU</span>
             <strong>{current.cpuPercent.toFixed(1)}%</strong>
+            <span className="hint">
+              {/* The per-core truth: a single-threaded game can be CPU-bound
+                  at 6% of a sixteen-core machine, and this is what says so. */}
+              {current.cpuCores !== null && current.cpuCount
+                ? `${current.cpuCores.toFixed(2)} of ${current.cpuCount} cores`
+                : ''}
+            </span>
           </div>
           <div>
             <span className="stat-label">Memory</span>

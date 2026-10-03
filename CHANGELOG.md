@@ -6,6 +6,17 @@ All notable changes to GameKeepr. The format follows
 only when a version is released; `edge` tracks the main branch between
 releases.
 
+## Unreleased
+
+### Fixed
+
+- **CPU is of the machine now.** Metrics used docker-stats' one-core
+  convention, so a server using just over one core showed "104% CPU" on a
+  sixteen-core box. The percentage is now of the whole machine (0-100), with
+  the per-core truth beside it as "1.04 of 16 cores" — the number that shows a
+  single-threaded game being CPU-bound while the machine looks idle. History
+  recorded before the change ages out within the 24-hour retention window.
+
 ## 1.2.0 — 2026-10-03
 
 ### Added

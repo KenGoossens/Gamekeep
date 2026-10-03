@@ -6,7 +6,16 @@ import type { ServerRegistry } from './registry.js';
 
 export interface MetricSample {
   ts: number;
+  /** Of the whole machine, 0-100. What a person means by "CPU %". */
   cpuPercent: number;
+  /**
+   * Cores in use, e.g. 1.04. The number that matters for game servers: a
+   * single-threaded game pegging one core of sixteen reads 6% machine-wide
+   * while being completely CPU-bound — this is the number that says so.
+   */
+  cpuCores: number | null;
+  /** How many cores the machine has, for "1.04 of 16". */
+  cpuCount: number | null;
   memBytes: number;
   memLimit: number;
   netRx: number;
@@ -41,6 +50,12 @@ interface DockerStats {
  * CPU is a delta between two cumulative counters, so it needs the previous
  * sample Docker ships alongside; when that is missing (the first read after a
  * container starts) the only honest answer is zero rather than a wild number.
+ *
+ * The percentage is of the WHOLE machine, deliberately not docker-stats'
+ * one-core convention: that convention is how a server using slightly more
+ * than one core shows "104% CPU" on a sixteen-core box, which reads as
+ * nonsense to anyone who has not memorised Docker's definition. The one-core
+ * truth still ships, as cores: "6.5% of the machine, 1.04 cores".
  */
 export function readStats(raw: DockerStats): Omit<MetricSample, 'ts' | 'players'> {
   const cpuNow = raw.cpu_stats?.cpu_usage?.total_usage ?? 0;
@@ -52,10 +67,12 @@ export function readStats(raw: DockerStats): Omit<MetricSample, 'ts' | 'players'
   const sysDelta = sysNow - sysBefore;
   const cpuCount = raw.cpu_stats?.online_cpus ?? raw.cpu_stats?.cpu_usage?.percpu_usage?.length ?? 1;
 
-  const cpuPercent =
-    sysDelta > 0 && cpuDelta > 0
-      ? Math.min(100 * cpuCount, (cpuDelta / sysDelta) * cpuCount * 100)
-      : 0;
+  // system_cpu_usage already sums every core, so this fraction is of the
+  // machine; clamped because counter jitter can nudge it past 1.
+  const machineFraction =
+    sysDelta > 0 && cpuDelta > 0 ? Math.min(1, cpuDelta / sysDelta) : 0;
+  const cpuPercent = machineFraction * 100;
+  const cpuCores = machineFraction * cpuCount;
 
   // Docker's memory usage includes the page cache, which makes every server
   // look nearly full. Subtracting inactive_file is what `docker stats` does.
@@ -80,6 +97,8 @@ export function readStats(raw: DockerStats): Omit<MetricSample, 'ts' | 'players'
 
   return {
     cpuPercent: Math.round(cpuPercent * 100) / 100,
+    cpuCores: Math.round(cpuCores * 100) / 100,
+    cpuCount,
     memBytes,
     memLimit: raw.memory_stats?.limit ?? 0,
     netRx,
