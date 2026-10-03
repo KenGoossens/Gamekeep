@@ -93,10 +93,22 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
    * ports are needed, just not to which address.
    */
   const target = () => env.LAN_ADDRESS.trim();
-  const failure = (err: unknown) =>
-    err instanceof UnifiError
-      ? { status: err.code === 'unauthorized' ? 401 : 502, body: { error: err.code, message: err.message } }
-      : { status: 500, body: { error: 'unifi-failed', message: (err as Error).message } };
+  /*
+   * Every provider error carries a `code` and a human-written message; the
+   * duck-type keeps IgdError and the MikroTik errors out of the raw-500
+   * branch without the providers having to share a base class.
+   */
+  const failure = (err: unknown) => {
+    const coded = err as { code?: unknown; message?: unknown };
+    if (err instanceof UnifiError || (typeof coded.code === 'string' && typeof coded.message === 'string')) {
+      const code = (coded.code as string) ?? 'router-failed';
+      return {
+        status: code === 'unauthorized' ? 401 : 502,
+        body: { error: code, message: String(coded.message) },
+      };
+    }
+    return { status: 500, body: { error: 'router-failed', message: (err as Error).message } };
+  };
 
   // ---- the router connection: owner only ------------------------------
   app.get('/api/integrations/router', owner, async (_request, reply) => {
@@ -356,6 +368,20 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
       if (!current) return reply.code(409).send({ error: 'not-configured' });
 
       try {
+        /*
+         * Scoped to THIS server, not merely to "a rule the portal made": the
+         * guard on :id says which server's operator is acting, so the rule
+         * must be one of that server's own forwards — an operator of server A
+         * does not get to close server B's door through A's URL.
+         */
+        const [needed, rules] = await Promise.all([
+          requiredForwards(docker, server),
+          current.provider.list(),
+        ]);
+        const rule = rules.find((r) => r.id === request.params.ruleId);
+        if (!rule || !needed.some((n) => coveredBy(rule, n, target()))) {
+          return reply.code(404).send({ error: 'not-this-server', message: 'That rule does not belong to this server.' });
+        }
         await current.provider.remove(request.params.ruleId);
         db.audit({
           userId: user.id,

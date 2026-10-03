@@ -197,15 +197,21 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
             await rcon.exec(`matchzy_remote_log_url "${base}/api/tournaments/match-event"`);
             await rcon.exec('matchzy_remote_log_header_key "X-GameKeepr-Token"');
             await rcon.exec(`matchzy_remote_log_header_value "${match.eventToken}"`);
+            // The token travels as a header, never in the URL: Fastify logs
+            // every request's URL, and a bearer token in the log is a bearer
+            // token for whoever reads logs.
             const answer = await rcon.exec(
-              `matchzy_loadmatch_url "${base}/api/tournaments/match-config/${match.eventToken}"`,
+              `matchzy_loadmatch_url "${base}/api/tournaments/match-config" "X-GameKeepr-Token" "${match.eventToken}"`,
             );
             if (/unknown command/i.test(answer)) {
               // The server is up but MatchZy is not in it; a result can never
-              // arrive, so say it loudly rather than look "ready".
+              // arrive, so say it loudly, tear down, and let the next attempt
+              // start from a fresh bundle rather than sit as a zombie that
+              // blocks every other match behind the one-boot-at-a-time gate.
               log(
                 `Match ${matchId.slice(0, 8)}: ${match.serverContainer} is up but MatchZy did not load — check the gamekeepr addon bundle in ${CS2_SHARED_DIR}.`,
               );
+              await failProvision(matchId);
               return;
             }
             store.setMatchStatus(matchId, 'ready');
@@ -229,6 +235,26 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
       await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
     }
     log(`Match ${matchId.slice(0, 8)}: gave up waiting for the server to answer rcon.`);
+    await failProvision(matchId);
+  }
+
+  /**
+   * A boot that will never finish must not linger: the stuck container (and
+   * its token and port) leak, and — worse — the one-boot-at-a-time gate in
+   * tick() means a single zombie blocks every other match in every
+   * tournament, surviving portal restarts. Tear it down and hand the match
+   * back to the queue; a persistent failure then shows up as a visible retry
+   * cycle instead of a silent deadlock.
+   */
+  async function failProvision(matchId: string): Promise<void> {
+    const match = store.getMatch(matchId);
+    if (!match || match.status !== 'provisioning') return;
+    await teardown(match);
+    const after = store.getMatch(matchId);
+    if (after && after.status === 'provisioning' && !after.serverContainer) {
+      store.setMatchStatus(matchId, 'pending');
+      log(`Match ${matchId.slice(0, 8)}: returned to the queue after a failed boot.`);
+    }
   }
 
   async function provision(match: MatchRow): Promise<void> {
@@ -378,12 +404,29 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
       typeof value === 'object' && value !== null
         ? teamFor((value as { team?: unknown }).team)
         : null;
-    const scoreOf = (value: unknown): number =>
-      typeof value === 'object' && value !== null && typeof (value as { score?: unknown }).score === 'number'
-        ? (value as { score: number }).score
+    const scoreOf = (value: unknown): number => {
+      const score =
+        typeof value === 'object' && value !== null
+          ? (value as { score?: unknown }).score
+          : undefined;
+      // A CS2 map ends well under a thousand rounds; NaN and 1e308 do not.
+      return Number.isSafeInteger(score) && (score as number) >= 0
+        ? Math.min(score as number, 999)
         : 0;
+    };
 
-    const mapNumber = typeof payload.map_number === 'number' ? payload.map_number : 0;
+    /*
+     * Everything in this payload is a game server's claim, and a game server
+     * can be compromised. Every number is therefore clamped before it touches
+     * memory or the database: an unchecked map_number of 1e8 would allocate a
+     * hundred million objects in a synchronous loop — one request, portal
+     * gone. A best-of-five never has more than five maps, so that is the cap.
+     */
+    const rawMapNumber = payload.map_number;
+    const mapNumber =
+      Number.isInteger(rawMapNumber) && (rawMapNumber as number) >= 0
+        ? Math.min(rawMapNumber as number, Math.max(1, match.bestOf) - 1)
+        : 0;
     const maps: MapResult[] = [...match.maps];
     const ensureMap = (): MapResult => {
       while (maps.length <= mapNumber) maps.push({ map: '', scoreA: 0, scoreB: 0 });
@@ -398,7 +441,7 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
         return;
       case 'map_picked': {
         const entry = ensureMap();
-        if (typeof payload.map_name === 'string') entry.map = payload.map_name;
+        if (typeof payload.map_name === 'string') entry.map = payload.map_name.slice(0, 64);
         store.recordMaps(match.id, maps);
         return;
       }

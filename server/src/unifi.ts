@@ -1,4 +1,4 @@
-import { request as httpsRequest } from 'node:https';
+import { Agent, request as httpsRequest } from 'node:https';
 import type { ServerConfig } from './config.js';
 import type { DockerClient } from './docker/client.js';
 
@@ -62,6 +62,29 @@ export function createUnifiClient(config: UnifiConfig) {
   /** Fingerprint seen on the most recent call, so it can be stored. */
   let observedFingerprint: string | null = null;
 
+  /*
+   * The pin is enforced inside the TLS handshake, not in a secureConnect
+   * listener: by secureConnect the request (API key included) may already be
+   * flushed, so a wrong certificate could be shown the credentials it came
+   * to steal. checkServerIdentity returning an error aborts the handshake
+   * before a request byte leaves.
+   */
+  const agent = new Agent({
+    // Scoped to this client only: never set globally, which would also stop
+    // verifying Cloudflare, Steam and the app catalogue.
+    rejectUnauthorized: false,
+    checkServerIdentity: (_host, cert) => {
+      observedFingerprint = cert?.fingerprint256 ?? null;
+      if (config.fingerprint && observedFingerprint && observedFingerprint !== config.fingerprint) {
+        return new UnifiError(
+          'The controller presented a different certificate than the one saved. Reconnect it from Settings if you replaced the device.',
+          'fingerprint-changed',
+        );
+      }
+      return undefined;
+    },
+  });
+
   function raw(path: string, method: string, body?: string): Promise<{ status: number; text: string }> {
     const url = new URL(`${base}${path}`);
 
@@ -72,9 +95,7 @@ export function createUnifiClient(config: UnifiConfig) {
           port: url.port || 443,
           path: url.pathname + url.search,
           method,
-          // Scoped to this client only: never set globally, which would
-          // also stop verifying Cloudflare, Steam and the app catalogue.
-          rejectUnauthorized: false,
+          agent,
           headers: {
             'X-API-KEY': config.apiKey,
             'content-type': 'application/json',
@@ -88,21 +109,6 @@ export function createUnifiClient(config: UnifiConfig) {
           res.on('end', () => resolve({ status: res.statusCode ?? 0, text }));
         },
       );
-
-      req.on('socket', (socket) => {
-        socket.on('secureConnect', () => {
-          const cert = (socket as import('node:tls').TLSSocket).getPeerCertificate();
-          observedFingerprint = cert?.fingerprint256 ?? null;
-          if (config.fingerprint && observedFingerprint && observedFingerprint !== config.fingerprint) {
-            req.destroy(
-              new UnifiError(
-                'The controller presented a different certificate than the one saved. Reconnect it from Settings if you replaced the device.',
-                'fingerprint-changed',
-              ),
-            );
-          }
-        });
-      });
 
       req.on('timeout', () => req.destroy(new UnifiError('The controller did not answer in time.', 'timeout')));
       req.on('error', (err) =>

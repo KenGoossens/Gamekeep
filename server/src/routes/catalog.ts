@@ -387,12 +387,17 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
     const managed = db.listManagedServers().some((m) => m.id === id);
     if (!managed) return reply.code(404).send({ error: 'not-portal-managed' });
 
+    // Resolved before the row goes, because the caches key on it.
+    const unlisted = registry.get(id);
     db.removeManagedServer(id);
     // Its schedules go with it: a standing instruction against a server that
     // no longer exists is only ever a source of confusing skip messages.
     db.removeSchedulesFor(id);
     db.clearServerRoleOverrides(id);
     registry.reload();
+    if (unlisted) ctx.docker.invalidate(unlisted);
+    ctx.gameQuery.invalidate(id);
+    ctx.metrics.forget(id);
     db.audit({
       userId: user.id,
       username: user.username,

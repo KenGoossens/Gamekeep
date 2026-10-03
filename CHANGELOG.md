@@ -8,6 +8,40 @@ releases.
 
 ## Unreleased
 
+### Security
+
+Findings from a full adversarial review (three independent passes:
+authorization/injection, secrets/exposure, memory/lifecycles). No SQL
+injection, no XSS and no authorization bypasses were found; these are the
+hardenings that came out of it:
+
+- **Match webhook payloads are clamped.** A compromised match server could
+  send `map_number: 100000000` and allocate a hundred million objects in one
+  synchronous loop — one request, portal gone. Map numbers are now bounded by
+  the series length, scores to sane integers, map names truncated.
+- **Steam start commands can no longer reach a root shell.** The generated
+  start script interpolated the operator's command into a root-context
+  string, so a `$(...)` in it ran as container root before the privilege
+  drop — reachable even via a hostile Steam appinfo prefill. The command now
+  travels in a single-quoted variable; substitutions execute only as the
+  unprivileged game user, as the product always promised.
+- **Match tokens stay out of logs.** The MatchZy config URL carried the
+  per-match bearer token, and Fastify logs URLs; whoever reads logs could
+  forge match results. The config is now fetched with the token in a header
+  (never serialized), the header is on the redact list for good measure, and
+  the organizer's override response no longer returns the token to a browser.
+- **A failed match-server boot no longer deadlocks tournaments.** A boot that
+  gave up used to sit in 'provisioning' forever — leaking the container, its
+  port and its Steam token, and blocking every other match behind the
+  one-boot-at-a-time gate, across restarts. It is now torn down and returned
+  to the queue.
+- Smaller hardenings: unexpected server errors answer a generic message
+  instead of echoing internals; a dead rcon connection can no longer pass for
+  a successful command; port-forward deletion is scoped to the server in the
+  URL; the router TLS pin is enforced inside the handshake (before
+  credentials flush) for UniFi and MikroTik; tournament updates enforce the
+  same bounds as creation; deleted servers are evicted from every cache.
+
 ### Fixed
 
 - **The 7d window shows seven days now.** Metrics retention was 24 hours, so

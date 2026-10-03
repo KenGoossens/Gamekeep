@@ -170,7 +170,13 @@ async function main() {
     logger: {
       level: env.NODE_ENV === 'development' ? 'debug' : 'info',
       // Cloudflare Tunnel fronts the app, so the client IP arrives in a header.
-      redact: ['req.headers.cookie', 'req.headers.authorization'],
+      redact: [
+        'req.headers.cookie',
+        'req.headers.authorization',
+        // Defence in depth: headers are not serialized by default, but the
+        // match token must stay out of logs even if that ever changes.
+        'req.headers["x-gamekeepr-token"]',
+      ],
     },
     // Not "true": that would trust an X-Forwarded-For from anyone, which
     // makes both the audit log and any address-based rule forgeable.
@@ -208,6 +214,22 @@ async function main() {
       if (request.method === 'OPTIONS') return reply.code(204).send();
     });
   }
+
+  /*
+   * Unexpected errors stay inside. Fastify's default handler echoes
+   * err.message to the client, which turns every uncaught throw — a sqlite
+   * constraint, a fetch failure with an internal hostname — into an
+   * internals-disclosure channel. Deliberate 4xx replies (which the routes
+   * send themselves) are untouched; this only catches what nothing caught.
+   */
+  app.setErrorHandler((err: { statusCode?: number; code?: string; message?: string }, request, reply) => {
+    const status = err.statusCode && err.statusCode < 500 ? err.statusCode : 500;
+    if (status >= 500) {
+      request.log.error({ err }, 'unhandled route error');
+      return reply.code(500).send({ error: 'internal', message: 'Something broke on the server; the log has the detail.' });
+    }
+    return reply.code(status).send({ error: err.code ?? 'request-error', message: err.message ?? 'Bad request.' });
+  });
 
   app.get('/api/health', async (_request, reply) => {
     const dockerOk = await docker.ping();

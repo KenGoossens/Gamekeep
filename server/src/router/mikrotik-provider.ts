@@ -1,4 +1,4 @@
-import { request as httpsRequest } from 'node:https';
+import { Agent, request as httpsRequest } from 'node:https';
 import type { PortForwardRule, RequiredForward } from '../unifi.js';
 import { registerProvider, type RouterProvider } from './provider.js';
 
@@ -48,6 +48,26 @@ registerProvider({
     const wanList = String(config.wanInterface ?? '').trim() || 'WAN';
     let observedFingerprint: string | null = null;
 
+    /*
+     * Pin enforced inside the TLS handshake (checkServerIdentity), so a
+     * wrong certificate aborts before the Basic auth header is flushed — a
+     * secureConnect listener can lose that race.
+     */
+    const agent = new Agent({
+      // Scoped to this client, never global; the identity check is the pin.
+      rejectUnauthorized: false,
+      checkServerIdentity: (_host, cert) => {
+        observedFingerprint = cert?.fingerprint256 ?? null;
+        if (config.fingerprint && observedFingerprint && observedFingerprint !== config.fingerprint) {
+          return new MikrotikError(
+            'The router presented a different certificate than the one saved. Reconnect it from Settings if you replaced the device.',
+            'fingerprint-changed',
+          );
+        }
+        return undefined;
+      },
+    });
+
     function call<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
       const url = new URL(`${host}/rest${path}`);
       return new Promise((resolve, reject) => {
@@ -57,8 +77,7 @@ registerProvider({
             port: url.port || 443,
             path: url.pathname + url.search,
             method,
-            // Scoped to this client, never global; the pin below is the check.
-            rejectUnauthorized: false,
+            agent,
             headers: { authorization, 'content-type': 'application/json' },
             timeout: 15_000,
           },
@@ -81,20 +100,6 @@ registerProvider({
             });
           },
         );
-        req.on('socket', (socket) => {
-          socket.on('secureConnect', () => {
-            const cert = (socket as import('node:tls').TLSSocket).getPeerCertificate();
-            observedFingerprint = cert?.fingerprint256 ?? null;
-            if (config.fingerprint && observedFingerprint && observedFingerprint !== config.fingerprint) {
-              req.destroy(
-                new MikrotikError(
-                  'The router presented a different certificate than the one saved. Reconnect it from Settings if you replaced the device.',
-                  'fingerprint-changed',
-                ),
-              );
-            }
-          });
-        });
         req.on('timeout', () => req.destroy(new MikrotikError('The router did not answer in time.', 'timeout')));
         req.on('error', (err) =>
           reject(err instanceof MikrotikError ? err : new MikrotikError(`Could not reach the router: ${err.message}`, 'unreachable')),

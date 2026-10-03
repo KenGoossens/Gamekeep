@@ -43,7 +43,7 @@ export function rconConnect(
 
     let buffer = Buffer.alloc(0);
     let nextId = 1;
-    const waiting = new Map<number, (body: string) => void>();
+    const waiting = new Map<number, { resolve: (body: string) => void; reject: (err: Error) => void }>();
     let authResolve: ((ok: boolean) => void) | null = null;
     let settled = false;
 
@@ -53,12 +53,17 @@ export function rconConnect(
         settled = true;
         reject(err);
       }
-      for (const resolveBody of waiting.values()) resolveBody('');
+      // Rejected, never resolved with '': an empty answer reads as "command
+      // accepted" to callers, and a dead connection must not pass for one.
+      for (const pending of waiting.values()) pending.reject(err);
       waiting.clear();
     };
 
     socket.on('timeout', () => fail(new RconError(`rcon ${host}:${port} timed out`)));
     socket.on('error', (err) => fail(new RconError(`rcon ${host}:${port}: ${err.message}`)));
+    // A clean FIN carries no error event; without this, a pending exec would
+    // only die by its own timer.
+    socket.on('close', () => fail(new RconError(`rcon ${host}:${port} closed`)));
 
     socket.on('data', (chunk) => {
       buffer = Buffer.concat([buffer, chunk]);
@@ -78,10 +83,10 @@ export function rconConnect(
           resolveAuth(id !== -1);
           continue;
         }
-        const resolveBody = waiting.get(id);
-        if (resolveBody) {
+        const pending = waiting.get(id);
+        if (pending) {
           waiting.delete(id);
-          resolveBody(body);
+          pending.resolve(body);
         }
       }
     });
@@ -94,13 +99,23 @@ export function rconConnect(
           exec(command: string): Promise<string> {
             return new Promise((resolveExec, rejectExec) => {
               const id = nextId++;
+              // Only the command's first word ever lands in an error: the
+              // arguments can carry tokens, and errors have a way of ending
+              // up in logs.
+              const commandName = command.split(/\s+/)[0] ?? 'command';
               const timer = setTimeout(() => {
                 waiting.delete(id);
-                rejectExec(new RconError(`rcon command timed out: ${command}`));
+                rejectExec(new RconError(`rcon command timed out: ${commandName}`));
               }, timeoutMs);
-              waiting.set(id, (body) => {
-                clearTimeout(timer);
-                resolveExec(body);
+              waiting.set(id, {
+                resolve: (body) => {
+                  clearTimeout(timer);
+                  resolveExec(body);
+                },
+                reject: (err) => {
+                  clearTimeout(timer);
+                  rejectExec(err);
+                },
               });
               socket.write(packet(id, SERVERDATA_EXECCOMMAND, command));
             });

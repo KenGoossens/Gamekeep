@@ -62,6 +62,29 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
           .slice(0, 20)
       : [];
 
+  /**
+   * A match as humans may see it. Connect info and the event token stay out
+   * on purpose: connect info is served to the two teams through the match
+   * endpoint while the server stands, and the token is a machine credential
+   * no browser ever needs.
+   */
+  function matchView(m: ReturnType<typeof tournaments.getMatch> & object) {
+    return {
+      id: m.id,
+      round: m.round,
+      slot: m.slot,
+      teamA: m.teamA,
+      teamB: m.teamB,
+      scheduledAt: m.scheduledAt,
+      bestOf: m.bestOf,
+      status: m.status,
+      maps: m.maps,
+      winner: m.winner,
+      forfeitTeam: m.forfeitTeam,
+      overrideBy: m.overrideBy,
+    };
+  }
+
   function describeTournament(t: TournamentRow) {
     const entries = tournaments.listEntries(t.id);
     return {
@@ -164,22 +187,7 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
             }
           : null,
       })),
-      matches: tournaments.listMatches(tournament.id).map((m) => ({
-        id: m.id,
-        round: m.round,
-        slot: m.slot,
-        teamA: m.teamA,
-        teamB: m.teamB,
-        scheduledAt: m.scheduledAt,
-        bestOf: m.bestOf,
-        status: m.status,
-        maps: m.maps,
-        winner: m.winner,
-        forfeitTeam: m.forfeitTeam,
-        overrideBy: m.overrideBy,
-        // Connect info stays out of this listing on purpose: it is served to
-        // the two teams through the match endpoint when the server is ready.
-      })),
+      matches: tournaments.listMatches(tournament.id).map(matchView),
     });
   });
 
@@ -198,11 +206,25 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
     if (mapPool.length === 0) {
       return reply.code(400).send({ error: 'bad-map-pool', message: 'Name at least one map.' });
     }
+    // The same bounds the create route enforces; an update is not a way
+    // around them.
+    const name = String(body.name ?? tournament.name).replace(/[\r\n]/g, ' ').trim();
+    const teamSize = Number(body.teamSize ?? tournament.teamSize);
+    const maxTeams = Number(body.maxTeams ?? tournament.maxTeams);
+    if (name.length < 3 || name.length > 60) {
+      return reply.code(400).send({ error: 'bad-name', message: 'Give the tournament a name of 3 to 60 characters.' });
+    }
+    if (!Number.isInteger(teamSize) || teamSize < 1 || teamSize > 16) {
+      return reply.code(400).send({ error: 'bad-team-size', message: 'Team size must be 1 to 16.' });
+    }
+    if (!Number.isInteger(maxTeams) || maxTeams < 2 || maxTeams > 64) {
+      return reply.code(400).send({ error: 'bad-max-teams', message: 'Allow between 2 and 64 teams.' });
+    }
     tournaments.updateTournament({
       id: tournament.id,
-      name: String(body.name ?? tournament.name).replace(/[\r\n]/g, ' ').trim() || tournament.name,
-      teamSize: Number.isInteger(Number(body.teamSize)) && Number(body.teamSize) >= 1 ? Number(body.teamSize) : tournament.teamSize,
-      maxTeams: Number.isInteger(Number(body.maxTeams)) && Number(body.maxTeams) >= 2 ? Number(body.maxTeams) : tournament.maxTeams,
+      name,
+      teamSize,
+      maxTeams,
       bestOf: body.bestOf !== undefined ? bestOfOf(body.bestOf) : tournament.bestOf,
       mapPool,
       publicRosters: body.publicRosters !== undefined ? body.publicRosters === true : tournament.publicRosters,
@@ -458,7 +480,7 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       // The channel hears a result the same way whether the game or the
       // organizer decided it.
       matches.announceDecision(match.id);
-      return reply.send({ match: tournaments.getMatch(match.id) });
+      return reply.send({ match: matchView(tournaments.getMatch(match.id)!) });
     },
   );
 
@@ -649,18 +671,20 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
 
   const TOKEN = /^[0-9a-f]{48}$/;
 
-  app.get<{ Params: { token: string } }>(
-    '/api/tournaments/match-config/:token',
-    async (request, reply) => {
-      const { token } = request.params;
-      if (!TOKEN.test(token)) return reply.code(404).send({ error: 'unknown-match' });
-      const match = tournaments.getMatchByEventToken(token);
-      if (!match) return reply.code(404).send({ error: 'unknown-match' });
-      const config = matches.buildConfigFor(match);
-      if (!config) return reply.code(404).send({ error: 'unknown-match' });
-      return reply.send(config);
-    },
-  );
+  /*
+   * Token in the header, never in the URL: Fastify logs every request URL,
+   * and a bearer token in a log line is a bearer token for whoever can read
+   * logs — enough to fetch rosters and forge match results.
+   */
+  app.get('/api/tournaments/match-config', async (request, reply) => {
+    const token = String(request.headers['x-gamekeepr-token'] ?? '');
+    if (!TOKEN.test(token)) return reply.code(404).send({ error: 'unknown-match' });
+    const match = tournaments.getMatchByEventToken(token);
+    if (!match) return reply.code(404).send({ error: 'unknown-match' });
+    const config = matches.buildConfigFor(match);
+    if (!config) return reply.code(404).send({ error: 'unknown-match' });
+    return reply.send(config);
+  });
 
   app.post<{ Body: Record<string, unknown> }>(
     '/api/tournaments/match-event',

@@ -202,11 +202,33 @@ export function createMetricsCollector(
     return point ?? latest.get(server.id) ?? null;
   }
 
+  /*
+   * A 7-day window is ~20k rows per server, and the dashboard polls every
+   * ten seconds per viewer. One short-lived cache entry per (server, window)
+   * makes the number of viewers irrelevant: everyone shares one read and one
+   * downsample per interval.
+   */
+  const historyCache = new Map<string, { at: number; value: MetricSample[] }>();
+  const HISTORY_TTL_MS = 10_000;
+
   function history(serverId: string, sinceMs: number): MetricSample[] {
-    return downsample(db.readMetrics(serverId, Date.now() - sinceMs));
+    const key = `${serverId}:${sinceMs}`;
+    const cached = historyCache.get(key);
+    if (cached && Date.now() - cached.at < HISTORY_TTL_MS) return cached.value;
+    const value = downsample(db.readMetrics(serverId, Date.now() - sinceMs));
+    historyCache.set(key, { at: Date.now(), value });
+    return value;
   }
 
-  return { start, current, history, collect };
+  /** Called when a server is deleted, so its entries do not sit around. */
+  function forget(serverId: string): void {
+    latest.delete(serverId);
+    for (const key of historyCache.keys()) {
+      if (key.startsWith(`${serverId}:`)) historyCache.delete(key);
+    }
+  }
+
+  return { start, current, history, collect, forget };
 }
 
 export type MetricsCollector = ReturnType<typeof createMetricsCollector>;

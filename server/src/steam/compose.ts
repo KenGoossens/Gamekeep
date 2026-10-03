@@ -127,13 +127,25 @@ ${startBlock(req.command)}`;
  */
 function startBlock(command: string): string {
   if (command.trim()) {
-    return `# Some depots ship their binaries without the executable bit.
-FIRST_WORD="${command.split(/\s+/)[0] ?? ''}"
-[ -f "$FIRST_WORD" ] && chmod +x "$FIRST_WORD" 2>/dev/null || true
-# The launch line below came from Steam's own app info and was shown at
-# deploy time; GAME_PARAMS is appended so arguments can be tuned from the
-# Settings tab without editing this script.
-exec runuser -u "$RUN_AS" -- bash -c "cd '$SERVER_DIR'; exec ${command.replace(/"/g, '\\"')} \${GAME_PARAMS:-}"
+    /*
+     * The command is stored single-quoted, with embedded quotes escaped the
+     * POSIX way, so the script's own (root) shell never parses a character of
+     * it as code — interpolating it into a double-quoted bash -c string let a
+     * $(...) in the command run as root before runuser ever happened. The
+     * value is expanded into the inner command line below, where the
+     * UNPRIVILEGED shell parses it: substitutions and quoting in the
+     * operator's command still work, they just work as the right user.
+     */
+    const singleQuoted = command.replace(/'/g, `'\\''`);
+    return `# The launch line came from Steam's own app info and was shown at
+# deploy time. Held in a variable so no shell above runuser interprets it.
+GK_COMMAND='${singleQuoted}'
+# Some depots ship their binaries without the executable bit.
+FIRST_WORD=$(printf '%s' "$GK_COMMAND" | awk '{print $1}')
+if [ -n "$FIRST_WORD" ] && [ -f "$FIRST_WORD" ]; then chmod +x "$FIRST_WORD" 2>/dev/null || true; fi
+# GAME_PARAMS is appended so arguments can be tuned from the Settings tab
+# without editing this script.
+exec runuser -u "$RUN_AS" -- bash -c "cd '$SERVER_DIR'; exec $GK_COMMAND \${GAME_PARAMS:-}"
 `;
   }
   return `# No start command was given: Steam's app info had no Linux launch entry.

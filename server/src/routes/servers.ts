@@ -202,7 +202,11 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
       ctx.db.removeSchedulesFor(server.id);
       ctx.db.clearServerRoleOverrides(server.id);
       registry.reload();
+      // Every cache that knows this id forgets it, so a future server with
+      // the same name never briefly wears the old one's status or players.
       docker.invalidate(server);
+      gameQuery.invalidate(server.id);
+      ctx.metrics.forget(server.id);
 
       ctx.db.audit({
         userId: user.id,
