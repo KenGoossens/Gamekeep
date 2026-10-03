@@ -273,7 +273,13 @@ export const GAMES: GameProfile[] = [
     ],
     saves: ['worlds_local'],
     settings: [
+      // Two spellings per field on purpose: lloesche's image says SERVER_NAME
+      // and SERVER_PASS, ich777's says SRV_NAME and SRV_PWD. A spec only
+      // shows when its variable exists, so both can be listed and whichever
+      // image is running answers. Found the hard way: a Valheim server with
+      // a password in SRV_PWD read as "no password set".
       { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
+      { key: 'SRV_NAME', label: 'Server name', type: 'text', connect: 'name' },
       {
         key: 'WORLD_NAME',
         label: 'World',
@@ -283,6 +289,13 @@ export const GAMES: GameProfile[] = [
       },
       {
         key: 'SERVER_PASS',
+        label: 'Password',
+        type: 'text',
+        connect: 'password',
+        help: 'Five characters minimum, or the server refuses to boot.',
+      },
+      {
+        key: 'SRV_PWD',
         label: 'Password',
         type: 'text',
         connect: 'password',

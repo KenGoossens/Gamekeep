@@ -140,6 +140,7 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
   const [teamSize, setTeamSize] = useState('5');
   const [maxTeams, setMaxTeams] = useState('8');
   const [bestOf, setBestOf] = useState('1');
+  const [format, setFormat] = useState('bracket');
   const [maps, setMaps] = useState('de_mirage, de_inferno, de_nuke, de_anubis');
   const [publicRosters, setPublicRosters] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -156,9 +157,10 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
         <h2>New tournament</h2>
       </div>
       <p className="notes">
-        Single elimination, any game. <strong>Counter-Strike 2</strong> builds a server per match
-        and scores itself; for every other game the matches are played wherever you play — a
-        standing server, another machine, a couch — and the organizer records each result.
+        Any game, three formats. <strong>Counter-Strike 2</strong> builds a server per match and
+        scores itself; for every other game the matches are played wherever you play — a standing
+        server, another machine, a couch — and the two captains report each result (the organizer
+        settles disagreements).
       </p>
       <label className="field">
         <span>Name</span>
@@ -202,7 +204,26 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
             <option value="5">Best of 5</option>
           </select>
         </label>
+        <label className="field">
+          <span>Format</span>
+          <select className="rolepick" value={format} onChange={(e) => setFormat(e.target.value)}>
+            <option value="bracket">Single elimination</option>
+            <option value="double">Double elimination</option>
+            <option value="roundrobin">Round robin</option>
+          </select>
+        </label>
       </div>
+      {format === 'double' ? (
+        <p className="hint">
+          Lose once and you drop to the losers bracket; lose twice and you are out. The two
+          survivors meet in a single grand final. Needs at least three teams.
+        </p>
+      ) : format === 'roundrobin' ? (
+        <p className="hint">
+          Everyone plays everyone once; the standings decide the champion. Best for small groups
+          that want many matches rather than sudden death.
+        </p>
+      ) : null}
       <label className="field">
         <span>{auto ? 'Map pool (comma separated)' : 'Maps or arenas (optional, a note for the players)'}</span>
         <input
@@ -243,6 +264,7 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
                 bestOf: Number(bestOf),
                 mapPool: maps.split(',').map((m) => m.trim()).filter(Boolean),
                 publicRosters,
+                format,
               });
               onDone();
             } catch (err) {

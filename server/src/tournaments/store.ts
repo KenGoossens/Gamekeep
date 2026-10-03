@@ -15,9 +15,18 @@ import type { DatabaseSync } from 'node:sqlite';
 
 export type TournamentStatus = 'draft' | 'registration' | 'running' | 'finished';
 
-/** 'bracket' is v1. The column exists so a points-series (battle royale
- * style) format is an addition, not a migration. */
-export type TournamentFormat = 'bracket';
+/**
+ * 'bracket' is single elimination (the historical name, kept so existing
+ * rows keep meaning what they meant); 'double' adds a losers bracket and a
+ * grand final; 'roundrobin' plays everyone against everyone and crowns the
+ * standings. A points-series (battle royale style) format remains the
+ * planned fourth.
+ */
+export type TournamentFormat = 'bracket' | 'double' | 'roundrobin';
+
+/** Which bracket a match belongs to: winners, losers, or the grand final.
+ * Single elimination and round robin live entirely in 'wb'. */
+export type BracketSide = 'wb' | 'lb' | 'gf';
 
 export type BestOf = 1 | 3 | 5;
 
@@ -85,7 +94,9 @@ export interface MapResult {
 export interface MatchRow {
   id: string;
   tournamentId: string;
-  /** 1 = first round; the final is the highest round. */
+  /** Winners bracket, losers bracket, or grand final. */
+  bracket: BracketSide;
+  /** 1 = first round; the final is the highest round (per bracket). */
   round: number;
   /** Position within the round, 0-based. Winner of (r, s) feeds (r+1, s>>1). */
   slot: number;
@@ -107,6 +118,12 @@ export interface MatchRow {
   /** Shared secret the match server's event webhook must present. */
   eventToken: string | null;
   decidedAt: number | null;
+  /** When each side pressed Ready; null = not checked in. */
+  checkinA: number | null;
+  checkinB: number | null;
+  /** Each side's claimed winner (a team id); agreement decides the match. */
+  reportA: string | null;
+  reportB: string | null;
 }
 
 interface RawTournament {
@@ -130,6 +147,7 @@ interface RawTournament {
 interface RawMatch {
   id: string;
   tournament_id: string;
+  bracket: string | null;
   round: number;
   slot: number;
   team_a: string | null;
@@ -148,6 +166,10 @@ interface RawMatch {
   connect_password: string | null;
   event_token: string | null;
   decided_at: number | null;
+  checkin_a: number | null;
+  checkin_b: number | null;
+  report_a: string | null;
+  report_b: string | null;
 }
 
 function parseJsonArray<T>(text: string, keep: (x: unknown) => x is T): T[] {
@@ -177,7 +199,8 @@ function toTournament(r: RawTournament): TournamentRow {
     slug: r.slug,
     name: r.name,
     game: r.game,
-    format: 'bracket',
+    format:
+      r.format === 'double' || r.format === 'roundrobin' ? (r.format as TournamentFormat) : 'bracket',
     teamSize: r.team_size,
     maxTeams: r.max_teams,
     bestOf: toBestOf(r.best_of),
@@ -195,6 +218,7 @@ function toMatch(r: RawMatch): MatchRow {
   return {
     id: r.id,
     tournamentId: r.tournament_id,
+    bracket: (r.bracket as BracketSide) ?? 'wb',
     round: r.round,
     slot: r.slot,
     teamA: r.team_a,
@@ -213,10 +237,41 @@ function toMatch(r: RawMatch): MatchRow {
     connectPassword: r.connect_password,
     eventToken: r.event_token,
     decidedAt: r.decided_at,
+    checkinA: r.checkin_a,
+    checkinB: r.checkin_b,
+    reportA: r.report_a,
+    reportB: r.report_b,
   };
 }
 
 export function createTournamentStore(db: DatabaseSync) {
+  /*
+   * Databases created before double elimination, check-in and self-reporting
+   * get the columns added in place. Existing rows read bracket 'wb' (single
+   * elimination lives entirely in the winners bracket) and nulls elsewhere.
+   */
+  const hasColumn = (table: string, column: string): boolean => {
+    try {
+      return (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some(
+        (r) => r.name === column,
+      );
+    } catch {
+      return false;
+    }
+  };
+  const tableExists = (table: string): boolean =>
+    (db
+      .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name=?")
+      .get(table) as { n: number }).n > 0;
+  /*
+   * The unique key gained the bracket column (winners r1 s0 and losers r1 s0
+   * must coexist), and a UNIQUE baked into the table cannot be altered — so
+   * a pre-double-elimination table is rebuilt: renamed aside, recreated in
+   * the new shape below, rows copied over as winners-bracket matches.
+   */
+  const rebuildMatches = tableExists('matches') && !hasColumn('matches', 'bracket');
+  if (rebuildMatches) db.exec('ALTER TABLE matches RENAME TO matches_v1');
+
   db.exec(`
     /*
      * A team outlives any one tournament: it is the named group of friends,
@@ -283,6 +338,7 @@ export function createTournamentStore(db: DatabaseSync) {
     CREATE TABLE IF NOT EXISTS matches (
       id               TEXT PRIMARY KEY,
       tournament_id    TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+      bracket          TEXT NOT NULL DEFAULT 'wb',
       round            INTEGER NOT NULL,
       slot             INTEGER NOT NULL,
       team_a           TEXT,
@@ -301,18 +357,35 @@ export function createTournamentStore(db: DatabaseSync) {
       connect_password TEXT,
       event_token      TEXT,
       decided_at       INTEGER,
-      UNIQUE (tournament_id, round, slot)
+      checkin_a        INTEGER,
+      checkin_b        INTEGER,
+      report_a         TEXT,
+      report_b         TEXT,
+      UNIQUE (tournament_id, bracket, round, slot)
     );
     CREATE INDEX IF NOT EXISTS idx_matches_tournament ON matches (tournament_id, round, slot);
     CREATE INDEX IF NOT EXISTS idx_matches_due
       ON matches (status, scheduled_at) WHERE scheduled_at IS NOT NULL;
   `);
 
+  if (rebuildMatches) {
+    db.exec(`
+      INSERT INTO matches (id, tournament_id, bracket, round, slot, team_a, team_b, scheduled_at,
+                           best_of, status, maps, winner, forfeit_team, override_by, override_reason,
+                           server_container, connect_host, connect_port, connect_password, event_token, decided_at)
+      SELECT id, tournament_id, 'wb', round, slot, team_a, team_b, scheduled_at,
+             best_of, status, maps, winner, forfeit_team, override_by, override_reason,
+             server_container, connect_host, connect_port, connect_password, event_token, decided_at
+      FROM matches_v1;
+      DROP TABLE matches_v1;
+    `);
+  }
+
   const st = {
     insertTournament: db.prepare(
       `INSERT INTO tournaments
          (id, slug, name, game, format, team_size, max_teams, best_of, map_pool, status, public_rosters, created_at, created_by)
-       VALUES (@id, @slug, @name, @game, 'bracket', @teamSize, @maxTeams, @bestOf, @mapPool, 'draft', @publicRosters, @createdAt, @createdBy)`,
+       VALUES (@id, @slug, @name, @game, @format, @teamSize, @maxTeams, @bestOf, @mapPool, 'draft', @publicRosters, @createdAt, @createdBy)`,
     ),
     getTournament: db.prepare('SELECT * FROM tournaments WHERE id = ?'),
     getTournamentBySlug: db.prepare('SELECT * FROM tournaments WHERE slug = ?'),
@@ -383,15 +456,16 @@ export function createTournamentStore(db: DatabaseSync) {
     ),
 
     insertMatch: db.prepare(
-      `INSERT INTO matches (id, tournament_id, round, slot, team_a, team_b, best_of, status, maps,
+      `INSERT INTO matches (id, tournament_id, bracket, round, slot, team_a, team_b, best_of, status, maps,
                             winner, decided_at)
-       VALUES (@id, @tournamentId, @round, @slot, @teamA, @teamB, @bestOf, @status, '[]',
+       VALUES (@id, @tournamentId, @bracket, @round, @slot, @teamA, @teamB, @bestOf, @status, '[]',
                @winner, @decidedAt)`,
     ),
     getMatch: db.prepare('SELECT * FROM matches WHERE id = ?'),
     getMatchByToken: db.prepare('SELECT * FROM matches WHERE event_token = ?'),
     listMatches: db.prepare(
-      'SELECT * FROM matches WHERE tournament_id = ? ORDER BY round, slot',
+      `SELECT * FROM matches WHERE tournament_id = ?
+       ORDER BY CASE bracket WHEN 'wb' THEN 0 WHEN 'lb' THEN 1 ELSE 2 END, round, slot`,
     ),
     dueMatches: db.prepare(
       `SELECT * FROM matches
@@ -416,6 +490,10 @@ export function createTournamentStore(db: DatabaseSync) {
        WHERE id = ?`,
     ),
     setMaps: db.prepare('UPDATE matches SET maps = ? WHERE id = ?'),
+    setCheckinA: db.prepare('UPDATE matches SET checkin_a = ? WHERE id = ?'),
+    setCheckinB: db.prepare('UPDATE matches SET checkin_b = ? WHERE id = ?'),
+    setReportA: db.prepare('UPDATE matches SET report_a = ? WHERE id = ?'),
+    setReportB: db.prepare('UPDATE matches SET report_b = ? WHERE id = ?'),
     decideMatch: db.prepare(
       `UPDATE matches SET status = @status, winner = @winner, forfeit_team = @forfeitTeam,
          override_by = @overrideBy, override_reason = @overrideReason, decided_at = @decidedAt
@@ -428,6 +506,7 @@ export function createTournamentStore(db: DatabaseSync) {
       name: string;
       slug: string;
       game: string;
+      format?: TournamentFormat;
       teamSize: number;
       maxTeams: number;
       bestOf: BestOf;
@@ -441,6 +520,7 @@ export function createTournamentStore(db: DatabaseSync) {
         slug: input.slug,
         name: input.name,
         game: input.game,
+        format: input.format ?? 'bracket',
         teamSize: input.teamSize,
         maxTeams: input.maxTeams,
         bestOf: input.bestOf,
@@ -598,6 +678,7 @@ export function createTournamentStore(db: DatabaseSync) {
      */
     addMatch(row: {
       tournamentId: string;
+      bracket?: BracketSide;
       round: number;
       slot: number;
       teamA: string | null;
@@ -610,6 +691,7 @@ export function createTournamentStore(db: DatabaseSync) {
       st.insertMatch.run({
         id,
         tournamentId: row.tournamentId,
+        bracket: row.bracket ?? 'wb',
         round: row.round,
         slot: row.slot,
         teamA: row.teamA,
@@ -670,6 +752,16 @@ export function createTournamentStore(db: DatabaseSync) {
 
     recordMaps(id: string, maps: MapResult[]) {
       st.setMaps.run(JSON.stringify(maps), id);
+    },
+
+    /** Marks one side ready for its match; null un-checks. */
+    setCheckin(id: string, side: 'A' | 'B', at: number | null) {
+      (side === 'A' ? st.setCheckinA : st.setCheckinB).run(at, id);
+    },
+
+    /** Records one side's claimed winner; agreement is the routes' decision. */
+    setReport(id: string, side: 'A' | 'B', winnerTeamId: string | null) {
+      (side === 'A' ? st.setReportA : st.setReportB).run(winnerTeamId, id);
     },
 
     /** The one way a match gets a winner: play, forfeit or override. */

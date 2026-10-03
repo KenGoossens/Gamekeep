@@ -13,6 +13,7 @@ import type { MatchRow, TournamentRow, TournamentStore } from './store.js';
  */
 
 export interface PublicMatch {
+  bracket: 'wb' | 'lb' | 'gf';
   round: number;
   slot: number;
   teamA: string | null;
@@ -28,6 +29,7 @@ export interface PublicMatch {
 export interface PublicTournament {
   name: string;
   status: TournamentRow['status'];
+  format: TournamentRow['format'];
   game: string;
   teamSize: number;
   bestOf: number;
@@ -121,6 +123,7 @@ export function buildPublicData(
   });
 
   const matches = store.listMatches(tournament.id).map((match) => ({
+    bracket: match.bracket,
     round: match.round,
     slot: match.slot,
     teamA: match.teamA ? (teamNames.get(match.teamA) ?? null) : null,
@@ -132,12 +135,24 @@ export function buildPublicData(
     winner: match.winner ? (teamNames.get(match.winner) ?? null) : null,
   }));
 
-  const lastRound = matches.reduce((max, m) => Math.max(max, m.round), 0);
-  const final = matches.find((m) => m.round === lastRound && m.winner);
+  // Who won depends on the format: the last bracket round, the grand final,
+  // or — for round robin — the top of the standings once everything is played.
+  const champion = (() => {
+    if (tournament.status !== 'finished') return null;
+    if (tournament.format === 'double') {
+      return matches.find((m) => m.bracket === 'gf')?.winner ?? null;
+    }
+    if (tournament.format === 'roundrobin') {
+      return computeStandings(teams, matches)[0]?.team ?? null;
+    }
+    const lastRound = matches.reduce((max, m) => Math.max(max, m.round), 0);
+    return matches.find((m) => m.bracket === 'wb' && m.round === lastRound && m.winner)?.winner ?? null;
+  })();
 
   return {
     name: tournament.name,
     status: tournament.status,
+    format: tournament.format,
     game: tournament.game,
     teamSize: tournament.teamSize,
     bestOf: tournament.bestOf,
@@ -146,7 +161,7 @@ export function buildPublicData(
     finishedAt: tournament.finishedAt,
     teams,
     matches,
-    champion: tournament.status === 'finished' ? (final?.winner ?? null) : null,
+    champion,
     beta: true,
   };
 }
@@ -167,10 +182,26 @@ const when = (ts: number | null): string =>
 
 /** The page's dynamic middle; re-rendered by the page's own refresh script. */
 export function renderFragment(data: PublicTournament): string {
-  const rounds = [...new Set(data.matches.map((m) => m.round))].sort((a, b) => a - b);
-  const lastRound = rounds[rounds.length - 1] ?? 0;
-  const roundLabel = (round: number) =>
-    round === lastRound ? 'Final' : round === lastRound - 1 ? 'Semi-finals' : `Round ${round}`;
+  // One column per (bracket, round), in play order: the store already sorts
+  // winners before losers before the grand final.
+  const columns: Array<{ bracket: PublicMatch['bracket']; round: number }> = [];
+  for (const m of data.matches) {
+    if (!columns.some((c) => c.bracket === m.bracket && c.round === m.round)) {
+      columns.push({ bracket: m.bracket, round: m.round });
+    }
+  }
+  const lastOf = (bracket: PublicMatch['bracket']) =>
+    Math.max(0, ...data.matches.filter((m) => m.bracket === bracket).map((m) => m.round));
+  const roundLabel = (bracket: PublicMatch['bracket'], round: number): string => {
+    if (bracket === 'gf') return 'Grand final';
+    if (data.format === 'roundrobin') return `Round ${round}`;
+    if (data.format === 'double') {
+      const side = bracket === 'wb' ? 'Winners' : 'Losers';
+      return round === lastOf(bracket) ? `${side} final` : `${side} round ${round}`;
+    }
+    const last = lastOf('wb');
+    return round === last ? 'Final' : round === last - 1 ? 'Semi-finals' : `Round ${round}`;
+  };
 
   const header = `
     <p class="meta">${data.teamSize}v${data.teamSize} · best of ${data.bestOf} · ${esc(data.mapPool.join(', '))}</p>
@@ -215,11 +246,11 @@ export function renderFragment(data: PublicTournament): string {
 
   const bracket =
     data.matches.length > 0
-      ? `<section><h2>Bracket</h2><div class="bracket">${rounds
+      ? `<section><h2>${data.format === 'roundrobin' ? 'Rounds' : 'Bracket'}</h2><div class="bracket">${columns
           .map(
-            (round) =>
-              `<div class="round"><h3>${roundLabel(round)}</h3>${data.matches
-                .filter((m) => m.round === round)
+            (column) =>
+              `<div class="round"><h3>${roundLabel(column.bracket, column.round)}</h3>${data.matches
+                .filter((m) => m.bracket === column.bracket && m.round === column.round)
                 .map((match) => {
                   const score = (side: 'scoreA' | 'scoreB') =>
                     match.maps.map((m) => m[side]).join(' · ');

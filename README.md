@@ -34,6 +34,8 @@ needs a kick.
 - **Install new game servers** from the Unraid Community Applications catalogue,
   after a report on what the template asks for
 - **Open the ports** a new server needs, if you connect a router
+- **Run tournaments** (beta) — single elimination, double elimination or round
+  robin, for any game; see [Tournaments](#tournaments-beta)
 
 **For the owner**
 
@@ -519,6 +521,29 @@ that choice is what every backup contains from then on.
 
 For a nightly backup, add a **backup** action on the Schedule tab. It runs even
 when players are online — a backup kicks nobody.
+
+## Tournaments (beta)
+
+End-to-end tournaments inside the portal, for **any game**, in three formats:
+**single elimination**, **double elimination** (a losers bracket catches every
+first loss; one grand final decides it) and **round robin** (everyone plays
+everyone, the standings crown the champion).
+
+- **Counter-Strike 2** is the automatic flavour: the portal builds a dedicated
+  match server per match (MatchZy, fresh password, its own port and Steam
+  token), the game reports its own scores, and the server retires with the
+  match. While it lives it stands on the Servers page like any other card —
+  watchable, never drivable.
+- **Every other game** plays wherever you play; the two captains report each
+  result and agreement decides the match — a disagreement escalates to the
+  organizer's *Decide…*, whose word always outranks everything.
+
+Teams with captains and Steam IDs, seeding, per-round scheduling, check-in,
+byes, a live standings table, **cloning** for next week's edition, and a
+shareable read-only public page per tournament (`/t/<name>`) that never shows
+a password or connect line. The feature wears its beta label until a real
+tournament night has validated it — details in the
+[wiki](https://kengoossens.github.io/Gamekeep/wiki/tournaments.html).
 
 ## Restart or update?
 

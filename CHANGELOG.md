@@ -1,8 +1,46 @@
 # Changelog
 
+All notable changes to GameKeepr. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
+[semantic versioning](https://semver.org). The `latest` image on ghcr.io moves
+only when a version is released; `edge` tracks the main branch between
+releases.
+
 ## Unreleased
 
 ### Added
+
+- **Double elimination and round robin.** The tournament's format is picked at
+  creation: single elimination (the classic), double elimination (a losers
+  bracket catches every first loss; the two survivors meet in a single grand
+  final — no bracket reset; needs at least three teams) or round robin
+  (everyone plays everyone once, the standings crown the champion). Byes work
+  in every format — in double elimination a bye never produces a
+  losers-bracket opponent, and the bracket accounts for that on its own. The
+  bracket, the schedule columns and the public page all speak the format's
+  language (winners/losers rounds, grand final, round-robin rounds).
+- **Check-in.** Each match card carries a Check in button for the two
+  captains; a green ✓ next to the team tells everyone who is ready. It never
+  blocks a match — it is the readiness signal, and the paper trail when a
+  no-show becomes a forfeit.
+- **Self-reported results with confirmation.** For games that cannot report
+  their own scores, both captains get "team won" buttons; the result stands
+  the moment the two reports agree. Disagreeing reports decide nothing — the
+  card says "reports disagree" and the organizer settles it through Decide.
+  CS2 matches refuse self-reports; the game already told the truth.
+- **Tournament cloning.** Clone copies a tournament's settings — game, format,
+  team size, series length, map pool — and its entered teams into a fresh
+  draft with its own public address. Matches, results and seeds stay behind.
+
+### Fixed
+
+- **Valheim's password now shows on the Joining card.** ich777's Valheim image
+  spells its variables `SRV_PWD`/`SRV_NAME`/`WORLD_NAME` where others use
+  `SERVER_PASS`/`SERVER_NAME`; the Joining card only knew the second spelling
+  and reported "no password set" on a server that very much had one. The
+  connect settings now know both spellings (only variables the container
+  actually has are shown), and `PWD`-style variables are masked in Settings
+  like every other credential.
 
 - **Match servers are servers now.** While a tournament match server lives it
   stands in Servers like any other card — match badge, its game's poster,
@@ -21,12 +59,6 @@
   seeding, scheduling, standings and the public page are identical. Maps are
   optional for non-CS2 tournaments, and the card wears the chosen game's
   poster.
-
-All notable changes to GameKeepr. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
-[semantic versioning](https://semver.org). The `latest` image on ghcr.io moves
-only when a version is released; `edge` tracks the main branch between
-releases.
 
 ## 1.2.1 — 2026-10-03
 

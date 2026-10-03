@@ -4,7 +4,7 @@ import { originOf } from '../auth/origin.js';
 import { canOperate, type SessionUser } from '../db.js';
 import { slugify } from '../deploy.js';
 import { GAMES } from '../games.js';
-import { BracketError, generateBracket, overrideResult, scheduleRound } from '../tournaments/engine.js';
+import { advanceFrom, BracketError, generateBracket, overrideResult, scheduleRound } from '../tournaments/engine.js';
 import { buildPublicData, renderFragment, renderPublicPage } from '../tournaments/publicPage.js';
 import type { BestOf, TournamentRow } from '../tournaments/store.js';
 
@@ -72,8 +72,13 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
   function matchView(m: ReturnType<typeof tournaments.getMatch> & object) {
     return {
       id: m.id,
+      bracket: m.bracket,
       round: m.round,
       slot: m.slot,
+      checkinA: m.checkinA,
+      checkinB: m.checkinB,
+      reportA: m.reportA,
+      reportB: m.reportB,
       teamA: m.teamA,
       teamB: m.teamB,
       scheduledAt: m.scheduledAt,
@@ -153,6 +158,7 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       bestOf?: number;
       mapPool?: string[];
       publicRosters?: boolean;
+      format?: string;
     };
   }>('/api/tournaments', operator, async (request, reply) => {
     const user = request.user!;
@@ -187,6 +193,10 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
     if (game === 'cs2' && mapPool.length === 0) {
       return reply.code(400).send({ error: 'bad-map-pool', message: 'Name at least one map.' });
     }
+    const format = String(body.format ?? 'bracket');
+    if (format !== 'bracket' && format !== 'double' && format !== 'roundrobin') {
+      return reply.code(400).send({ error: 'bad-format', message: 'Pick single elimination, double elimination or round robin.' });
+    }
 
     // The slug is the public page's address; collisions get a suffix rather
     // than an error, because "Friday CS2" will absolutely happen twice.
@@ -203,6 +213,7 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       mapPool,
       publicRosters: body.publicRosters === true,
       createdBy: user.id,
+      format,
     });
 
     // The card wears its game's poster; fetched in the background like all
@@ -414,7 +425,7 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
     },
   );
 
-  app.put<{ Params: { id: string; round: string }; Body: { at?: number | null } }>(
+  app.put<{ Params: { id: string; round: string }; Body: { at?: number | null; bracket?: string } }>(
     '/api/tournaments/:id/rounds/:round/schedule',
     member,
     async (request, reply) => {
@@ -423,15 +434,19 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       if (!tournament) return reply;
       const round = Number(request.params.round);
       if (!Number.isInteger(round) || round < 1) return reply.code(400).send({ error: 'bad-round' });
+      const bracket = request.body?.bracket ?? 'wb';
+      if (bracket !== 'wb' && bracket !== 'lb' && bracket !== 'gf') {
+        return reply.code(400).send({ error: 'bad-bracket' });
+      }
       const at = request.body?.at === null ? null : Number(request.body?.at);
       if (at !== null && (!Number.isFinite(at) || at < Date.now() - 60_000)) {
         return reply.code(400).send({ error: 'bad-time', message: 'Schedule a time in the future.' });
       }
-      const changed = scheduleRound(tournaments, tournament.id, round, at);
+      const changed = scheduleRound(tournaments, tournament.id, bracket, round, at);
       db.audit({
         userId: user.id, username: user.username, serverId: null,
         action: 'tournament-changed', result: 'success',
-        detail: `${tournament.name}: round ${round} ${at ? `scheduled for ${new Date(at).toISOString()}` : 'unscheduled'} (${changed} match(es))`,
+        detail: `${tournament.name}: ${bracket === 'wb' ? 'round' : bracket === 'lb' ? 'losers round' : 'grand final'} ${round} ${at ? `scheduled for ${new Date(at).toISOString()}` : 'unscheduled'} (${changed} match(es))`,
         ...originOf(request),
       });
       return reply.send({ changed });
@@ -541,6 +556,146 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       // organizer decided it.
       matches.announceDecision(match.id);
       return reply.send({ match: matchView(tournaments.getMatch(match.id)!) });
+    },
+  );
+
+  // ---- check-in and self-reporting ----------------------------------------
+
+  /** Which side of a match this user captains, if any. */
+  function captainSideOf(user: SessionUser, match: { teamA: string | null; teamB: string | null }): 'A' | 'B' | null {
+    const captains = (teamId: string | null) =>
+      teamId !== null && tournaments.getTeam(teamId)?.captainUserId === user.id;
+    if (captains(match.teamA)) return 'A';
+    if (captains(match.teamB)) return 'B';
+    return null;
+  }
+
+  /**
+   * A captain says "we are here". Check-in is a readiness signal for the
+   * organizer and the public page, and the paper trail for a no-show forfeit;
+   * it never blocks the match itself, because a LAN party does not want a
+   * bracket that refuses to proceed over a forgotten click.
+   */
+  app.post<{ Params: { matchId: string }; Body: { teamId?: string; ready?: boolean } }>(
+    '/api/tournaments/matches/:matchId/checkin',
+    member,
+    async (request, reply) => {
+      const user = request.user!;
+      const match = tournaments.getMatch(request.params.matchId);
+      if (!match) return reply.code(404).send({ error: 'unknown-match' });
+      if (match.status === 'decided' || match.status === 'forfeit') {
+        return reply.code(409).send({ error: 'already-decided' });
+      }
+      const teamId = String(request.body?.teamId ?? '');
+      const side = teamId === match.teamA ? 'A' : teamId === match.teamB ? 'B' : null;
+      if (!side) return reply.code(400).send({ error: 'not-in-match', message: 'That team does not play this match.' });
+      const isCaptain = tournaments.getTeam(teamId)?.captainUserId === user.id;
+      if (!isCaptain && !organizes(user, match.tournamentId)) {
+        return reply.code(403).send({ error: 'captain-required', message: 'Only the captain checks their team in.' });
+      }
+      tournaments.setCheckin(match.id, side, request.body?.ready === false ? null : Date.now());
+      return reply.send({ match: matchView(tournaments.getMatch(match.id)!) });
+    },
+  );
+
+  /**
+   * Self-reported results, for the games that cannot report their own: each
+   * captain names the winner, and agreement decides the match. A conflict
+   * decides nothing — both claims stay visible until the organizer overrides,
+   * which is exactly the escalation a disputed scoreline deserves.
+   */
+  app.post<{ Params: { matchId: string }; Body: { winner?: string | null } }>(
+    '/api/tournaments/matches/:matchId/report',
+    member,
+    async (request, reply) => {
+      const user = request.user!;
+      const match = tournaments.getMatch(request.params.matchId);
+      if (!match) return reply.code(404).send({ error: 'unknown-match' });
+      const tournament = tournaments.getTournament(match.tournamentId)!;
+      if (tournament.game === 'cs2') {
+        return reply.code(409).send({ error: 'auto-results', message: 'CS2 matches report themselves; use the override for corrections.' });
+      }
+      if (match.status === 'decided' || match.status === 'forfeit') {
+        return reply.code(409).send({ error: 'already-decided' });
+      }
+      if (!match.teamA || !match.teamB) {
+        return reply.code(409).send({ error: 'not-ready', message: 'Both teams must be known first.' });
+      }
+      const side = captainSideOf(user, match);
+      if (!side) return reply.code(403).send({ error: 'captain-required', message: 'Only the two captains report a result.' });
+
+      const winner = request.body?.winner === null ? null : String(request.body?.winner ?? '');
+      if (winner !== null && winner !== match.teamA && winner !== match.teamB) {
+        return reply.code(400).send({ error: 'bad-winner', message: 'The winner must be one of the two teams.' });
+      }
+      tournaments.setReport(match.id, side, winner);
+
+      const after = tournaments.getMatch(match.id)!;
+      const agreed = after.reportA !== null && after.reportA === after.reportB;
+      if (agreed) {
+        tournaments.decideMatch({ id: match.id, status: 'decided', winner: after.reportA! });
+        advanceFrom(tournaments, match.id);
+        db.audit({
+          userId: user.id, username: user.username, serverId: null,
+          action: 'match-decided', result: 'success',
+          detail: `Match ${match.id.slice(0, 8)}: both captains reported the same winner`,
+          ...originOf(request),
+        });
+        matches.announceDecision(match.id);
+      }
+      const final = tournaments.getMatch(match.id)!;
+      return reply.send({
+        match: matchView(final),
+        agreed,
+        conflict: final.reportA !== null && final.reportB !== null && final.reportA !== final.reportB,
+      });
+    },
+  );
+
+  // ---- cloning -------------------------------------------------------------
+
+  /**
+   * Next week's tournament is usually this week's with a new date: cloning
+   * copies the settings and the entered teams into a fresh draft. Matches,
+   * results and seeds stay behind — a new event earns its own.
+   */
+  app.post<{ Params: { id: string }; Body: { name?: string } }>(
+    '/api/tournaments/:id/clone',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const source = findTournament(request, reply);
+      if (!source) return reply;
+      const name = String(request.body?.name ?? source.name).replace(/[\r\n]/g, ' ').trim();
+      if (name.length < 3 || name.length > 60) {
+        return reply.code(400).send({ error: 'bad-name', message: 'Give the tournament a name of 3 to 60 characters.' });
+      }
+      let slug = slugify(name) || 'tournament';
+      for (let n = 2; tournaments.getTournamentBySlug(slug); n++) slug = `${slugify(name)}-${n}`;
+      const created = tournaments.createTournament({
+        name,
+        slug,
+        game: source.game,
+        teamSize: source.teamSize,
+        maxTeams: source.maxTeams,
+        bestOf: source.bestOf,
+        mapPool: source.mapPool,
+        publicRosters: source.publicRosters,
+        createdBy: user.id,
+        format: source.format,
+      });
+      // Teams that may have shrunk below the size requirement since are
+      // carried anyway: the roster check runs again when this one starts.
+      for (const entry of tournaments.listEntries(source.id)) {
+        if (tournaments.getTeam(entry.teamId)) tournaments.registerEntry(created.id, entry.teamId);
+      }
+      db.audit({
+        userId: user.id, username: user.username, serverId: null,
+        action: 'tournament-created', result: 'success',
+        detail: `${name} (cloned from ${source.name})`,
+        ...originOf(request),
+      });
+      return reply.code(201).send({ tournament: describeTournament(created) });
     },
   );
 

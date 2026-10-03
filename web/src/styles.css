@@ -276,6 +276,9 @@ body::after {
 }
 .bracket-team.winner { color: #fff; font-weight: 650; }
 .bracket-team .score { font-variant-numeric: tabular-nums; }
+.bracket-team .checked { color: var(--ok, #4ade80); }
+/* A captain's own standing report: visibly chosen until the other side agrees. */
+.btn-ghost.active { border-color: var(--accent, #7c6cf2); color: #fff; }
 .bracket-meta {
   display: flex;
   justify-content: space-between;

@@ -258,10 +258,17 @@ export interface TournamentSummary {
 
 export interface TournamentMatch {
   id: string;
+  bracket: 'wb' | 'lb' | 'gf';
   round: number;
   slot: number;
   teamA: string | null;
   teamB: string | null;
+  /** When each captain said "we are here"; null means not yet. */
+  checkinA: number | null;
+  checkinB: number | null;
+  /** Each captain's claimed winner (manual games); agreement decides. */
+  reportA: string | null;
+  reportB: string | null;
   scheduledAt: number | null;
   bestOf: number;
   status: 'pending' | 'provisioning' | 'ready' | 'live' | 'decided' | 'forfeit';
@@ -849,7 +856,13 @@ export const api = {
     bestOf: number;
     mapPool: string[];
     publicRosters: boolean;
+    format: string;
   }) => request<{ tournament: TournamentSummary }>('/api/tournaments', { ...json(body), method: 'POST' }),
+  cloneTournament: (id: string, name?: string) =>
+    request<{ tournament: TournamentSummary }>(`/api/tournaments/${encodeURIComponent(id)}/clone`, {
+      ...json(name ? { name } : {}),
+      method: 'POST',
+    }),
   tournament: (id: string) => request<TournamentDetail>(`/api/tournaments/${encodeURIComponent(id)}`),
   deleteTournament: (id: string) =>
     request<{ ok: true }>(`/api/tournaments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
@@ -874,10 +887,20 @@ export const api = {
       ...json({ order }),
       method: 'PUT',
     }),
-  scheduleTournamentRound: (id: string, round: number, at: number | null) =>
+  scheduleTournamentRound: (id: string, bracket: 'wb' | 'lb' | 'gf', round: number, at: number | null) =>
     request<{ changed: number }>(
       `/api/tournaments/${encodeURIComponent(id)}/rounds/${round}/schedule`,
-      { ...json({ at }), method: 'PUT' },
+      { ...json({ at, bracket }), method: 'PUT' },
+    ),
+  matchCheckin: (matchId: string, teamId: string, ready: boolean) =>
+    request<{ match: TournamentMatch }>(
+      `/api/tournaments/matches/${encodeURIComponent(matchId)}/checkin`,
+      { ...json({ teamId, ready }), method: 'POST' },
+    ),
+  matchReport: (matchId: string, winner: string | null) =>
+    request<{ match: TournamentMatch; agreed: boolean; conflict: boolean }>(
+      `/api/tournaments/matches/${encodeURIComponent(matchId)}/report`,
+      { ...json({ winner }), method: 'POST' },
     ),
   overrideMatch: (matchId: string, body: { winner: string; forfeit?: boolean; reason: string }) =>
     request<{ match: TournamentMatch }>(

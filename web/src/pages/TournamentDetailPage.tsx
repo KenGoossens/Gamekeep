@@ -86,7 +86,13 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
             {tournament.name} <sup className="beta-tag">beta</sup>
           </h1>
           <p>
-            {tournament.gameLabel} · {tournament.teamSize}v{tournament.teamSize} · BO
+            {tournament.gameLabel} ·{' '}
+            {tournament.format === 'double'
+              ? 'double elimination'
+              : tournament.format === 'roundrobin'
+                ? 'round robin'
+                : 'single elimination'}{' '}
+            · {tournament.teamSize}v{tournament.teamSize} · BO
             {tournament.bestOf}
             {tournament.mapPool.length > 0 ? ` · ${tournament.mapPool.join(', ')}` : ''} ·{' '}
             {tournament.status}
@@ -125,6 +131,20 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
                 Start — build the bracket
               </button>
             ) : null}
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                // Next week's tournament is this week's with a new date:
+                // settings and entered teams come along, results do not.
+                void act(async () => {
+                  const { tournament: copy } = await api.cloneTournament(tournament.id);
+                  navigate(`/tournaments/${copy.id}`);
+                }, 'Could not clone it.');
+              }}
+            >
+              Clone
+            </button>
             <button
               type="button"
               className="btn-ghost danger"
@@ -197,14 +217,19 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
           teams={teams}
           yourOrganizer={yourOrganizer}
           tournamentId={tournament.id}
+          format={tournament.format}
+          auto={tournament.autoResults}
           finished={tournament.status === 'finished'}
-          onSchedule={(round, at) =>
+          onSchedule={(bracket, round, at) =>
             void act(
-              () => api.scheduleTournamentRound(tournament.id, round, at),
+              () => api.scheduleTournamentRound(tournament.id, bracket, round, at),
               'Could not schedule the round.',
             )
           }
           onOverride={setOverride}
+          onChanged={() => void load()}
+          onError={setError}
+          onNote={setNote}
         />
       ) : null}
 
@@ -441,9 +466,14 @@ function Bracket({
   me,
   teams,
   yourOrganizer,
+  format,
+  auto,
   finished,
   onSchedule,
   onOverride,
+  onChanged,
+  onError,
+  onNote,
 }: {
   matches: TournamentMatch[];
   teamName: (id: string | null) => string | null;
@@ -451,53 +481,86 @@ function Bracket({
   teams: TeamInfo[];
   yourOrganizer: boolean;
   tournamentId: string;
+  format: string;
+  auto: boolean;
   finished: boolean;
-  onSchedule: (round: number, at: number | null) => void;
+  onSchedule: (bracket: 'wb' | 'lb' | 'gf', round: number, at: number | null) => void;
   onOverride: (match: TournamentMatch) => void;
+  onChanged: () => void;
+  onError: (message: string | null) => void;
+  onNote: (message: string | null) => void;
 }) {
-  const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
-  const lastRound = rounds[rounds.length - 1]!;
-  const roundLabel = (round: number) =>
-    round === lastRound ? 'Final' : round === lastRound - 1 ? 'Semi-finals' : `Round ${round}`;
+  // One column per (bracket, round); the API already serves them in play
+  // order: winners, then losers, then the grand final.
+  const columns: Array<{ bracket: TournamentMatch['bracket']; round: number }> = [];
+  for (const m of matches) {
+    if (!columns.some((c) => c.bracket === m.bracket && c.round === m.round)) {
+      columns.push({ bracket: m.bracket, round: m.round });
+    }
+  }
+  const lastOf = (bracket: TournamentMatch['bracket']) =>
+    Math.max(0, ...matches.filter((m) => m.bracket === bracket).map((m) => m.round));
+  const roundLabel = (bracket: TournamentMatch['bracket'], round: number): string => {
+    if (bracket === 'gf') return 'Grand final';
+    if (format === 'roundrobin') return `Round ${round}`;
+    if (format === 'double') {
+      const side = bracket === 'wb' ? 'Winners' : 'Losers';
+      return round === lastOf(bracket) ? `${side} final` : `${side} round ${round}`;
+    }
+    const last = lastOf('wb');
+    return round === last ? 'Final' : round === last - 1 ? 'Semi-finals' : `Round ${round}`;
+  };
   const yourTeamIds = new Set(
     teams.filter((t) => t.members.some((m) => m.userId === me.id)).map((t) => t.id),
   );
-  const champion =
-    finished ? matches.find((m) => m.round === lastRound && m.winner)?.winner ?? null : null;
+  /** Teams this user captains — check-in and reporting are captain's work. */
+  const captainIds = new Set(teams.filter((t) => t.captainUserId === me.id).map((t) => t.id));
+  const champion = finished
+    ? format === 'double'
+      ? (matches.find((m) => m.bracket === 'gf')?.winner ?? null)
+      : format === 'roundrobin'
+        ? null // round robin crowns via the standings table above
+        : (matches.find((m) => m.bracket === 'wb' && m.round === lastOf('wb'))?.winner ?? null)
+    : null;
 
   return (
     <section className="card">
       <div className="card-head">
-        <h2>Bracket</h2>
+        <h2>{format === 'roundrobin' ? 'Rounds' : 'Bracket'}</h2>
         {champion ? <span className="pill ok">🏆 {teamName(champion)}</span> : null}
       </div>
       <div className="bracket">
-        {rounds.map((round) => (
-          <div key={round} className="bracket-round">
-            <h4 className="subhead">{roundLabel(round)}</h4>
+        {columns.map((column) => (
+          <div key={`${column.bracket}-${column.round}`} className="bracket-round">
+            <h4 className="subhead">{roundLabel(column.bracket, column.round)}</h4>
             {yourOrganizer && !finished ? (
               <input
                 type="datetime-local"
                 className="roundtime"
                 onChange={(e) => {
                   const at = e.target.value ? new Date(e.target.value).getTime() : null;
-                  onSchedule(round, at);
+                  onSchedule(column.bracket, column.round, at);
                 }}
               />
             ) : null}
             {matches
-              .filter((m) => m.round === round)
+              .filter((m) => m.bracket === column.bracket && m.round === column.round)
               .map((match) => (
                 <MatchCard
                   key={match.id}
                   match={match}
                   teamName={teamName}
+                  auto={auto}
+                  captainIds={captainIds}
                   yours={
                     (match.teamA !== null && yourTeamIds.has(match.teamA)) ||
                     (match.teamB !== null && yourTeamIds.has(match.teamB))
                   }
                   canOverride={yourOrganizer && match.teamA !== null && match.teamB !== null}
                   onOverride={() => onOverride(match)}
+                  onChanged={onChanged}
+                  onError={onError}
+                  onNote={onNote}
                 />
               ))}
           </div>
@@ -510,27 +573,60 @@ function Bracket({
 function MatchCard({
   match,
   teamName,
+  auto,
+  captainIds,
   yours,
   canOverride,
   onOverride,
+  onChanged,
+  onError,
+  onNote,
 }: {
   match: TournamentMatch;
   teamName: (id: string | null) => string | null;
+  auto: boolean;
+  captainIds: Set<string>;
   yours: boolean;
   canOverride: boolean;
   onOverride: () => void;
+  onChanged: () => void;
+  onError: (message: string | null) => void;
+  onNote: (message: string | null) => void;
 }) {
   const [connect, setConnect] = useState<string | null>(null);
   const joinable = yours && (match.status === 'ready' || match.status === 'live');
+  const open = match.status !== 'decided' && match.status !== 'forfeit';
   const score = (side: 'scoreA' | 'scoreB') =>
     match.maps.length > 0 ? match.maps.map((m) => m[side]).join(' · ') : '';
+
+  /** The side this user captains in this match, if any. */
+  const yourSide: 'A' | 'B' | null =
+    match.teamA !== null && captainIds.has(match.teamA)
+      ? 'A'
+      : match.teamB !== null && captainIds.has(match.teamB)
+        ? 'B'
+        : null;
+  const yourTeamId = yourSide === 'A' ? match.teamA : yourSide === 'B' ? match.teamB : null;
+  const yourCheckin = yourSide === 'A' ? match.checkinA : match.checkinB;
+  const yourReport = yourSide === 'A' ? match.reportA : match.reportB;
+  const conflict =
+    match.reportA !== null && match.reportB !== null && match.reportA !== match.reportB;
 
   const row = (teamId: string | null, side: 'scoreA' | 'scoreB') => {
     const name = teamName(teamId) ?? '—';
     const winner = match.winner !== null && match.winner === teamId;
+    const checkedIn = side === 'scoreA' ? match.checkinA !== null : match.checkinB !== null;
     return (
       <div className={`bracket-team${winner ? ' winner' : ''}`}>
-        <span>{name}</span>
+        <span>
+          {name}
+          {open && teamId !== null && checkedIn ? (
+            <span className="checked" title="Checked in">
+              {' '}
+              ✓
+            </span>
+          ) : null}
+        </span>
         <span className="score">{score(side)}</span>
       </div>
     );
@@ -548,8 +644,26 @@ function MatchCard({
             ? ` · ${new Date(match.scheduledAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`
             : ''}
           {match.overrideBy ? ' · by organizer' : ''}
+          {conflict && open ? ' · reports disagree' : ''}
         </span>
         <span className="rowtools">
+          {yourSide && yourTeamId && open && match.teamA && match.teamB ? (
+            <button
+              type="button"
+              className="btn-ghost small"
+              onClick={async () => {
+                onError(null);
+                try {
+                  await api.matchCheckin(match.id, yourTeamId, yourCheckin === null);
+                  onChanged();
+                } catch (err) {
+                  onError(explain(err, 'Could not check in.'));
+                }
+              }}
+            >
+              {yourCheckin === null ? 'Check in' : 'Undo check-in'}
+            </button>
+          ) : null}
           {joinable ? (
             <button
               type="button"
@@ -573,6 +687,38 @@ function MatchCard({
           ) : null}
         </span>
       </div>
+      {!auto && yourSide && open && match.teamA && match.teamB ? (
+        <div className="bracket-meta">
+          <span>{yourReport ? `You reported: ${teamName(yourReport)}` : 'Report the result:'}</span>
+          <span className="rowtools">
+            {[match.teamA, match.teamB].map((teamId) => (
+              <button
+                key={teamId}
+                type="button"
+                className={`btn-ghost small${yourReport === teamId ? ' active' : ''}`}
+                onClick={async () => {
+                  onError(null);
+                  try {
+                    const result = await api.matchReport(match.id, teamId);
+                    onNote(
+                      result.agreed
+                        ? 'Both captains agree — the result stands.'
+                        : result.conflict
+                          ? 'The other captain reported differently; the organizer decides.'
+                          : 'Reported. The result stands once the other captain agrees.',
+                    );
+                    onChanged();
+                  } catch (err) {
+                    onError(explain(err, 'Could not report the result.'));
+                  }
+                }}
+              >
+                {teamName(teamId)} won
+              </button>
+            ))}
+          </span>
+        </div>
+      ) : null}
       {connect ? (
         <p className="hint">
           Paste in the CS2 console: <code>{connect}</code>

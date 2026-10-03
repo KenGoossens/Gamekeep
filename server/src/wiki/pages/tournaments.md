@@ -2,7 +2,7 @@
 
 ![A running bracket: rounds as columns, live scores, and who plays whom](/api/wiki/images/tournament-bracket.png)
 
-Single-elimination brackets for **any game**, in two flavours:
+Tournaments for **any game**, in two flavours:
 
 - **Counter-Strike 2** — the automatic one. The portal builds a server per
   match and retires it after; the game reports its own results and the
@@ -12,8 +12,28 @@ Single-elimination brackets for **any game**, in two flavours:
   through the "Other game…" field, because a building contest decided by the
   organizer is a tournament too.
   Matches are played wherever you play (a standing server, another machine, a
-  couch), and the organizer records each result through *Decide…*. Bracket,
+  couch), and the result comes from the people in it: **each captain reports
+  the winner, and agreement decides the match**. If the two reports disagree,
+  nothing moves and the organizer settles it through *Decide…*. Bracket,
   seeding, scheduling, standings and the public page work identically.
+
+## Three formats
+
+Picked when the tournament is created, because the bracket's shape is the
+tournament's shape:
+
+- **Single elimination** — lose once, go home. The classic; shortest night.
+- **Double elimination** — lose once and you drop into the **losers bracket**;
+  lose twice and you are out. The winners-bracket champion meets the
+  losers-bracket survivor in a single **grand final** (no bracket reset — one
+  series decides it). Needs at least three teams.
+- **Round robin** — everyone plays everyone once; the **standings** crown the
+  champion (wins, then map difference, then round difference). Best for small
+  groups that want many matches rather than sudden death.
+
+Byes work in every format: an uneven field gives the top seeds a free pass,
+visibly, and in double elimination a bye never produces a losers-bracket
+opponent — the bracket accounts for that on its own.
 
 The feature wears a beta label until it has been tested and validated end to
 end — expect rough edges, and say what you hit.
@@ -43,15 +63,44 @@ wheel — no restart, stop or settings — because its lifecycle belongs to the
 tournament, and the card retires itself with the match.
 
 3. **Running** — starting builds the bracket. Uneven fields get byes: the top
-   seeds skip round one, visibly. The organizer schedules each round;
-   **fifteen minutes before** a match's time the portal builds its server —
-   fresh password, its own port, its own Steam token — and pings Discord when
-   it is ready. Players hit **How to join** on their match for the console
-   connect line. MatchZy runs the competitive flow in-game (ready-up, knife
-   round, veto) and reports every score back; the bracket moves the moment a
-   series ends, and the server is retired along with its token.
-4. **Finished** — a decided final crowns the champion and closes the
-   tournament. The page stays, as the archive.
+   seeds skip round one, visibly. The organizer schedules each round (in
+   double elimination the winners rounds, losers rounds and grand final are
+   each their own column); **fifteen minutes before** a match's time the
+   portal builds its server — fresh password, its own port, its own Steam
+   token — and pings Discord when it is ready. Players hit **How to join** on
+   their match for the console connect line. MatchZy runs the competitive flow
+   in-game (ready-up, knife round, veto) and reports every score back; the
+   bracket moves the moment a series ends, and the server is retired along
+   with its token.
+4. **Finished** — a decided final (or, in round robin, the last match) crowns
+   the champion and closes the tournament. The page stays, as the archive.
+
+## Check-in
+
+Each match card carries a **Check in** button for the two captains: one click
+says "we are here", and a green ✓ appears next to the team for everyone —
+the organizer, the other team, the public page's spectators. Check-in never
+blocks a match (a LAN party does not want a bracket that refuses to proceed
+over a forgotten click); it is the readiness signal, and the paper trail when
+a no-show becomes a forfeit.
+
+## Reporting results (non-CS2 games)
+
+For every game that cannot report its own scores, the match card shows the two
+captains a **"&lt;team&gt; won"** pair of buttons once both teams are known.
+One captain reports; the result **stands the moment the other captain reports
+the same winner**. Disagree, and the card says so — *reports disagree* — and
+the match waits for the organizer's *Decide…*, which is exactly the escalation
+a disputed scoreline deserves. CS2 matches refuse self-reports; the game
+already told the truth.
+
+## Cloning
+
+Next week's tournament is usually this week's with a new date. **Clone** (on
+the tournament page, organizers only) copies the settings — game, format,
+team size, series length, map pool — **and the entered teams** into a fresh
+draft with its own public address. Matches, results and seeds stay behind; a
+new event earns its own.
 
 ## The public page
 

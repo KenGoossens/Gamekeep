@@ -1,17 +1,29 @@
-import type { BestOf, MatchRow, TournamentStore } from './store.js';
+import type { BestOf, BracketSide, MatchRow, TournamentStore } from './store.js';
 
 /**
- * The bracket's arithmetic: who plays whom, where winners go, when it ends.
+ * The tournament's arithmetic, for three formats:
  *
- * Everything here is a pure consequence of two numbers — a match's (round,
- * slot) — so none of it talks to Docker or Steam. The winner of (r, s) feeds
- * (r+1, s>>1), sitting left when s is even and right when it is odd; the
- * final is the single match in the highest round. Byes are decided at
- * generation time, so "no opponent" never exists as a state anything later
- * has to understand.
+ * - single elimination ('bracket'): lose once, go home;
+ * - double elimination ('double'): a winners bracket, a losers bracket that
+ *   catches every first loss, and a grand final between the two survivors
+ *   (played as one series — no bracket reset, said in the wiki);
+ * - round robin ('roundrobin'): everyone plays everyone, the standings crown
+ *   the champion.
+ *
+ * The engine is declarative: every match's two sides are either seeded or
+ * FED by another match (take its winner, or take its loser). settle() is a
+ * fixpoint over that graph — place what is known, decide byes (a side whose
+ * feeder can never produce a team), repeat until nothing moves, then notice
+ * the end. Everything else (override, forfeits, late webhooks) simply calls
+ * settle() after changing a result; the graph never needs to know why.
  */
 
 export class BracketError extends Error {}
+
+/** Where one side of a match comes from. */
+type Feeder =
+  | { kind: 'seed' }
+  | { kind: 'take'; bracket: BracketSide; round: number; slot: number; take: 'winner' | 'loser' };
 
 /**
  * Classic tournament seed placement for a bracket of `size` (a power of two):
@@ -34,14 +46,99 @@ const bracketSizeFor = (teams: number): number => {
   return size;
 };
 
+const key = (bracket: BracketSide, round: number, slot: number) => `${bracket}:${round}:${slot}`;
+
 /**
- * Turns a tournament's entries into its bracket.
- *
- * Seeds are honoured where the organizer set them; everyone else draws a
- * random position below the seeded ones. Uneven fields get byes: the top
- * seeds' round-1 matches are created already decided, and their winners are
- * advanced immediately, so a 6-team bracket opens with two real matches and
- * two teams already standing in round 2.
+ * The feeder graph for one match position. Single elimination feeds winners
+ * up its own bracket; double elimination adds the standard losers-bracket
+ * weave: winners-round-1 losers pair up, every later winners round drops its
+ * losers onto the losers bracket's even rounds, odd losers rounds pair the
+ * survivors back down. Round robin feeds nothing — every match is seeded.
+ */
+function feedersOf(
+  format: string,
+  size: number,
+  match: Pick<MatchRow, 'bracket' | 'round' | 'slot'>,
+): { a: Feeder; b: Feeder } {
+  const { bracket, round, slot } = match;
+  if (format === 'roundrobin') return { a: { kind: 'seed' }, b: { kind: 'seed' } };
+
+  if (bracket === 'wb') {
+    if (round === 1) return { a: { kind: 'seed' }, b: { kind: 'seed' } };
+    return {
+      a: { kind: 'take', bracket: 'wb', round: round - 1, slot: slot * 2, take: 'winner' },
+      b: { kind: 'take', bracket: 'wb', round: round - 1, slot: slot * 2 + 1, take: 'winner' },
+    };
+  }
+
+  const k = Math.log2(size);
+  if (bracket === 'gf') {
+    return {
+      a: { kind: 'take', bracket: 'wb', round: k, slot: 0, take: 'winner' },
+      b: { kind: 'take', bracket: 'lb', round: 2 * (k - 1), slot: 0, take: 'winner' },
+    };
+  }
+
+  // Losers bracket.
+  if (round === 1) {
+    return {
+      a: { kind: 'take', bracket: 'wb', round: 1, slot: slot * 2, take: 'loser' },
+      b: { kind: 'take', bracket: 'wb', round: 1, slot: slot * 2 + 1, take: 'loser' },
+    };
+  }
+  if (round % 2 === 0) {
+    // A drop-in round: the losers-bracket survivor meets the fresh dropper
+    // from the winners bracket.
+    const wbRound = round / 2 + 1;
+    return {
+      a: { kind: 'take', bracket: 'lb', round: round - 1, slot, take: 'winner' },
+      b: { kind: 'take', bracket: 'wb', round: wbRound, slot, take: 'loser' },
+    };
+  }
+  // An odd (pairing) round: losers-bracket winners pair among themselves.
+  return {
+    a: { kind: 'take', bracket: 'lb', round: round - 1, slot: slot * 2, take: 'winner' },
+    b: { kind: 'take', bracket: 'lb', round: round - 1, slot: slot * 2 + 1, take: 'winner' },
+  };
+}
+
+/** How many matches each (bracket, round) holds for a double bracket of size N. */
+function doubleLayout(size: number): Array<{ bracket: BracketSide; round: number; count: number }> {
+  const k = Math.log2(size);
+  const layout: Array<{ bracket: BracketSide; round: number; count: number }> = [];
+  for (let r = 1; r <= k; r++) layout.push({ bracket: 'wb', round: r, count: size / 2 ** r });
+  for (let r = 1; r <= 2 * (k - 1); r++) {
+    const m = Math.ceil(r / 2);
+    layout.push({ bracket: 'lb', round: r, count: size / 2 ** (m + 1) });
+  }
+  layout.push({ bracket: 'gf', round: 1, count: 1 });
+  return layout;
+}
+
+/** Everyone meets everyone once: the classic circle method. */
+function roundRobinPairings(teamIds: Array<string>): Array<Array<[string, string]>> {
+  const ring: Array<string | null> = [...teamIds];
+  if (ring.length % 2 === 1) ring.push(null);
+  const n = ring.length;
+  const rounds: Array<Array<[string, string]>> = [];
+  for (let r = 0; r < n - 1; r++) {
+    const pairs: Array<[string, string]> = [];
+    for (let i = 0; i < n / 2; i++) {
+      const home = ring[i]!;
+      const away = ring[n - 1 - i]!;
+      if (home !== null && away !== null) pairs.push([home, away]);
+    }
+    rounds.push(pairs);
+    // Rotate everyone but the first seat.
+    ring.splice(1, 0, ring.pop()!);
+  }
+  return rounds;
+}
+
+/**
+ * Turns a tournament's entries into its matches, per its format. Seeds are
+ * honoured where the organizer set them; unseeded entries draw random
+ * positions below the seeded ones.
  */
 export function generateBracket(store: TournamentStore, tournamentId: string): MatchRow[] {
   const tournament = store.getTournament(tournamentId);
@@ -54,9 +151,10 @@ export function generateBracket(store: TournamentStore, tournamentId: string): M
   if (entries.length < 2) {
     throw new BracketError('A bracket needs at least two teams.');
   }
+  if (tournament.format === 'double' && entries.length < 3) {
+    throw new BracketError('Double elimination needs at least three teams — with two, just play a series.');
+  }
 
-  // Seeded entries first in seed order, then the unseeded in random order --
-  // a fresh array each time, so regenerating after a withdrawal reshuffles.
   const seeded = entries.filter((e) => e.seed !== null).sort((a, b) => a.seed! - b.seed!);
   const unseeded = entries
     .filter((e) => e.seed === null)
@@ -66,77 +164,142 @@ export function generateBracket(store: TournamentStore, tournamentId: string): M
   const ordered = [...seeded, ...unseeded];
   ordered.forEach((entry, index) => store.setSeed(tournamentId, entry.teamId, index + 1));
 
+  const bestOf = tournament.bestOf as BestOf;
+
+  if (tournament.format === 'roundrobin') {
+    roundRobinPairings(ordered.map((e) => e.teamId)).forEach((pairs, roundIndex) => {
+      pairs.forEach(([teamA, teamB], slot) => {
+        store.addMatch({ tournamentId, bracket: 'wb', round: roundIndex + 1, slot, teamA, teamB, bestOf });
+      });
+    });
+    return store.listMatches(tournamentId);
+  }
+
   const size = bracketSizeFor(ordered.length);
   const placement = seedOrder(size);
-  const bestOf = tournament.bestOf as BestOf;
-  const rounds = Math.log2(size);
-  const created: MatchRow[] = [];
 
-  // Round 1 from the placement; every later round as empty slots, so the
-  // whole bracket is visible (and schedulable) from the start.
+  // Winners round 1 from the placement; byes decided on the spot.
   for (let slot = 0; slot < size / 2; slot++) {
     const a = ordered[placement[slot * 2]! - 1];
     const b = ordered[placement[slot * 2 + 1]! - 1];
-    created.push(
-      store.addMatch({
-        tournamentId,
-        round: 1,
-        slot,
-        teamA: a?.teamId ?? null,
-        teamB: b?.teamId ?? null,
-        bestOf,
-        // A missing opponent is a bye, decided here and never seen again.
-        decidedWinner: a && !b ? a.teamId : undefined,
-      }),
-    );
+    store.addMatch({
+      tournamentId,
+      bracket: 'wb',
+      round: 1,
+      slot,
+      teamA: a?.teamId ?? null,
+      teamB: b?.teamId ?? null,
+      bestOf,
+      decidedWinner: a && !b ? a.teamId : undefined,
+    });
   }
-  for (let round = 2; round <= rounds; round++) {
-    for (let slot = 0; slot < size / 2 ** round; slot++) {
-      created.push(store.addMatch({ tournamentId, round, slot, teamA: null, teamB: null, bestOf }));
+
+  const layout =
+    tournament.format === 'double'
+      ? doubleLayout(size).filter((row) => !(row.bracket === 'wb' && row.round === 1))
+      : Array.from({ length: Math.log2(size) - 1 }, (_, i) => ({
+          bracket: 'wb' as BracketSide,
+          round: i + 2,
+          count: size / 2 ** (i + 2),
+        }));
+  for (const row of layout) {
+    for (let slot = 0; slot < row.count; slot++) {
+      store.addMatch({ tournamentId, bracket: row.bracket, round: row.round, slot, teamA: null, teamB: null, bestOf });
     }
   }
 
-  // Walk the byes forward so round 2 shows who is waiting there.
-  for (const match of created) {
-    if (match.status === 'decided') advanceFrom(store, match.id);
-  }
+  settle(store, tournamentId);
   return store.listMatches(tournamentId);
 }
 
 /**
- * Carries one decided match's winner into the next round, and notices when
- * the tournament is over. Idempotent and refusal-happy: a next match that is
- * already provisioned, live or decided is never rewritten -- correcting that
- * far back is organizer-override work on that match itself, not something a
- * late webhook event gets to do by side effect.
+ * The fixpoint: place every team the graph already knows, decide byes, and
+ * notice the end. Idempotent; refusal-happy about anything live: a match
+ * that is decided, holds a server, or has started is never rewritten —
+ * correcting those is organizer-override work on that match itself.
  */
-export function advanceFrom(store: TournamentStore, matchId: string): void {
-  const match = store.getMatch(matchId);
-  if (!match || !match.winner) return;
-
-  const tournament = store.getTournament(match.tournamentId);
+export function settle(store: TournamentStore, tournamentId: string): void {
+  const tournament = store.getTournament(tournamentId);
   if (!tournament) return;
+  const format = tournament.format;
 
-  const all = store.listMatches(match.tournamentId);
-  const lastRound = Math.max(...all.map((m) => m.round));
+  for (let pass = 0; pass < 32; pass++) {
+    const matches = store.listMatches(tournamentId);
+    const byKey = new Map(matches.map((m) => [key(m.bracket, m.round, m.slot), m]));
+    const size = 2 * (matches.filter((m) => m.bracket === 'wb' && m.round === 1).length || 1);
 
-  if (match.round === lastRound) {
-    // The final: a winner here ends the tournament.
-    if (tournament.status === 'running') store.setTournamentStatus(match.tournamentId, 'finished');
-    return;
+    /** A side's current truth: a team, VOID (never coming), or UNKNOWN. */
+    const resolve = (feeder: Feeder, current: string | null): string | null | 'unknown' => {
+      if (feeder.kind === 'seed') return current; // placed at generation
+      const source = byKey.get(key(feeder.bracket, feeder.round, feeder.slot));
+      if (!source) return 'unknown';
+      if (source.status !== 'decided' && source.status !== 'forfeit') {
+        // An undecided source whose own sides are both void can never decide;
+        // treat a fully-empty pending source as void-producing.
+        if (source.teamA === null && source.teamB === null && sourceIsVoid(source)) return null;
+        return 'unknown';
+      }
+      if (feeder.take === 'winner') return source.winner;
+      // The loser — which a bye never produced.
+      if (source.teamA === null || source.teamB === null) return null;
+      return source.winner === source.teamA ? source.teamB : source.teamA;
+    };
+
+    /** True when a pending, empty match can never receive teams. */
+    const sourceIsVoid = (m: MatchRow): boolean => {
+      const feeders = feedersOf(format, size, m);
+      const a = feeders.a.kind === 'take' ? resolve(feeders.a, null) : m.teamA;
+      const b = feeders.b.kind === 'take' ? resolve(feeders.b, null) : m.teamB;
+      return a === null && b === null;
+    };
+
+    let changed = false;
+    for (const match of matches) {
+      // Live or settled matches are never rewritten by the graph.
+      if (match.status !== 'pending' || match.serverContainer) continue;
+
+      const feeders = feedersOf(format, size, match);
+      const a = feeders.a.kind === 'take' ? resolve(feeders.a, match.teamA) : match.teamA;
+      const b = feeders.b.kind === 'take' ? resolve(feeders.b, match.teamB) : match.teamB;
+
+      const nextA = a === 'unknown' ? match.teamA : a;
+      const nextB = b === 'unknown' ? match.teamB : b;
+      if (nextA !== match.teamA || nextB !== match.teamB) {
+        store.setMatchTeams(match.id, nextA, nextB);
+        changed = true;
+      }
+
+      // A bye: one side present, the other provably never coming.
+      if (nextA && b === null) {
+        store.decideMatch({ id: match.id, status: 'decided', winner: nextA });
+        changed = true;
+      } else if (nextB && a === null) {
+        store.decideMatch({ id: match.id, status: 'decided', winner: nextB });
+        changed = true;
+      }
+    }
+    if (!changed) break;
   }
 
-  const next = all.find((m) => m.round === match.round + 1 && m.slot === match.slot >> 1);
-  if (!next) return;
-  if (next.status !== 'pending' || next.serverContainer) return;
+  // The end, per format.
+  if (tournament.status !== 'running') return;
+  const matches = store.listMatches(tournamentId);
+  const finished =
+    format === 'roundrobin'
+      ? matches.every((m) => m.status === 'decided' || m.status === 'forfeit')
+      : format === 'double'
+        ? (matches.find((m) => m.bracket === 'gf')?.winner ?? null) !== null
+        : (() => {
+            const lastRound = Math.max(...matches.map((m) => m.round));
+            return (matches.find((m) => m.bracket === 'wb' && m.round === lastRound)?.winner ?? null) !== null;
+          })();
+  if (finished) store.setTournamentStatus(tournamentId, 'finished');
+}
 
-  const side: 'teamA' | 'teamB' = match.slot % 2 === 0 ? 'teamA' : 'teamB';
-  if (next[side] === match.winner) return;
-  store.setMatchTeams(
-    next.id,
-    side === 'teamA' ? match.winner : next.teamA,
-    side === 'teamB' ? match.winner : next.teamB,
-  );
+/** Kept as the name callers know: a result changed, re-settle the graph. */
+export function advanceFrom(store: TournamentStore, matchId: string): void {
+  const match = store.getMatch(matchId);
+  if (match) settle(store, match.tournamentId);
 }
 
 /**
@@ -170,19 +333,20 @@ export function overrideResult(
     overrideBy: verdict.by,
     overrideReason: verdict.reason,
   });
-  advanceFrom(store, matchId);
+  settle(store, match.tournamentId);
 }
 
 /** Sets one round's play time; matches already holding a server keep theirs. */
 export function scheduleRound(
   store: TournamentStore,
   tournamentId: string,
+  bracket: BracketSide,
   round: number,
   at: number | null,
 ): number {
   let changed = 0;
   for (const match of store.listMatches(tournamentId)) {
-    if (match.round !== round || match.serverContainer) continue;
+    if (match.bracket !== bracket || match.round !== round || match.serverContainer) continue;
     if (match.status === 'decided' || match.status === 'forfeit') continue;
     store.scheduleMatch(match.id, at);
     changed++;

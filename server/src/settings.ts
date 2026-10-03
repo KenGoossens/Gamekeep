@@ -72,7 +72,7 @@ const READ_ONLY_KEYS = new Set([
 ]);
 
 /** Anything that looks like a credential is never echoed back to the browser. */
-const SECRET_HINTS = ['PASSWRD', 'PASSWORD', 'PASSWD', 'TOKEN', 'SECRET', 'KEY', 'RCON'];
+const SECRET_HINTS = ['PASSWRD', 'PASSWORD', 'PASSWD', 'TOKEN', 'SECRET', 'KEY', 'RCON', 'PWD'];
 
 const looksSecret = (key: string): boolean =>
   SECRET_HINTS.some((hint) => key.toUpperCase().includes(hint));
