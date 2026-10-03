@@ -131,7 +131,11 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
     return reply.send({
       games: [
         { key: 'cs2', label: 'Counter-Strike 2', auto: true },
-        ...GAMES.map((g) => ({ key: g.key, label: g.label, auto: false })),
+        // Only games where team-vs-team is a real thing; everything else
+        // goes through the custom field, because a list that claims
+        // Factorio has brackets is a list nobody trusts.
+        ...GAMES.filter((g) => g.versus).map((g) => ({ key: g.key, label: g.label, auto: false })),
+        { key: 'custom', label: 'Other game…', auto: false },
       ],
     });
   });
@@ -161,6 +165,11 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 24) || 'cs2';
+    // 'custom' is the picker's placeholder, never a game: the form swaps it
+    // for whatever name the organizer typed before it gets here.
+    if (game === 'custom') {
+      return reply.code(400).send({ error: 'bad-game', message: 'Name the game.' });
+    }
     if (name.length < 3 || name.length > 60) {
       return reply.code(400).send({ error: 'bad-name', message: 'Give the tournament a name of 3 to 60 characters.' });
     }

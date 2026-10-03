@@ -203,6 +203,14 @@ export interface GameProfile {
   /** Settings worth explaining; everything else still shows as a plain field. */
   settings?: SettingSpec[];
   /**
+   * Whether team-vs-team matches are a real thing in this game — what makes
+   * it offerable in the tournament picker. Deliberately conservative: a
+   * survival sandbox can host a wonderful competition evening, but that goes
+   * through the tournament form's "other game" field, not through a list
+   * that claims Factorio has brackets.
+   */
+  versus?: boolean;
+  /**
    * The known-good headless start line for this game's dedicated server,
    * relative to the install directory. Only for games whose Steam app info
    * lists no Linux launch entry: Steam's own answer wins when it exists, but
@@ -307,6 +315,7 @@ export const GAMES: GameProfile[] = [
   },
   {
     key: 'minecraft-bedrock',
+    versus: true, // bedwars, duels — the classics of server minigames
     label: 'Minecraft (Bedrock)',
     query: 'minecraftbe',
     startupSeconds: 240,
@@ -347,6 +356,7 @@ export const GAMES: GameProfile[] = [
   },
   {
     key: 'minecraft',
+    versus: true, // duels, bedwars, UHC — tournament formats with long traditions
     label: 'Minecraft (Java)',
     query: 'minecraft',
     // Vanilla answers in under a minute; a Forge or Fabric pack generating
@@ -396,6 +406,7 @@ export const GAMES: GameProfile[] = [
   },
   {
     key: 'vrising',
+    versus: true, // arena PvP duels are an established community format
     label: 'V Rising',
     query: 'vrising',
     steamAppId: 1604030,
@@ -455,6 +466,7 @@ export const GAMES: GameProfile[] = [
   },
   {
     key: 'palworld',
+    versus: true, // the arena gives it real head-to-head matches
     label: 'Palworld',
     query: 'palworld',
     steamAppId: 1623730,
@@ -586,6 +598,7 @@ export const GAMES: GameProfile[] = [
   },
   {
     key: 'terraria',
+    versus: true, // PvP arenas are niche but real
     label: 'Terraria',
     query: 'terraria',
     startupSeconds: 180,

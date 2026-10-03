@@ -4,8 +4,10 @@
 
 ### Added
 
-- **Tournaments for any game.** The game picker now offers the whole game
-  registry next to Counter-Strike 2. CS2 keeps its automatic flavour (a
+- **Tournaments for any game.** The game picker now offers
+  games where team-vs-team is real (Minecraft, V Rising, Palworld, Terraria)
+  next to Counter-Strike 2, plus a free "Other game…" field for any contest.
+  CS2 keeps its automatic flavour (a
   server per match, results from the game); every other game plays wherever
   you play and the organizer records results through Decide — bracket,
   seeding, scheduling, standings and the public page are identical. Maps are

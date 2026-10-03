@@ -140,6 +140,7 @@ function TournamentTile({ tournament: t }: { tournament: TournamentSummary }) {
 function CreateTournament({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState('');
   const [game, setGame] = useState('cs2');
+  const [customGame, setCustomGame] = useState('');
   const [games, setGames] = useState<Array<{ key: string; label: string; auto: boolean }>>([]);
   const [teamSize, setTeamSize] = useState('5');
   const [maxTeams, setMaxTeams] = useState('8');
@@ -179,6 +180,16 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
           ))}
         </select>
       </label>
+      {game === 'custom' ? (
+        <label className="field">
+          <span>Which game? (anything goes — a building contest counts)</span>
+          <input
+            value={customGame}
+            placeholder="e.g. Mario Kart, Valheim build-off"
+            onChange={(e) => setCustomGame(e.target.value)}
+          />
+        </label>
+      ) : null}
       <div className="fieldrow">
         <label className="field">
           <span>Players per team</span>
@@ -224,14 +235,14 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
         <button
           type="button"
           className="btn-primary"
-          disabled={busy || name.trim().length < 3}
+          disabled={busy || name.trim().length < 3 || (game === 'custom' && customGame.trim().length < 2)}
           onClick={async () => {
             setBusy(true);
             setError(null);
             try {
               await api.createTournament({
                 name: name.trim(),
-                game,
+                game: game === 'custom' ? customGame.trim() : game,
                 teamSize: Number(teamSize),
                 maxTeams: Number(maxTeams),
                 bestOf: Number(bestOf),

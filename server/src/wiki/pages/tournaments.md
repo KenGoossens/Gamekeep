@@ -7,7 +7,10 @@ Single-elimination brackets for **any game**, in two flavours:
 - **Counter-Strike 2** — the automatic one. The portal builds a server per
   match and retires it after; the game reports its own results and the
   bracket moves by itself.
-- **Every other game** — pick it from the list when creating the tournament.
+- **Games with real head-to-head play** — Minecraft (both editions), V Rising,
+  Palworld, Terraria — pick them from the list; and **any other contest** goes
+  through the "Other game…" field, because a building contest decided by the
+  organizer is a tournament too.
   Matches are played wherever you play (a standing server, another machine, a
   couch), and the organizer records each result through *Decide…*. Bracket,
   seeding, scheduling, standings and the public page work identically.
