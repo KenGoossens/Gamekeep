@@ -126,7 +126,7 @@ function TournamentTile({ tournament: t }: { tournament: TournamentSummary }) {
         <span className="tile-name">{t.name}</span>
         <span className="tile-meta">
           <span>
-            {t.teamSize}v{t.teamSize} · BO{t.bestOf}
+            {t.gameLabel} · {t.teamSize}v{t.teamSize} · BO{t.bestOf}
           </span>
           <span>
             {t.entryCount}/{t.maxTeams} teams
@@ -139,6 +139,8 @@ function TournamentTile({ tournament: t }: { tournament: TournamentSummary }) {
 
 function CreateTournament({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState('');
+  const [game, setGame] = useState('cs2');
+  const [games, setGames] = useState<Array<{ key: string; label: string; auto: boolean }>>([]);
   const [teamSize, setTeamSize] = useState('5');
   const [maxTeams, setMaxTeams] = useState('8');
   const [bestOf, setBestOf] = useState('1');
@@ -147,18 +149,35 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    api.tournamentGames().then((r) => setGames(r.games), () => undefined);
+  }, []);
+  const auto = game === 'cs2';
+
   return (
     <section className="card">
       <div className="card-head">
         <h2>New tournament</h2>
       </div>
       <p className="notes">
-        CS2, single elimination. A map pool larger than the series length means the teams veto
-        in-game, exactly like they know it; a pool of the same size plays in order.
+        Single elimination, any game. <strong>Counter-Strike 2</strong> builds a server per match
+        and scores itself; for every other game the matches are played wherever you play — a
+        standing server, another machine, a couch — and the organizer records each result.
       </p>
       <label className="field">
         <span>Name</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Friday Night CS2" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Friday Night Cup" />
+      </label>
+      <label className="field">
+        <span>Game</span>
+        <select className="rolepick" value={game} onChange={(e) => setGame(e.target.value)}>
+          {games.map((g) => (
+            <option key={g.key} value={g.key}>
+              {g.label}
+              {g.auto ? ' — automatic results' : ''}
+            </option>
+          ))}
+        </select>
       </label>
       <div className="fieldrow">
         <label className="field">
@@ -179,9 +198,19 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
         </label>
       </div>
       <label className="field">
-        <span>Map pool (comma separated)</span>
-        <input value={maps} onChange={(e) => setMaps(e.target.value)} />
+        <span>{auto ? 'Map pool (comma separated)' : 'Maps or arenas (optional, a note for the players)'}</span>
+        <input
+          value={maps}
+          placeholder={auto ? 'de_mirage, de_inferno' : 'e.g. bedwars arena 2'}
+          onChange={(e) => setMaps(e.target.value)}
+        />
       </label>
+      {auto ? (
+        <p className="hint">
+          A pool larger than the series length means the teams veto in-game; a pool of the same
+          size plays in order.
+        </p>
+      ) : null}
       <label className="eventrow">
         <input
           type="checkbox"
@@ -202,6 +231,7 @@ function CreateTournament({ onDone }: { onDone: () => void }) {
             try {
               await api.createTournament({
                 name: name.trim(),
+                game,
                 teamSize: Number(teamSize),
                 maxTeams: Number(maxTeams),
                 bestOf: Number(bestOf),

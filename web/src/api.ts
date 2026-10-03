@@ -234,6 +234,9 @@ export interface TournamentSummary {
   slug: string;
   name: string;
   game: string;
+  gameLabel: string;
+  /** CS2 scores itself; every other game's results come from the organizer. */
+  autoResults: boolean;
   format: string;
   teamSize: number;
   maxTeams: number;
@@ -832,8 +835,11 @@ export const api = {
     request<{ configured: false }>('/api/integrations/notifications', { method: 'DELETE' }),
 
   tournaments: () => request<{ beta: true; tournaments: TournamentSummary[] }>('/api/tournaments'),
+  tournamentGames: () =>
+    request<{ games: Array<{ key: string; label: string; auto: boolean }> }>('/api/tournaments/games'),
   createTournament: (body: {
     name: string;
+    game: string;
     teamSize: number;
     maxTeams: number;
     bestOf: number;

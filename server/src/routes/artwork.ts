@@ -21,7 +21,7 @@ export function registerArtworkRoutes(app: FastifyInstance, ctx: AppContext) {
        * cards wear it), still a closed set the portal itself fetched.
        */
       const server = registry.get(request.params.id);
-      const gameArt = /^game-[a-z0-9]{1,16}$/.test(request.params.id);
+      const gameArt = /^game-[a-z0-9][a-z0-9-]{0,24}$/.test(request.params.id);
       const kind = request.params.kind as ArtworkKind;
       if ((!server && !gameArt) || !ARTWORK_KINDS.includes(kind)) {
         return reply.code(404).send({ error: 'not-found' });

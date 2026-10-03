@@ -364,7 +364,12 @@ export function createMatchOrchestrator(deps: MatchOrchestratorDeps) {
 
       const due = store
         .dueMatches(Date.now() + LEAD_MS)
-        .filter((m) => store.getTournament(m.tournamentId)?.status === 'running');
+        .filter((m) => {
+          const tournament = store.getTournament(m.tournamentId);
+          // Only CS2 gets a server built per match; every other game plays
+          // elsewhere and its results arrive from the organizer.
+          return tournament?.status === 'running' && tournament.game === 'cs2';
+        });
       const next = due[0];
       if (next) await provision(next);
     } catch (err) {

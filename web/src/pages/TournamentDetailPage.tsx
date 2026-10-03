@@ -82,8 +82,11 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
             {tournament.name} <sup className="beta-tag">beta</sup>
           </h1>
           <p>
-            {tournament.teamSize}v{tournament.teamSize} · BO{tournament.bestOf} · map pool:{' '}
-            {tournament.mapPool.join(', ')} · {tournament.status}
+            {tournament.gameLabel} · {tournament.teamSize}v{tournament.teamSize} · BO
+            {tournament.bestOf}
+            {tournament.mapPool.length > 0 ? ` · ${tournament.mapPool.join(', ')}` : ''} ·{' '}
+            {tournament.status}
+            {!tournament.autoResults ? ' · results by the organizer' : ''}
             {tournament.status !== 'draft' ? (
               <>
                 {' · '}

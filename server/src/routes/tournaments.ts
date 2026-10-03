@@ -3,6 +3,7 @@ import type { AppContext } from '../context.js';
 import { originOf } from '../auth/origin.js';
 import { canOperate, type SessionUser } from '../db.js';
 import { slugify } from '../deploy.js';
+import { GAMES } from '../games.js';
 import { BracketError, generateBracket, overrideResult, scheduleRound } from '../tournaments/engine.js';
 import { buildPublicData, renderFragment, renderPublicPage } from '../tournaments/publicPage.js';
 import type { BestOf, TournamentRow } from '../tournaments/store.js';
@@ -85,6 +86,12 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
     };
   }
 
+  const gameLabelOf = (key: string): string =>
+    key === 'cs2'
+      ? 'Counter-Strike 2'
+      : (GAMES.find((g) => g.key === key)?.label ??
+        key.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
+
   function describeTournament(t: TournamentRow) {
     const entries = tournaments.listEntries(t.id);
     return {
@@ -92,6 +99,9 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       slug: t.slug,
       name: t.name,
       game: t.game,
+      gameLabel: gameLabelOf(t.game),
+      /** Whether results arrive from the game itself or from the organizer. */
+      autoResults: t.game === 'cs2',
       format: t.format,
       teamSize: t.teamSize,
       maxTeams: t.maxTeams,
@@ -110,6 +120,22 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
 
   // ---- tournaments ------------------------------------------------------
 
+  /**
+   * What a tournament can be played in. CS2 is the automatic one — a server
+   * per match, results reported by the game. Every other entry (the game
+   * registry, or a custom name) plays anywhere — a standing server, another
+   * machine, a couch — and the organizer records results through Decide.
+   * The bracket neither knows nor cares which kind it is running.
+   */
+  app.get('/api/tournaments/games', member, async (_request, reply) => {
+    return reply.send({
+      games: [
+        { key: 'cs2', label: 'Counter-Strike 2', auto: true },
+        ...GAMES.map((g) => ({ key: g.key, label: g.label, auto: false })),
+      ],
+    });
+  });
+
   app.get('/api/tournaments', member, async (_request, reply) => {
     return reply.send({ beta: true, tournaments: tournaments.listTournaments().map(describeTournament) });
   });
@@ -117,6 +143,7 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
   app.post<{
     Body: {
       name?: string;
+      game?: string;
       teamSize?: number;
       maxTeams?: number;
       bestOf?: number;
@@ -127,6 +154,13 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
     const user = request.user!;
     const body = request.body ?? {};
     const name = String(body.name ?? '').replace(/[\r\n]/g, ' ').trim();
+    // A registry key, 'cs2', or a custom game as one slug-safe word; it
+    // doubles as the artwork namespace (game-<key>), hence the shape.
+    const game = String(body.game ?? 'cs2')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 24) || 'cs2';
     if (name.length < 3 || name.length > 60) {
       return reply.code(400).send({ error: 'bad-name', message: 'Give the tournament a name of 3 to 60 characters.' });
     }
@@ -139,7 +173,9 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       return reply.code(400).send({ error: 'bad-max-teams', message: 'Allow between 2 and 64 teams.' });
     }
     const mapPool = mapsOf(body.mapPool);
-    if (mapPool.length === 0) {
+    // CS2 cannot play without maps — the match config needs them. For every
+    // other game the maps are a human note at best, so empty is fine.
+    if (game === 'cs2' && mapPool.length === 0) {
       return reply.code(400).send({ error: 'bad-map-pool', message: 'Name at least one map.' });
     }
 
@@ -151,7 +187,7 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
     const created = tournaments.createTournament({
       name,
       slug,
-      game: 'cs2',
+      game,
       teamSize,
       maxTeams,
       bestOf: bestOfOf(body.bestOf),
@@ -159,6 +195,21 @@ export function registerTournamentRoutes(app: FastifyInstance, ctx: AppContext) 
       publicRosters: body.publicRosters === true,
       createdBy: user.id,
     });
+
+    // The card wears its game's poster; fetched in the background like all
+    // artwork, and a game without Steam art degrades to a lettered tile.
+    const profile = GAMES.find((g) => g.key === game);
+    const art =
+      game === 'cs2'
+        ? { id: 'game-cs2', displayName: 'Counter-Strike 2', steamAppId: 730 }
+        : profile?.steamAppId
+          ? { id: `game-${game}`, displayName: profile.label, steamAppId: profile.steamAppId }
+          : null;
+    if (art) {
+      void ctx.artwork
+        .ensure([art as never], () => undefined)
+        .catch(() => undefined);
+    }
     db.audit({
       userId: user.id, username: user.username, serverId: null,
       action: 'tournament-created', result: 'success',

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Tournaments for any game.** The game picker now offers the whole game
+  registry next to Counter-Strike 2. CS2 keeps its automatic flavour (a
+  server per match, results from the game); every other game plays wherever
+  you play and the organizer records results through Decide — bracket,
+  seeding, scheduling, standings and the public page are identical. Maps are
+  optional for non-CS2 tournaments, and the card wears the chosen game's
+  poster.
+
 All notable changes to GameKeepr. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [semantic versioning](https://semver.org). The `latest` image on ghcr.io moves

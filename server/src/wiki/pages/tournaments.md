@@ -2,9 +2,18 @@
 
 ![A running bracket: rounds as columns, live scores, and who plays whom](/api/wiki/images/tournament-bracket.png)
 
-Brackets played on servers this portal **builds per match and retires
-after**. The feature wears a beta label until it has been tested and
-validated end to end — expect rough edges, and say what you hit.
+Single-elimination brackets for **any game**, in two flavours:
+
+- **Counter-Strike 2** — the automatic one. The portal builds a server per
+  match and retires it after; the game reports its own results and the
+  bracket moves by itself.
+- **Every other game** — pick it from the list when creating the tournament.
+  Matches are played wherever you play (a standing server, another machine, a
+  couch), and the organizer records each result through *Decide…*. Bracket,
+  seeding, scheduling, standings and the public page work identically.
+
+The feature wears a beta label until it has been tested and validated end to
+end — expect rough edges, and say what you hit.
 
 ## Teams first
 
