@@ -6,36 +6,47 @@ All notable changes to GameKeepr. The format follows
 only when a version is released; `edge` tracks the main branch between
 releases.
 
-## Unreleased
+## 1.2.0 — 2026-10-03
 
+### Added
+
+- **Tournaments (beta).** Single-elimination brackets played on CS2 servers
+  the portal builds per match and retires after: teams with captains and
+  Steam64 rosters, seeding, byes, per-round scheduling, in-game map veto via
+  MatchZy, automatic results and bracket advancement, the organizer's
+  override as the one correction path, Discord pings when a match server is
+  ready and when results land, standings, and a shareable public page at
+  /t/<slug> in the portal's own look (team names always; player names only
+  when the organizer says so). Each match server gets its own port, password
+  and Steam game server token, minted and retired automatically. The whole
+  feature wears a **beta** tag until real tournament nights have worn the
+  edges off; the provisioning chain itself has been validated end to end on
+  real hardware.
 - **Three more router vendors.** Settings → Router now also offers
   **Fritz!Box** (TR-064), **MikroTik** (RouterOS 7 REST, certificate pinned on
   first contact) and generic **UPnP** for most consumer routers, next to
   UniFi. Written to the vendors' published APIs and awaiting real-hardware
   confirmation — the connect test is a real call, so problems surface at
-  connect time. The public reachability probe now runs only when no router is
-  connected; with one, the rules listing is the authoritative answer.
-- **Forwarding verified without a router.** The Network tab now asks the game
+  connect time.
+- **Forwarding verified without a router.** The Network tab asks the game
   itself through the public address — an answer proves container port, forward
   and router in one go, with no router integration needed. When nothing
-  answers and no router is connected, it says plainly which ports to forward
-  manually (with the NAT-hairpin caveat spelled out).
-- **Licence change: AGPL-3.0-or-later.** From the next release the core is
-  AGPL: still genuinely open source and free to self-host; anyone offering
-  GameKeepr as a service to others must publish their modifications. Versions
-  up to 1.1.0 were MIT and remain MIT.
+  answers, it says plainly which ports to forward manually (with the
+  NAT-hairpin caveat spelled out). With a router connected the probe is
+  skipped: the rules listing is the authoritative answer there.
 - **Start commands Steam never wrote down.** When an app's Steam info lists no
-  Linux launch entry, the registry now fills in the known start script for
+  Linux launch entry, the registry fills in the known start script for
   recognised games (7 Days to Die, Project Zomboid), and for everything else
   the command may stay empty: the server finds its own conventional start
   script (`startserver.sh` and friends) on first boot — and refuses loudly
   instead of guessing when none exists.
-- **Tournaments** are in development: teams, brackets, a public read-only
-  tournament page at /t/<slug> (team names always, rosters only when the
-  organizer says so), and a CS2 match server
-  provisioned per match with MatchZy reporting the results back. The feature
-  will ship behind a **beta** label until it has been tested and validated
-  end to end.
+
+### Changed
+
+- **Licence: AGPL-3.0-or-later** from this release. Still genuinely open
+  source and free to self-host; anyone offering GameKeepr as a service to
+  others must publish their modifications. Versions up to 1.1.0 were MIT and
+  remain MIT.
 
 ## 1.1.0 — 2026-10-02
 
