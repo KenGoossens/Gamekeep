@@ -628,6 +628,20 @@ button:disabled,
   color: var(--muted); font-size: 0.89rem; white-space: nowrap;
 }
 
+/* The validation page's app picker: a scrollable choice list, with enough
+   air between the search box and the first row, and per-row breathing room
+   so a checkbox list of a hundred apps reads as rows, not as a wall. */
+.picklist {
+  max-height: 320px; overflow-y: auto;
+  margin-top: 14px; padding: 4px 10px 4px 2px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.07));
+  border-radius: 12px;
+}
+.picklist li { padding: 7px 6px; }
+.picklist .checkline { gap: 10px; font-size: 0.92rem; }
+.picklist .checkline strong { color: var(--text); font-weight: 600; }
+.picklist .mod-meta { margin-left: 2px; }
+
 /* ---- responsive ---- */
 @media (max-width: 40rem) {
   .shell { padding: 0 14px 56px; }

@@ -143,7 +143,7 @@ export function ValidationPage() {
           as it honestly can be, its port accepting connections. Apps your live servers share
           ports with are skipped with the reason.
         </p>
-        <nav className="tabs">
+        <nav className="tabs" style={{ margin: '18px 0 14px' }}>
           {(
             [
               ['catalog', 'Unraid apps'],
@@ -170,7 +170,7 @@ export function ValidationPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </label>
-        <ul className="feed" style={{ maxHeight: 320, overflowY: 'auto' }}>
+        <ul className="feed picklist">
           {rows.map((row) => (
             <li key={row.key}>
               <label className="checkline">
@@ -181,7 +181,7 @@ export function ValidationPage() {
                   onChange={() => toggle(row)}
                 />
                 <strong>{row.name}</strong>
-                <span className="mod-meta"> {row.meta}</span>
+                <span className="mod-meta">{row.meta}</span>
               </label>
             </li>
           ))}
