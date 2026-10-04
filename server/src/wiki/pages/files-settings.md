@@ -29,14 +29,35 @@ as dots and never echoed back; leave them as-is to keep the current value.
 
 ## The game's own config file
 
-For games the registry knows well enough (Minecraft, Project Zomboid, 7 Days
-to Die today — the list grows), the Settings tab also finds **the file the
-game actually loads** — `server.properties`, `servertest.ini`,
-`serverconfig.xml` — inside the server, and shows its join settings with
-labels: server name, world, password. The file beats environment variables as
-a source of truth where the image allows it: the file's keys are defined by
-the *game* and identical under every image, while env spellings differ per
-image maintainer.
+For games the registry knows well enough, the Settings tab also finds **the
+file the game actually loads** inside the server, and shows its join settings
+with labels: server name, world, password, admin password. The file beats
+environment variables as a source of truth where the image allows it: the
+file's keys are defined by the *game* and identical under every image, while
+env spellings differ per image maintainer.
+
+Covered today, each researched against the game's own documentation:
+
+| Game | File | What it carries here |
+|---|---|---|
+| Minecraft (Java) | `server.properties` | name (motd), world — *env-templated under itzg, shown read-only* |
+| Minecraft (Bedrock) | `server.properties` | name, world — *env-templated under itzg; Bedrock has no passwords at all (allowlist)* |
+| Project Zomboid | `servertest.ini` (found by name) | name, password |
+| 7 Days to Die | `serverconfig.xml` | name, world, password — *admins are a permissions list, not a password* |
+| Factorio | `server-settings.json` | name, password — *admins are a username list* |
+| Terraria | `serverconfig.txt` | password — *vanilla has no admin password* |
+| V Rising | `ServerHostSettings.json` (the live copy, not the StreamingAssets defaults) | name, world, password — *admins are Steam IDs* |
+| ARK: Survival Evolved | `GameUserSettings.ini` | name, password, admin password — *ich777 passes these as launch arguments, so the file is shown read-only* |
+| Conan Exiles | `ServerSettings.ini` | password, admin password — *the display name lives in a second file, out of honest reach* |
+| Enshrouded | `enshrouded_server.json` | name — *passwords live nested per role group since the userGroups update; edit those on the Files tab* |
+
+Games deliberately absent, with the reason: Satisfactory is claimed in-game
+(no pre-boot name/password config exists); Rust has no join password at all
+(RCON is its only credential, offered as a typed variable instead); Space
+Engineers stores its password as a salted hash no text field can honestly
+write; Soulmask takes everything as launch arguments; Lethal Company has no
+dedicated server; Palworld's single-tuple INI is regenerated from variables by
+its common image, which the typed variables already cover.
 
 Three honest behaviours:
 

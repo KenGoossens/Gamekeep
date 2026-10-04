@@ -10,6 +10,24 @@ releases.
 
 ### Added
 
+- **The registry now knows where ten games keep their real settings.** The
+  Settings Scan grew from three games to ten — Minecraft (Java and Bedrock),
+  Project Zomboid, 7 Days to Die, Factorio, Terraria, V Rising, ARK, Conan
+  Exiles and Enshrouded — each researched against the game's own documentation
+  and the source of its common Docker image, never guessed. Sectioned INIs
+  (ARK keeps its name and its passwords in different sections) and JSON
+  configs (Factorio, V Rising, Enshrouded) are now understood, V Rising's
+  factory-defaults copy under StreamingAssets is filtered out in favour of the
+  live file, and typed join settings were added for ARK (name, map, password,
+  admin — no spaces, as its launch line demands), Rust (name plus RCON, its
+  only credential — vanilla Rust has no join password, and the portal now says
+  so instead of warning about one), Core Keeper (name, and a password that
+  only direct connections ever ask for), V Rising and Enshrouded's role-group
+  passwords. Just as deliberate is what is absent: Satisfactory is claimed
+  in-game, Space Engineers hashes its password, Soulmask configures via launch
+  arguments, Lethal Company has no dedicated server — each absence documented
+  in the wiki rather than papered over.
+
 - **The Settings Scan: the game's own config file, found and edited in
   place.** For games the registry knows well enough (Minecraft, Project
   Zomboid, 7 Days to Die to start), the Settings tab now locates the file the

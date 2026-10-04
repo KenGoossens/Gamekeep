@@ -83,13 +83,22 @@ export interface GameConfigFile {
    */
   locate: { directory: string; file: RegExp } | { fileName: string };
   /**
-   * How the file spells a setting: 'keyvalue' is key=value lines (INI without
-   * sections, server.properties, servertest.ini); 'xml-properties' is 7DTD's
-   * <property name="..." value="..."/> lines.
+   * How the file spells a setting: 'keyvalue' is key=value lines (INI with or
+   * without sections, server.properties, servertest.ini); 'xml-properties' is
+   * 7DTD's <property name="..." value="..."/> lines; 'json' is a JSON object
+   * whose top-level keys are edited (parse-and-rewrite — these files are
+   * machine-written, so formatting is not precious the way an INI's comments
+   * are).
    */
-  format: 'keyvalue' | 'xml-properties';
-  /** The file's own key for each join-setting class it supports. */
-  keys: Partial<Record<'name' | 'world' | 'password' | 'admin', string>>;
+  format: 'keyvalue' | 'xml-properties' | 'json';
+  /**
+   * The file's own key for each join-setting class it supports; the object
+   * form names the INI [section] the key lives under (ARK keeps its name and
+   * its passwords in different sections of the same file).
+   */
+  keys: Partial<
+    Record<'name' | 'world' | 'password' | 'admin', string | { key: string; section: string }>
+  >;
   /**
    * True when the common images for this game regenerate the file from
    * environment variables on every start — editing the file then is lost
@@ -382,6 +391,15 @@ export const GAMES: GameProfile[] = [
       udp(19133, 'The same thing over IPv6', false),
     ],
     saves: ['worlds'],
+    configFile: {
+      // Bedrock's server.properties knows no join or admin password at all —
+      // access is the allowlist, ops are permissions.json. itzg's image bulk-
+      // applies env vars onto this file on every start.
+      locate: { fileName: 'server.properties' },
+      format: 'keyvalue',
+      keys: { name: 'server-name', world: 'level-name' },
+      envAuthoritative: true,
+    },
     settings: [
       { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
       {
@@ -482,6 +500,23 @@ export const GAMES: GameProfile[] = [
       udp(9877, 'Steam query'),
     ],
     saves: ['save-data', 'Saves'],
+    settings: [
+      // TrueOsiris's image: SERVERNAME is mandatory there and overrules the
+      // json on every start; a HOST_SETTINGS_* var edits the matching key.
+      { key: 'SERVERNAME', label: 'Server name', type: 'text', connect: 'name' },
+      { key: 'WORLDNAME', label: 'World (save name)', type: 'text', connect: 'world' },
+      { key: 'HOST_SETTINGS_Password', label: 'Password', type: 'text', connect: 'password' },
+    ],
+    configFile: {
+      // The live copy in the persistent Settings dir; the one under
+      // StreamingAssets is the game's own defaults and is filtered out by the
+      // scan. Admins are Steam IDs in adminlist.txt, never a password. Images
+      // that set SERVERNAME re-win the name on every start — the apply-time
+      // re-verify catches and explains that.
+      locate: { fileName: 'ServerHostSettings.json' },
+      format: 'json',
+      keys: { name: 'Name', world: 'SaveName', password: 'Password' },
+    },
     match: [/v[\s_-]?rising/i],
     mods: thunderstore('v-rising'),
   },
@@ -523,9 +558,32 @@ export const GAMES: GameProfile[] = [
     saves: ['savegame'],
     settings: [
       { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
+      { key: 'NAME', label: 'Server name', type: 'text', connect: 'name' },
       { key: 'SERVER_PASSWORD', label: 'Password', type: 'text', connect: 'password' },
+      {
+        key: 'SET_GROUP_GUEST_PASSWORD',
+        label: 'Password',
+        type: 'text',
+        connect: 'password',
+        help: "The Guest group's join password — Enshrouded's passwords live per role group since the userGroups update.",
+      },
+      {
+        key: 'SET_GROUP_ADMIN_PASSWORD',
+        label: 'Admin password',
+        type: 'text',
+        connect: 'admin',
+        help: "The Admin group's password: joining with it grants kick/ban rights.",
+      },
       { key: 'SERVER_SLOT_COUNT', label: 'Player limit', type: 'number', min: 1, max: 16 },
     ],
+    configFile: {
+      // Only the top-level name is reachable here: since the userGroups
+      // update the passwords live nested per role group, which this one-key
+      // surgery honestly does not edit — the Files tab does.
+      locate: { fileName: 'enshrouded_server.json' },
+      format: 'json',
+      keys: { name: 'name' },
+    },
     match: [/enshrouded/i],
     modsUnavailable: 'Enshrouded has no mod support, so there is nothing to install.',
   },
@@ -625,6 +683,27 @@ export const GAMES: GameProfile[] = [
       tcp(27020, 'RCON, if enabled. Keep it off the internet', false),
     ],
     saves: ['ShooterGame/Saved'],
+    settings: [
+      // ich777's arkse image passes these on the command line, which
+      // overrides the ini on every start. No spaces allowed — the launch
+      // line uses ?-separated arguments.
+      { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name', help: 'No spaces — ARK takes it as a launch argument.' },
+      { key: 'MAP', label: 'Map', type: 'text', connect: 'world' },
+      { key: 'SRV_PWD', label: 'Password', type: 'text', connect: 'password', help: 'No spaces.' },
+      { key: 'SRV_ADMIN_PWD', label: 'Admin password', type: 'text', connect: 'admin', help: 'For in-game admin commands (cheat …). No spaces.' },
+    ],
+    configFile: {
+      // GameUserSettings.ini — but ich777's image passes name and passwords
+      // as launch arguments, which override the file every start.
+      locate: { directory: 'Config/LinuxServer', file: /^GameUserSettings\.ini$/i },
+      format: 'keyvalue',
+      keys: {
+        name: { key: 'SessionName', section: 'SessionSettings' },
+        password: { key: 'ServerPassword', section: 'ServerSettings' },
+        admin: { key: 'ServerAdminPassword', section: 'ServerSettings' },
+      },
+      envAuthoritative: true,
+    },
     match: [/ark[\s_:-]*survival[\s_-]*evolved/i, /\base[\s_-]?docker\b/i],
     workshop: {
       directory: 'Config/LinuxServer',
@@ -649,6 +728,18 @@ export const GAMES: GameProfile[] = [
       udp(28017, 'Server browser queries'),
       tcp(28016, 'RCON. Keep it off the internet', false),
       tcp(28082, 'Rust+ companion app', false),
+    ],
+    settings: [
+      // didstopia's image passes these as +convars on every start; vanilla
+      // Rust has NO join password at all — the only credential is RCON.
+      { key: 'RUST_SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
+      {
+        key: 'RUST_RCON_PASSWORD',
+        label: 'Admin password',
+        type: 'text',
+        connect: 'admin',
+        help: "RCON — Rust's only credential. Vanilla Rust has no join password; anyone can connect.",
+      },
     ],
     match: [/\brust\b/i],
     modsUnavailable:
@@ -690,6 +781,15 @@ export const GAMES: GameProfile[] = [
     steamAppId: 105600,
     ports: [tcp(7777, 'Game traffic')],
     saves: ['Worlds'],
+    configFile: {
+      // Vanilla serverconfig.txt: only the join password is a stable key —
+      // `world` is a .wld file path (not a name) and there is no admin
+      // password without TShock. Both common images copy the file once and
+      // leave hand edits alone.
+      locate: { fileName: 'serverconfig.txt' },
+      format: 'keyvalue',
+      keys: { password: 'password' },
+    },
     match: [/terraria/i],
   },
   {
@@ -702,6 +802,15 @@ export const GAMES: GameProfile[] = [
     // UDP only: forwarding TCP 34197 does nothing at all.
     ports: [udp(34197, 'Game traffic')],
     saves: ['saves'],
+    configFile: {
+      // The official image creates this once and tells you to edit it —
+      // hand edits persist, which makes it the ideal Settings Scan citizen.
+      // Admins are a separate server-adminlist.json of usernames, not a
+      // password, so there is honestly no admin key here.
+      locate: { fileName: 'server-settings.json' },
+      format: 'json',
+      keys: { name: 'name', password: 'game_password' },
+    },
     match: [/factorio/i],
     modsUnavailable:
       'Factorio has an official mod portal API, but downloading from it needs the username and token of an account that owns the game — a credential this portal deliberately does not hold. Add mods from the Files tab.',
@@ -719,6 +828,19 @@ export const GAMES: GameProfile[] = [
       udp(27015, 'Steam query'),
     ],
     saves: ['ConanSandbox/Saved'],
+    configFile: {
+      // ServerSettings.ini holds both passwords; the display name lives in a
+      // different file (Engine.ini), which one-file-per-game does not reach —
+      // the re-verification simply has no expected name to check then.
+      // alinmear's image regenerates ini values from env every start, ich777's
+      // is undocumented: the apply-time re-verify is what catches a templater.
+      locate: { fileName: 'ServerSettings.ini' },
+      format: 'keyvalue',
+      keys: {
+        password: { key: 'ServerPassword', section: 'ServerSettings' },
+        admin: { key: 'AdminPassword', section: 'ServerSettings' },
+      },
+    },
     match: [/conan/i],
   },
   {
@@ -756,6 +878,19 @@ export const GAMES: GameProfile[] = [
      * direct connections, which is the operator's choice and their forward.
      */
     ports: [],
+    settings: [
+      // escapingnetwork's image: WORLD_NAME is the server's display name and
+      // PASSWORD guards direct connections only — Game-ID joins over Steam's
+      // relay never ask for one, and the spec's help says so.
+      { key: 'WORLD_NAME', label: 'Server name', type: 'text', connect: 'name' },
+      {
+        key: 'PASSWORD',
+        label: 'Password',
+        type: 'text',
+        connect: 'password',
+        help: 'Only asked on direct IP connections; joining by Game ID over Steam never prompts for it.',
+      },
+    ],
     match: [/core[\s_-]?keeper/i],
   },
 ];

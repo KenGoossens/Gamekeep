@@ -75,6 +75,37 @@ const encodeXml = (v: string): string =>
 const decodeXml = (v: string): string =>
   v.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
+/**
+ * JSON configs (Factorio, V Rising): parsed and rewritten whole, top-level
+ * keys only. These files are machine-written, so round-tripping the object is
+ * honest — unlike an INI, there are no hand comments to preserve. Only string
+ * values are edited: a join setting is text, and silently retyping someone's
+ * number or object would be a different kind of damage.
+ */
+function readJsonKey(text: string, key: string): string | null {
+  try {
+    const data = JSON.parse(text) as Record<string, unknown>;
+    const value = data?.[key];
+    return typeof value === 'string' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeJsonKey(text: string, key: string, value: string): string {
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new GameSettingsError('The file is not valid JSON; fix it on the Files tab first.', 'bad-value');
+  }
+  if (!(key in data)) {
+    throw new GameSettingsError(`The file has no "${key}" field to change.`, 'not-found');
+  }
+  data[key] = value;
+  return JSON.stringify(data, null, 2) + '\n';
+}
+
 export function createGameSettings(dockerClient: DockerClient) {
   const helpers = createHelperRunner(dockerClient);
   const files = createFileBrowser(dockerClient);
@@ -97,9 +128,11 @@ export function createGameSettings(dockerClient: DockerClient) {
           60_000,
         );
         const hits = output.split('\n').map((l) => l.trim()).filter(Boolean)
-          // Steam keeps pristine copies under its own bookkeeping trees;
-          // the live file is the one the game reads.
-          .filter((p) => !p.includes('/steamapps/'))
+          // Steam keeps pristine copies under its own bookkeeping trees, and
+          // Unity games ship their factory defaults under StreamingAssets
+          // (V Rising keeps a second ServerHostSettings.json there); the live
+          // file is the one the game actually reads.
+          .filter((p) => !p.includes('/steamapps/') && !p.includes('/StreamingAssets/'))
           .sort((a, b) => a.length - b.length);
         return hits[0] ?? null;
       }
@@ -133,10 +166,18 @@ export function createGameSettings(dockerClient: DockerClient) {
     }
   }
 
-  function readValue(text: string, config: GameConfigFile, fileKey: string): string | null {
-    return config.format === 'xml-properties'
-      ? readXmlProp(text, fileKey)
-      : ini.readKey(text, fileKey, undefined);
+  const specOf = (raw: string | { key: string; section: string }) =>
+    typeof raw === 'string' ? { key: raw, section: undefined } : { key: raw.key, section: raw.section };
+
+  function readValue(
+    text: string,
+    config: GameConfigFile,
+    raw: string | { key: string; section: string },
+  ): string | null {
+    const { key, section } = specOf(raw);
+    if (config.format === 'xml-properties') return readXmlProp(text, key);
+    if (config.format === 'json') return readJsonKey(text, key);
+    return ini.readKey(text, key, section);
   }
 
   /** Null when this game has no described config file or none exists yet. */
@@ -147,9 +188,13 @@ export function createGameSettings(dockerClient: DockerClient) {
     if (!file) return null;
 
     const text = await files.read(server, file);
-    const values = (Object.entries(profile.config.keys) as Array<[JoinKey, string]>).map(
-      ([key, fileKey]) => ({ key, fileKey, value: readValue(text, profile.config, fileKey) }),
-    );
+    const values = (
+      Object.entries(profile.config.keys) as Array<[JoinKey, string | { key: string; section: string }]>
+    ).map(([key, raw]) => ({
+      key,
+      fileKey: specOf(raw).key,
+      value: readValue(text, profile.config, raw),
+    }));
     return {
       file,
       gameLabel: profile.label,
@@ -183,13 +228,16 @@ export function createGameSettings(dockerClient: DockerClient) {
     let text = await files.read(server, file);
     const applied: JoinKey[] = [];
     for (const [key, raw] of Object.entries(changes) as Array<[JoinKey, string]>) {
-      const fileKey = profile.config.keys[key];
-      if (!fileKey) continue;
+      const keySpec = profile.config.keys[key];
+      if (!keySpec) continue;
+      const { key: fileKey, section } = specOf(keySpec);
       const value = String(raw).replace(/[\r\n\0]/g, ' ').trim();
       text =
         profile.config.format === 'xml-properties'
           ? writeXmlProp(text, fileKey, value)
-          : ini.writeKey(text, fileKey, undefined, value);
+          : profile.config.format === 'json'
+            ? writeJsonKey(text, fileKey, value)
+            : ini.writeKey(text, fileKey, section, value);
       applied.push(key);
     }
     if (applied.length > 0) await files.write(server, file, text);
@@ -202,4 +250,4 @@ export function createGameSettings(dockerClient: DockerClient) {
 export type GameSettings = ReturnType<typeof createGameSettings>;
 
 /** Exported for tests: the file surgery is the part worth pinning down. */
-export const __internals = { readXmlProp, writeXmlProp };
+export const __internals = { readXmlProp, writeXmlProp, readJsonKey, writeJsonKey };
