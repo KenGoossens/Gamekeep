@@ -9,6 +9,7 @@ import {
   type Finding,
 } from '../api.ts';
 import { navigate } from '../router.ts';
+import { DeployWatchCard } from '../components/DeployWatchCard.tsx';
 import { Findings } from '../components/Findings.tsx';
 import { SteamCatalog } from '../components/SteamCatalog.tsx';
 
@@ -160,7 +161,7 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ serverId: string; appdataPath: string } | null>(null);
+  const [done, setDone] = useState<{ serverId: string; appdataPath: string; watchId: string | null } | null>(null);
 
   const [review, setReview] = useState<DeployReview | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
@@ -258,7 +259,7 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
           Object.entries(ports).map(([k, v]) => [k, Number(v)]).filter(([, v]) => Number.isFinite(v)),
         ) as Record<string, number>,
       });
-      setDone({ serverId: result.serverId, appdataPath: result.appdataPath });
+      setDone({ serverId: result.serverId, appdataPath: result.appdataPath, watchId: result.watchId });
     } catch (err) {
       // A refusal carries the findings that caused it, so the reason lands on
       // screen rather than a bare "failed". A 428 is not a refusal: the new
@@ -289,26 +290,29 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
 
   if (done) {
     return (
-      <section className="card">
-        <div className="card-head">
-          <h2>{name} is running</h2>
-        </div>
-        <p className="notes">
-          Data directory: <code>{done.appdataPath}</code>
-        </p>
-        <p className="notes">
-          The first start downloads the game, which can take a long time. It will show as offline
-          until that finishes.
-        </p>
-        <div className="actions">
-          <button type="button" className="btn-primary" onClick={() => navigate(`/servers/${done.serverId}`)}>
-            Open {name}
-          </button>
-          <button type="button" className="btn-ghost" onClick={onCancel}>
-            Add another
-          </button>
-        </div>
-      </section>
+      <>
+        <section className="card">
+          <div className="card-head">
+            <h2>{name} is created</h2>
+          </div>
+          <p className="notes">
+            Data directory: <code>{done.appdataPath}</code>
+          </p>
+          <p className="notes">
+            Created is not yet verified: the card below follows the first boot until the game
+            itself answers — leave this page open or come back to the server's card either way.
+          </p>
+          <div className="actions">
+            <button type="button" className="btn-primary" onClick={() => navigate(`/servers/${done.serverId}`)}>
+              Open {name}
+            </button>
+            <button type="button" className="btn-ghost" onClick={onCancel}>
+              Add another
+            </button>
+          </div>
+        </section>
+        <DeployWatchCard watchId={done.watchId} serverId={done.serverId} serverName={name} />
+      </>
     );
   }
 

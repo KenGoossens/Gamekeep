@@ -172,6 +172,20 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   });
 
+  /**
+   * One deploy's verification, live: the UI polls this while the first boot
+   * runs, and the final read carries the outcome and its reason.
+   */
+  app.get<{ Params: { watchId: string } }>(
+    '/api/deploys/:watchId',
+    operator,
+    async (request, reply) => {
+      const watch = ctx.deployWatch.getWatch(request.params.watchId);
+      if (!watch) return reply.code(404).send({ error: 'unknown-watch' });
+      return reply.send({ watch });
+    },
+  );
+
   app.post<{
     Body: {
       appId?: string;
@@ -226,10 +240,8 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
           ]),
         ),
       };
-      const settingFindings = reviewGameSettings(
-        connectSettings(identifyGame(found.name, parsed.repository)),
-        typedValues,
-      );
+      const connectSpecs = connectSettings(identifyGame(found.name, parsed.repository));
+      const settingFindings = reviewGameSettings(connectSpecs, typedValues);
 
       const findings = [...templateFindings, ...imageFindings, ...settingFindings];
 
@@ -377,12 +389,27 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
         actor: { username: user.username, role: user.role },
         detail: `${found.name} by ${found.publisher}`,
       });
+
+      /*
+       * Deploy Verification: the 201 says "created", never "works". The watch
+       * follows the first boot — download heartbeat, then the game answering
+       * AS the name it was configured with — and reports the honest outcome
+       * to the deploy screen, the activity feed and Discord.
+       */
+      const expectedName =
+        connectSpecs
+          .filter((spec) => spec.connect === 'name')
+          .map((spec) => (typedValues[spec.key] ?? '').trim())
+          .find((v) => v !== '') ?? null;
+      const watch = deployed ? ctx.deployWatch.start(deployed, expectedName) : null;
+
       return reply.code(201).send({
         serverId,
         container: plan.containerName,
         appdataPath: plan.appdataHostPath,
         unraidTemplate: templatePath,
         steps,
+        watchId: watch?.id ?? null,
       });
     } catch (err) {
       const code = err instanceof DeployError ? err.code : 'deploy-failed';

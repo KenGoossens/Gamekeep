@@ -3,6 +3,7 @@ import type { ServerRegistry } from './registry.js';
 import type { Db } from './db.js';
 import type { DockerClient } from './docker/client.js';
 import type { ActionRunner } from './docker/actions.js';
+import type { DeployWatcher } from './deployverify.js';
 import type { GameQuery } from './query/gamedig.js';
 import type { Cooldown } from './cooldown.js';
 import type { ArtworkStore } from './artwork.js';
@@ -36,6 +37,8 @@ export interface AppContext {
   db: Db;
   docker: DockerClient;
   actions: ActionRunner;
+  /** Follows each deploy's first boot until the game proves itself. */
+  deployWatch: DeployWatcher;
   gameQuery: GameQuery;
   cooldown: Cooldown;
   artwork: ArtworkStore;

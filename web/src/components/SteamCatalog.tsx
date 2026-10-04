@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api, type Finding, type SteamAppProposal, type SteamSearch } from '../api.ts';
+import { DeployWatchCard } from './DeployWatchCard.tsx';
 import { Findings } from './Findings.tsx';
 import { navigate } from '../router.ts';
 
@@ -167,6 +168,7 @@ function SteamDeployForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [steps, setSteps] = useState<string[] | null>(null);
+  const [deployed, setDeployed] = useState<{ serverId: string; watchId: string | null } | null>(null);
   // The preflight's verdicts: seeded with the login judgement from the app
   // inspection, replaced by whatever the deploy gate answers.
   const [findings, setFindings] = useState<Finding[]>(proposal.login ? [proposal.login] : []);
@@ -188,7 +190,9 @@ function SteamDeployForm({
         acknowledge: acknowledged,
       });
       setSteps(result.steps);
-      setTimeout(() => navigate(`/servers/${result.serverId}`), 2500);
+      // No auto-navigate any more: the watch card below follows the first
+      // boot, and leaving mid-verification is the operator's own choice.
+      setDeployed({ serverId: result.serverId, watchId: result.watchId });
     } catch (err) {
       // The gate's findings land on screen in the same shape the Unraid tab
       // uses; a 428 arms the next press to proceed acknowledged.
@@ -358,13 +362,27 @@ function SteamDeployForm({
       {error ? <p className="hint bad">{error}</p> : null}
       {steps ? (
         <div className="handout">
-          <p>Deployed — first start is downloading the server now. Opening its page…</p>
+          <p>Deployed — the first start is downloading the server now.</p>
           <ul className="feed">
             {steps.map((s) => (
               <li key={s}>{s}</li>
             ))}
           </ul>
         </div>
+      ) : null}
+      {deployed ? (
+        <>
+          <DeployWatchCard
+            watchId={deployed.watchId}
+            serverId={deployed.serverId}
+            serverName={name.trim()}
+          />
+          <div className="actions">
+            <button type="button" className="btn-ghost" onClick={() => navigate(`/servers/${deployed.serverId}`)}>
+              Open the server page
+            </button>
+          </div>
+        </>
       ) : null}
 
       <div className="actions">

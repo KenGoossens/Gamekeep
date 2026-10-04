@@ -65,6 +65,17 @@ GameKeepr writes, which lands in the server's own files where you can read it.
 - **Registration**: the new server appears in the portal immediately, with
   player queries, mods, backups and typed settings wherever the registry
   recognises the game.
+- **Verification**: created is not the same claim as works, so the deploy
+  screen follows the first boot until the game itself answers — and, where the
+  game reports a name, answers *as the name you configured*, which proves the
+  settings landed. First boots get first-boot patience: past the game's normal
+  startup budget the portal keeps waiting as long as the download demonstrably
+  progresses, up to an hour. The ending is one of three honest words:
+  **verified**, **unconfirmed** (running, but full proof never came — the note
+  says why and what to check), or **failed** (the container died; read its
+  Logs tab). A failed first boot keeps the server and its download by default;
+  cleaning up is one deliberate click, never automatic. The outcome also lands
+  in the activity feed and on Discord.
 
 ## Renaming and removing
 

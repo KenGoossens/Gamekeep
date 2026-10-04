@@ -291,7 +291,15 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
         detail: `${info.name} — composed from Steam, downloading on first start`,
       });
 
-      return reply.code(201).send({ serverId, steps, appdataPath: plan.appdataHostPath });
+      // The 201 says "created", never "works": the watch follows the first
+      // boot (download heartbeat included — a Steam first boot IS a download)
+      // and reports the honest outcome. No typed server name on this path, so
+      // the name cross-check simply does not apply.
+      const watch = server ? ctx.deployWatch.start(server, null) : null;
+
+      return reply
+        .code(201)
+        .send({ serverId, steps, appdataPath: plan.appdataHostPath, watchId: watch?.id ?? null });
     } catch (err) {
       if (err instanceof DeployError) {
         return reply.code(409).send({ error: err.code, message: err.message });

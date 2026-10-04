@@ -23,6 +23,9 @@ export type EventKind =
   | 'server-down'
   | 'server-recovered'
   | 'deployed'
+  | 'deploy-verified'
+  | 'deploy-unconfirmed'
+  | 'deploy-failed'
   | 'mod-installed'
   | 'access-granted'
   | 'match-ready'
@@ -43,6 +46,9 @@ const DELIBERATE: EventKind[] = [
   'restart-unconfirmed',
   'restart-failed',
   'deployed',
+  'deploy-verified',
+  'deploy-unconfirmed',
+  'deploy-failed',
   'mod-installed',
   'access-granted',
   // Tournament pings each describe a different match; collapsing two
@@ -133,6 +139,9 @@ export const ALL_EVENTS: Array<{ kind: EventKind; label: string }> = [
   { kind: 'server-down', label: 'A server stopped without anyone asking' },
   { kind: 'server-recovered', label: 'A server that was down came back' },
   { kind: 'deployed', label: 'A new server was deployed' },
+  { kind: 'deploy-verified', label: 'A new server proved it works (first boot verified)' },
+  { kind: 'deploy-unconfirmed', label: 'A new server came up but could not fully prove itself' },
+  { kind: 'deploy-failed', label: 'A new server crashed on its first boot' },
   { kind: 'mod-installed', label: 'A mod was installed' },
   { kind: 'access-granted', label: 'Someone was given access to the portal' },
   { kind: 'match-ready', label: 'A tournament match server is ready to join' },
@@ -150,6 +159,9 @@ const SHAPE: Record<EventKind, { title: string; colour: number }> = {
   'server-down': { title: 'Server went down', colour: 0xf87171 },
   'server-recovered': { title: 'Server is back', colour: 0x4ade80 },
   deployed: { title: 'Server deployed', colour: 0x7c6cf2 },
+  'deploy-verified': { title: 'First boot verified', colour: 0x4ade80 },
+  'deploy-unconfirmed': { title: 'First boot unconfirmed', colour: 0xfbbf24 },
+  'deploy-failed': { title: 'First boot failed', colour: 0xf87171 },
   'mod-installed': { title: 'Mod installed', colour: 0x7c6cf2 },
   'access-granted': { title: 'Access granted', colour: 0x49c9f7 },
   // Tournament gold, so match night reads differently from ops noise.

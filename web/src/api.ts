@@ -401,6 +401,18 @@ export interface Finding {
   detail?: string;
 }
 
+/** One deploy's first boot, followed until the game proves itself. */
+export interface DeployWatch {
+  id: string;
+  serverId: string;
+  phase: 'starting' | 'first-boot' | 'waiting-game' | 'settled';
+  message: string;
+  outcome: 'success' | 'unconfirmed' | 'failed' | null;
+  note: string | null;
+  startedAt: number;
+  settledAt: number | null;
+}
+
 export interface ExtraParameters {
   variables: Array<{ name: string; value: string }>;
   ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp' }>;
@@ -812,6 +824,8 @@ export const api = {
     }),
   deleteServer: (id: string) =>
     request<{ ok: true }>(`/api/servers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deployWatch: (watchId: string) =>
+    request<{ watch: DeployWatch }>(`/api/deploys/${encodeURIComponent(watchId)}`),
   portForwards: (id: string) =>
     request<PortForwardState>(`/api/servers/${encodeURIComponent(id)}/portforward`),
   openPortForwards: (id: string, ports: string[]) =>
@@ -993,7 +1007,7 @@ export const api = {
     request<SteamSearch>(`/api/steam/search?q=${encodeURIComponent(q)}`),
   steamApp: (appId: number) => request<SteamAppProposal>(`/api/steam/app/${appId}`),
   steamDeploy: (input: SteamDeployRequest) =>
-    request<{ serverId: string; steps: string[]; appdataPath: string }>('/api/steam/deploy', {
+    request<{ serverId: string; steps: string[]; appdataPath: string; watchId: string | null }>('/api/steam/deploy', {
       ...json(input),
       method: 'POST',
     }),
@@ -1146,7 +1160,7 @@ export const api = {
     extra?: ExtraParameters;
     acknowledge?: boolean;
   }) =>
-    request<{ serverId: string; container: string; appdataPath: string; unraidTemplate: string | null }>(
+    request<{ serverId: string; container: string; appdataPath: string; unraidTemplate: string | null; watchId: string | null }>(
       '/api/catalog/deploy',
       json(body),
     ),

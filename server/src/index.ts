@@ -10,6 +10,7 @@ import { createServerRegistry } from './registry.js';
 import { openDatabase } from './db.js';
 import { createDockerClient } from './docker/client.js';
 import { createActionRunner } from './docker/actions.js';
+import { createDeployWatcher } from './deployverify.js';
 import { createGameQuery } from './query/gamedig.js';
 import { createCooldown } from './cooldown.js';
 import { createArtworkStore } from './artwork.js';
@@ -28,7 +29,7 @@ import { createGsltService } from './steam/gslt.js';
 import { createTournamentStore } from './tournaments/store.js';
 import { createMatchOrchestrator } from './tournaments/orchestrator.js';
 import { createHelperRunner } from './docker/helper.js';
-import { createNotifier } from './notify.js';
+import { createNotifier, notifyServer } from './notify.js';
 import { createWatcher } from './watch.js';
 import { createSessions } from './auth/session.js';
 import { createSetupGuard } from './auth/setup.js';
@@ -84,6 +85,7 @@ async function main() {
   const docker = createDockerClient(env);
   const gameQuery = createGameQuery();
   const actions = createActionRunner(docker, gameQuery);
+  const deployWatch = createDeployWatcher(docker, gameQuery);
   const cooldown = createCooldown(db);
   const artwork = createArtworkStore(env.DATABASE_PATH);
   const catalog = createCatalog(
@@ -131,6 +133,34 @@ async function main() {
   scheduler.setBackupRunner(async (server, actor) =>
     backups.describe(await backups.make(server, { actor, kind: 'scheduled' })),
   );
+  // When a watched first boot settles, the record and the channel both hear
+  // the honest version: verified, unconfirmed-with-reason, or failed.
+  deployWatch.setOnSettled((watch, server) => {
+    db.audit({
+      userId: null,
+      username: 'deploy verification',
+      serverId: server.id,
+      action: 'server-deployed',
+      result:
+        watch.outcome === 'success'
+          ? 'success'
+          : watch.outcome === 'failed'
+            ? 'failure'
+            : 'unconfirmed',
+      detail: watch.note,
+    });
+    void notify.send({
+      kind:
+        watch.outcome === 'success'
+          ? 'deploy-verified'
+          : watch.outcome === 'failed'
+            ? 'deploy-failed'
+            : 'deploy-unconfirmed',
+      server: notifyServer(server),
+      detail: watch.note ?? undefined,
+    });
+  });
+
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
@@ -143,6 +173,7 @@ async function main() {
     db,
     docker,
     actions,
+    deployWatch,
     gameQuery,
     cooldown,
     artwork,

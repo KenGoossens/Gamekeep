@@ -10,6 +10,23 @@ releases.
 
 ### Added
 
+- **Deploy verification: created is not the same claim as works.** Every
+  deploy now gets a first-boot watch that follows the new server until the
+  game itself answers — and where the game reports a server name, until it
+  answers *as the name it was configured with*, which proves the settings
+  actually landed (the failure the Joining-card bug taught us). Three honest
+  endings: **verified** (the game answered as itself), **unconfirmed** (it
+  runs but full proof never came — a silent game, a mismatched name, or no
+  query protocol to ask), and **failed** (the container died; its exit code
+  and a pointer to the Logs tab come along). First boots get first-boot
+  patience: past the game's normal startup budget the watch keeps waiting as
+  long as the download demonstrably progresses (network and disk counters
+  moving), up to an hour — slow is never reported as broken. The outcome lands
+  on the deploy screen live, in the activity feed, and on Discord (three new
+  notification events). A failed first boot keeps the server by default — a
+  35 GB download is not thrown away over a late answer — with "clean up"
+  one deliberate click away.
+
 - **Deploy preflight.** The values you type into a deploy form are now judged
   before anything exists, in the same pass/warn/fail report language the
   template and image reviews already speak. A join setting that breaks the
