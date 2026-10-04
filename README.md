@@ -344,6 +344,13 @@ The image is looked up rather than pulled, so a few kilobytes of manifest answer
 those questions without committing the disk and bandwidth of a multi-gigabyte
 image first.
 
+The values you type are judged the same way, before anything exists: join
+settings are held to the game's own rules (a four-character Valheim password is
+refused in the form, not discovered at boot), an empty server password deploys
+only after an explicit acknowledgement, and on the Steam tab a known
+"no anonymous downloads" app warns you to set a Steam account before the first
+start fails on it.
+
 Templates asking to run privileged, or for host devices, are refused outright.
 Host paths from a template are ignored and replaced with ones the portal
 controls, and `ExtraParams` is never applied. The resolved digest is recorded in

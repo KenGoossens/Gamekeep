@@ -34,6 +34,9 @@ export function ConnectCard({ serverId }: { serverId: string }) {
   if (info.name) rows.push(['Server name', info.name]);
   if (info.world) rows.push(['World', info.world]);
   if (info.password) rows.push(['Password', info.password]);
+  // Only ever present for operators: members get null from the API, whatever
+  // the container holds. Labelled as what it is — not joining info.
+  if (info.admin) rows.push(['Admin password (operators only)', info.admin]);
   if (rows.length === 0) return null;
 
   return (

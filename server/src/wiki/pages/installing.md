@@ -30,19 +30,28 @@ GameKeepr writes, which lands in the server's own files where you can read it.
   right headless command — edit it in the form or later in the Files tab.
 - SteamCMD downloads the server on first start and re-checks on every start,
   which is also how it updates.
-- Windows-only servers are refused with the reason. The rare app that refuses
-  anonymous downloads says so in its first log lines; give the container a
-  Steam account in the deploy form's login section.
+- Windows-only servers are refused with the reason. Whether an app allows
+  **anonymous downloads** is judged up front, from Valve's own
+  dedicated-servers list: a known "no" warns you to set a Steam account
+  *before* the first start fails on it, and an app the list does not know says
+  honestly that the first start will tell. A wrong value in the list never
+  blocks you — acknowledge and try.
 - Anything not in the list: paste its app id or store/SteamDB URL in the
   search box.
 
 ## What both routes share
 
 - **Joining, asked up front**: for recognised games the form opens with the
-  join settings — password, world, server name — so the server is ready for
-  friends the moment it is up. Everything can still be changed later on the
-  Settings tab, and the server's overview shows a Joining card with the
-  address, port and password for everyone who may see it.
+  join settings — password, world, server name, and for games that have one
+  the **admin password** (operators-only afterwards; it never appears on the
+  Joining card). Everything can still be changed later on the Settings tab,
+  and the server's overview shows a Joining card with the address, port and
+  password for everyone who may see it.
+- **Values checked before anything exists**: each join setting is held to the
+  game's own rules in the form — a four-character Valheim password is refused
+  right there (the game would refuse to boot on it, minutes later and much
+  more quietly), and deploying without a password proceeds only after you
+  acknowledge that anyone who finds the address can join.
 - **Ports**: GameKeepr's game registry knows what each recognised game needs
   and fills in anything the template or your list forgot — a Project Zomboid
   with only one of its two UDP ports looks healthy and is unjoinable, which is

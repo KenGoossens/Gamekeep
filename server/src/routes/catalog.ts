@@ -5,6 +5,7 @@ import type { AppContext } from '../context.js';
 import { DeployError, planDeployment, slugify, type ExtraParameters } from '../deploy.js';
 import { passes, uncertain } from '../findings.js';
 import { reviewImage, reviewTemplate } from '../review/deploy.js';
+import { reviewGameSettings } from '../review/preflight.js';
 import { connectSettings, identifyGame } from '../games.js';
 import { autoForward } from '../router/stored.js';
 
@@ -210,7 +211,27 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
        */
       const templateFindings = reviewTemplate(found, parsed, catalog.isTrusted);
       const { findings: imageFindings, facts } = await reviewImage(parsed.repository);
-      const findings = [...templateFindings, ...imageFindings];
+
+      /*
+       * The preflight's half: the values the operator actually typed, held to
+       * the game's own rules before anything exists. A five-character Valheim
+       * password is refused here, in the form, not discovered on match night.
+       */
+      const typedValues: Record<string, string> = {
+        ...(body.variables ?? {}),
+        ...Object.fromEntries(
+          (Array.isArray(body.extra?.variables) ? body.extra.variables : []).map((v) => [
+            String(v?.name ?? ''),
+            String(v?.value ?? ''),
+          ]),
+        ),
+      };
+      const settingFindings = reviewGameSettings(
+        connectSettings(identifyGame(found.name, parsed.repository)),
+        typedValues,
+      );
+
+      const findings = [...templateFindings, ...imageFindings, ...settingFindings];
 
       if (!passes(findings)) {
         db.audit({

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ApiError, api, type SteamAppProposal, type SteamSearch } from '../api.ts';
+import { ApiError, api, type Finding, type SteamAppProposal, type SteamSearch } from '../api.ts';
+import { Findings } from './Findings.tsx';
 import { navigate } from '../router.ts';
 
 /**
@@ -166,6 +167,10 @@ function SteamDeployForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [steps, setSteps] = useState<string[] | null>(null);
+  // The preflight's verdicts: seeded with the login judgement from the app
+  // inspection, replaced by whatever the deploy gate answers.
+  const [findings, setFindings] = useState<Finding[]>(proposal.login ? [proposal.login] : []);
+  const [acknowledged, setAcknowledged] = useState(false);
 
   async function deploy() {
     setBusy(true);
@@ -180,11 +185,22 @@ function SteamDeployForm({
         validate,
         steamUsername: steamUser.trim() || undefined,
         steamPassword: steamPass || undefined,
+        acknowledge: acknowledged,
       });
       setSteps(result.steps);
       setTimeout(() => navigate(`/servers/${result.serverId}`), 2500);
     } catch (err) {
-      setError(explain(err, 'The deploy failed.'));
+      // The gate's findings land on screen in the same shape the Unraid tab
+      // uses; a 428 arms the next press to proceed acknowledged.
+      if (err instanceof ApiError && Array.isArray(err.body.findings)) {
+        setFindings(err.body.findings as Finding[]);
+      }
+      if (err instanceof ApiError && err.body.error === 'needs-acknowledgement') {
+        setAcknowledged(true);
+        setError('Check the warnings below — press deploy again to proceed anyway.');
+      } else {
+        setError(explain(err, 'The deploy failed.'));
+      }
     } finally {
       setBusy(false);
     }
@@ -218,6 +234,7 @@ function SteamDeployForm({
           {w}
         </p>
       ))}
+      {findings.length > 0 ? <Findings findings={findings} /> : null}
 
       <label className="field">
         <span>Server name</span>

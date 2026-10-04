@@ -9,6 +9,8 @@ import { inspectSteamApp, proposeCommand } from '../steam/appinfo.js';
 import { buildComposeFile, buildStartScript, buildSteamPlan, STEAM_IMAGE } from '../steam/compose.js';
 import { notifyServer } from '../notify.js';
 import { identifyGame } from '../games.js';
+import { passes, uncertain, type Finding } from '../findings.js';
+import { reviewSteamAnonymous } from '../review/preflight.js';
 import { autoForward } from '../router/stored.js';
 
 /**
@@ -97,6 +99,9 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
           ports: (known?.ports ?? [])
             .filter((p) => p.required)
             .map((p) => ({ container: p.port, host: p.port, protocol: p.protocol, purpose: p.purpose })),
+          // Shown in the form, before deploy: whether the download will want
+          // an account. The deploy gate holds the same judgement.
+          login: reviewSteamAnonymous(appId, false),
         });
       } catch (err) {
         if (err instanceof ModSourceError) {
@@ -118,6 +123,7 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
       validate?: boolean;
       steamUsername?: string;
       steamPassword?: string;
+      acknowledge?: boolean;
     };
   }>('/api/steam/deploy', operator, async (request, reply) => {
     const user = request.user!;
@@ -163,11 +169,36 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
       // The app is inspected again server-side: the name in the script header
       // and the Linux check must come from Steam, not from the client.
       const info = await inspectSteamApp(appId);
+
+      /*
+       * The Steam path's preflight, in the same Finding language as the
+       * catalogue path: a fail refuses, a warn or unknown proceeds only once
+       * acknowledged. Today that is the Linux build and the anonymous-download
+       * question — the one that used to surface an hour later in the logs.
+       */
+      const findings: Finding[] = [];
       if (!info.linux) {
-        return reply.code(422).send({
-          error: 'no-linux',
-          message: `Steam publishes no Linux build of ${info.name}, so it cannot run here. The Unraid catalogue may have a Wine-based template for it.`,
+        findings.push({
+          id: 'no-linux',
+          label: 'Linux build',
+          state: 'fail',
+          summary: `Steam publishes no Linux build of ${info.name}, so it cannot run here.`,
+          detail: 'The Unraid catalogue may have a Wine-based template for it.',
         });
+      }
+      findings.push(reviewSteamAnonymous(appId, Boolean(String(body.steamUsername ?? '').trim())));
+
+      if (!passes(findings)) {
+        db.audit({
+          userId: user.id, username: user.username, serverId,
+          action: 'server-deployed', result: 'failure',
+          detail: `Refused ${info.name}: ${findings.filter((f) => f.state === 'fail').map((f) => f.summary).join('; ')}`,
+          ...originOf(request),
+        });
+        return reply.code(422).send({ error: 'refused', findings });
+      }
+      if (uncertain(findings) && !body.acknowledge) {
+        return reply.code(428).send({ error: 'needs-acknowledgement', findings });
       }
 
       const composeReq = {

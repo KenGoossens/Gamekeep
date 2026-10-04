@@ -19,7 +19,45 @@ Creating a new Server through the portal, from an Unraid template or a Steam
 dedicated server.
 _Avoid_: install (reserved for mods), provision
 
-## Tournaments
+## Deploy assurance
+
+**Preflight**:
+The report produced before a Deploy creates anything: every refusal and
+warning, with reasons, in one place. A failing Preflight blocks the Deploy;
+warnings require acknowledgement. Both deploy paths (catalogue and Steam)
+pass through one.
+_Avoid_: what-if, dry run (nothing is simulated — it is checked), review
+(taken by the template/image review it extends)
+
+**Deploy Verification**:
+The phase after a Deploy starts the container: the first boot is followed
+until the game proves it is up, and the outcome is reported honestly as
+success, unconfirmed or failure. Slow is never failure; a reachable game
+reporting a different server name than configured is unconfirmed, not
+success.
+_Avoid_: health check (that is the portal's own dependency page), smoke test
+
+**Game Settings**:
+The game's own configuration — server name, world, server password, admin
+password and the like — wherever the game stores it: a config file inside the
+Server, or environment variables, per what the registry knows about that game.
+Distinct from Settings (the container's environment variables as a flat list).
+_Avoid_: server config, properties
+
+**Settings Scan**:
+The search, after a verified Deploy, for where a Server keeps its Game
+Settings, so the portal can offer to configure them. Which source is
+authoritative (file or environment) comes from the registry, with runtime
+detection as the fallback warning.
+_Avoid_: discovery, probe
+
+**Validation Run**:
+An owner-initiated run that deploys registry games for real, one at a time,
+verifies each against the Deploy Verification bar, and tears everything down
+— volume included — reporting per game. Exists to prove the registry's data,
+not anyone's server.
+_Avoid_: testbench, test bench, CI (it runs on the owner's machine, on real
+images)
 
 **Tournament**:
 A competition among portal users, decided across one or more Matches according

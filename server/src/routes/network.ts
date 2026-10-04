@@ -223,6 +223,11 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
       const forwards = await requiredForwards(docker, server).catch(() => []);
       const joinPort = forwards.find((f) => !f.sensitive)?.port ?? null;
 
+      // The admin credential is not joining info: members never receive it,
+      // whatever the container holds. Operators see it here, labelled.
+      const access = guard.accessFor(request.user!, server.id);
+      const operatorHere = access === 'owner' || access === 'operator';
+
       return reply.send({
         publicAddress: await publicIp.get(),
         lanAddress: target() || null,
@@ -231,6 +236,7 @@ export function registerNetworkRoutes(app: FastifyInstance, ctx: AppContext) {
         name: values.name ?? null,
         world: values.world ?? null,
         password: values.password ?? null,
+        admin: operatorHere ? (values.admin ?? null) : null,
       });
     },
   );

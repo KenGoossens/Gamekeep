@@ -126,12 +126,15 @@ export interface SettingSpec {
   max?: number;
   options?: string[];
   /**
-   * Marks the settings a player needs to join: the server's name, its world,
-   * its password. Tagged semantically rather than by key, because every image
-   * spells them differently (SERVER_PASS, SERVER_PASSWORD, ...). These are
-   * offered at deploy time and shown as the server's connect info afterwards.
+   * Marks the settings a player needs to join -- the server's name, its
+   * world, its password -- plus 'admin', the administrator credential some
+   * games keep beside the join password. Tagged semantically rather than by
+   * key, because every image spells them differently (SERVER_PASS,
+   * SERVER_PASSWORD, ...). These are offered at deploy time; name, world and
+   * password are shown as the server's connect info afterwards, while 'admin'
+   * is operator-only and never appears on the Joining card.
    */
-  connect?: 'name' | 'world' | 'password';
+  connect?: 'name' | 'world' | 'password' | 'admin';
 }
 
 /** The connect-tagged specs for one game, if it is known at all. */
@@ -291,6 +294,7 @@ export const GAMES: GameProfile[] = [
         key: 'SERVER_PASS',
         label: 'Password',
         type: 'text',
+        min: 5,
         connect: 'password',
         help: 'Five characters minimum, or the server refuses to boot.',
       },
@@ -298,6 +302,7 @@ export const GAMES: GameProfile[] = [
         key: 'SRV_PWD',
         label: 'Password',
         type: 'text',
+        min: 5,
         connect: 'password',
         help: 'Five characters minimum, or the server refuses to boot.',
       },
@@ -496,6 +501,13 @@ export const GAMES: GameProfile[] = [
       { key: 'SERVER_NAME', label: 'Server name', type: 'text', connect: 'name' },
       { key: 'PLAYERS', label: 'Player limit', type: 'number', min: 1, max: 32 },
       { key: 'SERVER_PASSWORD', label: 'Password', type: 'text', connect: 'password' },
+      {
+        key: 'ADMIN_PASSWORD',
+        label: 'Admin password',
+        type: 'text',
+        connect: 'admin',
+        help: 'For in-game admin commands. Operators see it here; it is never shown on the Joining card.',
+      },
       { key: 'COMMUNITY', label: 'Listed in the community server browser', type: 'boolean' },
     ],
     match: [/palworld/i],

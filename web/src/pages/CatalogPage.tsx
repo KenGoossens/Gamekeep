@@ -261,17 +261,26 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
       setDone({ serverId: result.serverId, appdataPath: result.appdataPath });
     } catch (err) {
       // A refusal carries the findings that caused it, so the reason lands on
-      // screen rather than a bare "failed".
+      // screen rather than a bare "failed". A 428 is not a refusal: the new
+      // warnings (an empty password, say) land in the list, and the next
+      // press deploys acknowledged.
       if (err instanceof ApiError && Array.isArray(err.body.findings)) {
         const findings = err.body.findings as Finding[];
-        setReview((prev) => (prev ? { ...prev, findings, deployable: false } : prev));
+        const needsAck = err.body.error === 'needs-acknowledgement';
+        setReview((prev) =>
+          prev
+            ? { ...prev, findings, deployable: needsAck, needsAcknowledgement: needsAck }
+            : prev,
+        );
       }
       setError(
-        err instanceof ApiError && typeof err.body.message === 'string'
-          ? err.body.message
-          : err instanceof ApiError && err.body.error === 'refused'
-            ? 'Refused — see the checks above.'
-            : 'The deployment failed.',
+        err instanceof ApiError && err.body.error === 'needs-acknowledgement'
+          ? 'Check the warnings above — press deploy again to proceed anyway.'
+          : err instanceof ApiError && typeof err.body.message === 'string'
+            ? err.body.message
+            : err instanceof ApiError && err.body.error === 'refused'
+              ? 'Refused — see the checks above.'
+              : 'The deployment failed.',
       );
     } finally {
       setBusy(false);
@@ -363,9 +372,23 @@ function DeployForm({ detail, onCancel }: { detail: CatalogTemplate; onCancel: (
                 <input
                   value={connectValues[spec.key] ?? ''}
                   autoComplete="off"
-                  onChange={(e) =>
-                    setConnectValues((v) => ({ ...v, [spec.key]: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setConnectValues((v) => ({ ...v, [spec.key]: e.target.value }));
+                    // Editing a value withdraws its verdict: the preflight
+                    // judges the new value on the next deploy press, and a
+                    // fixed field must never leave the button dead.
+                    setReview((prev) => {
+                      if (!prev) return prev;
+                      const findings = prev.findings.filter(
+                        (f) => !f.id.startsWith('setting-') && f.id !== 'no-password' && f.id !== 'no-admin-password',
+                      );
+                      return {
+                        ...prev,
+                        findings,
+                        deployable: !findings.some((f) => f.state === 'fail'),
+                      };
+                    });
+                  }}
                 />
               </label>
             ))}

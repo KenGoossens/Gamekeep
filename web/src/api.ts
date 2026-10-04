@@ -147,6 +147,8 @@ export interface ConnectInfo {
   name: string | null;
   world: string | null;
   password: string | null;
+  /** The admin credential; null for members, whatever the container holds. */
+  admin: string | null;
 }
 
 export interface MetricPoint {
@@ -593,6 +595,8 @@ export interface SteamAppProposal {
   image: string;
   known: { label: string } | null;
   ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp'; purpose: string }>;
+  /** Whether the first download will want a Steam account, judged up front. */
+  login: Finding;
 }
 
 export interface SteamDeployRequest {
@@ -604,6 +608,7 @@ export interface SteamDeployRequest {
   validate?: boolean;
   steamUsername?: string;
   steamPassword?: string;
+  acknowledge?: boolean;
 }
 
 export interface ScannerSettings {

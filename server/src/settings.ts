@@ -15,10 +15,24 @@ const BOOL_WORDS = new Set(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']
  * Refused loudly rather than passed through: the game would either ignore a
  * bad value or fail to boot on it, and both of those surface minutes later
  * with the server already down. A message now beats a mystery then.
+ *
+ * Exported for the deploy preflight, which holds the same values to the same
+ * specs before the container exists at all.
  */
-function checkAgainstSpec(spec: SettingSpec, value: string): void {
+export function checkAgainstSpec(spec: SettingSpec, value: string): void {
   const trimmed = value.trim();
   switch (spec.type) {
+    case 'text': {
+      // For text, min/max bound the LENGTH -- how a game says "a password of
+      // at least five characters" (Valheim) without a second spec vocabulary.
+      if (spec.min !== undefined && trimmed.length > 0 && trimmed.length < spec.min) {
+        throw new SettingsError(`${spec.label} must be at least ${spec.min} characters.`);
+      }
+      if (spec.max !== undefined && trimmed.length > spec.max) {
+        throw new SettingsError(`${spec.label} must be at most ${spec.max} characters.`);
+      }
+      return;
+    }
     case 'number': {
       if (!/^-?\d+$/.test(trimmed)) {
         throw new SettingsError(`${spec.label} must be a whole number, not "${value}".`);

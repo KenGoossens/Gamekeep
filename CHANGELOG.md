@@ -10,6 +10,29 @@ releases.
 
 ### Added
 
+- **Deploy preflight.** The values you type into a deploy form are now judged
+  before anything exists, in the same pass/warn/fail report language the
+  template and image reviews already speak. A join setting that breaks the
+  game's own rules is refused in the form (a four-character Valheim password
+  used to boot a server that then refused to start, minutes later and much
+  more quietly); deploying without a server password proceeds only after an
+  explicit acknowledgement that anyone who finds the address can join.
+- **The Steam tab gained the review step it never had.** Whether an app allows
+  anonymous SteamCMD downloads is judged up front from Valve's own
+  dedicated-servers list (103 apps carry a definitive answer; three with
+  contradictory wiki rows are deliberately left "unknown" rather than
+  guessed): a known "no" warns you to set a Steam account before the first
+  start fails on it, instead of an hour into the download in a log line. A
+  wrong list entry never blocks a deploy — acknowledge and try. The missing
+  Linux build refusal now speaks the same report language.
+- **Admin passwords are a first-class join setting.** Games with a separate
+  administrator credential (Palworld today, more as the registry grows) ask
+  for it at deploy time; afterwards it is visible to operators on the Joining
+  card and never to members, masked in Settings like every other credential.
+- **Text settings can carry length rules.** The registry can now say "at least
+  five characters" about a password, and both the deploy form and the Settings
+  tab enforce it — Valheim's five-character minimum is the first.
+
 - **Double elimination and round robin.** The tournament's format is picked at
   creation: single elimination (the classic), double elimination (a losers
   bracket catches every first loss; the two survivors meet in a single grand
