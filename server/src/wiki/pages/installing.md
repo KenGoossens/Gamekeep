@@ -79,6 +79,8 @@ GameKeepr writes, which lands in the server's own files where you can read it.
 
 ## Validation runs (owner)
 
+![The Validation page: pick apps from either deploy path, run or schedule the proof](/api/wiki/images/validation.png)
+
 The **Validation** page lets the owner prove that what the portal offers
 still turns into working servers *from nothing*, on this very machine. Pick
 targets from **both deploy paths** — Unraid catalogue apps and Steam dedicated

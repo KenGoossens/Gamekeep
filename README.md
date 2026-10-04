@@ -111,7 +111,7 @@ hand-managed containers in `config/servers.json`:
 `:latest` is the release channel — it moves only when a version is tagged, and
 [CHANGELOG.md](CHANGELOG.md) (also on
 [the website](https://kengoossens.github.io/Gamekeep/changelog.html)) says
-what each version changed. Pin `:1.1` or `:1.1.0` to stay put; run `:edge` to
+what each version changed. Pin `:1.2` or `:1.3.0` to stay put; run `:edge` to
 track the main branch between releases. The running version shows in
 `/api/health` and the container log's first lines.
 
