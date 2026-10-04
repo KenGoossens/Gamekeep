@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api, type ValidationGameResult, type ValidationRun } from '../api.ts';
+import { ApiError, api, type CatalogApp, type ValidationAppResult, type ValidationRun } from '../api.ts';
 
 /**
- * Validation Runs, for the owner: prove that the registry's data still turns
- * into a working server from nothing, on this very machine. Each selected
- * game is deployed for real, held to the same first-boot verification a
- * user's deploy gets, and torn down completely — downloads included, which is
- * the deliberate price (ADR-0003): a run that passes on a warm cache has
- * proven nothing about the path a new user walks.
+ * Validation Runs, for the owner: prove that what the portal offers still
+ * turns into a working server from nothing, on this very machine. The targets
+ * are catalogue apps — anything the Add server tab can deploy — picked
+ * through the same search. Each is deployed for real, held to the same
+ * first-boot verification a user's deploy gets, and torn down completely,
+ * downloads included (ADR-0003): a run that passes on a warm cache has proven
+ * nothing about the path a new user walks.
  */
 
 const OUTCOME_LABEL: Record<string, { text: string; cls: string }> = {
@@ -19,7 +20,7 @@ const OUTCOME_LABEL: Record<string, { text: string; cls: string }> = {
   error: { text: 'error', cls: 'pill bad' },
 };
 
-const STATUS_LABEL: Record<ValidationGameResult['status'], string> = {
+const STATUS_LABEL: Record<ValidationAppResult['status'], string> = {
   pending: 'waiting its turn',
   resolving: 'finding its template',
   deploying: 'deploying',
@@ -29,8 +30,10 @@ const STATUS_LABEL: Record<ValidationGameResult['status'], string> = {
 };
 
 export function ValidationPage() {
-  const [games, setGames] = useState<Array<{ key: string; label: string }>>([]);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState('');
+  const [apps, setApps] = useState<CatalogApp[]>([]);
+  const [total, setTotal] = useState(0);
+  const [picked, setPicked] = useState<Map<string, string>>(new Map());
   const [current, setCurrent] = useState<ValidationRun | null>(null);
   const [history, setHistory] = useState<ValidationRun[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +42,6 @@ export function ValidationPage() {
   const load = useCallback(async () => {
     try {
       const state = await api.validationState();
-      setGames(state.games);
       setCurrent(state.current);
       setHistory(state.history);
     } catch {
@@ -53,13 +55,32 @@ export function ValidationPage() {
     return () => clearInterval(timer);
   }, [load]);
 
+  // The same catalogue the Add server tab searches; debounced lightly.
+  useEffect(() => {
+    let live = true;
+    const t = setTimeout(() => {
+      api.catalog(query).then(
+        (r) => {
+          if (!live) return;
+          setApps(r.apps);
+          setTotal(r.total);
+        },
+        () => undefined,
+      );
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [query]);
+
   const running = current !== null && current.finishedAt === null;
 
-  const toggle = (key: string) =>
+  const toggle = (app: CatalogApp) =>
     setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      const next = new Map(prev);
+      if (next.has(app.id)) next.delete(app.id);
+      else next.set(app.id, app.name);
       return next;
     });
 
@@ -69,9 +90,8 @@ export function ValidationPage() {
         <div>
           <h1>Validation</h1>
           <p>
-            Deploy each selected game for real, verify its first boot the way a user's deploy is
-            verified, then tear everything down — container, volume, downloads. One game at a
-            time.
+            Deploy any catalogue app for real, verify its first boot the way a user's deploy is
+            verified, then tear everything down — container, volume, downloads. One app at a time.
           </p>
         </div>
       </div>
@@ -80,37 +100,74 @@ export function ValidationPage() {
 
       <section className="card">
         <div className="card-head">
-          <h2>Start a run</h2>
+          <h2>Pick apps</h2>
+          <span className="pill plain">{picked.size} selected</span>
         </div>
         <p className="notes">
-          The honest price: every run downloads each game from scratch — hundreds of gigabytes for
-          a full sweep — because a warm cache would skip exactly the first-install experience being
-          tested. After one full run, a subset is the normal working mode.
+          The honest price: every run downloads each app from scratch — a recognised game proves
+          itself by answering <em>as the name it was given</em>; anything else is verified as far
+          as it honestly can be, its port accepting connections. Apps your live servers share
+          ports with are skipped with the reason.
         </p>
-        <div className="tagrow" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {games.map((g) => (
-            <label key={g.key} className="checkline" style={{ marginRight: 12 }}>
-              <input
-                type="checkbox"
-                checked={picked.has(g.key)}
-                disabled={running}
-                onChange={() => toggle(g.key)}
-              />
-              {g.label}
-            </label>
+        <label className="field">
+          <span>Search the catalogue ({total} apps)</span>
+          <input
+            value={query}
+            placeholder="valheim, minecraft, satisfactory…"
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <ul className="feed" style={{ maxHeight: 320, overflowY: 'auto' }}>
+          {apps.map((app) => (
+            <li key={app.id}>
+              <label className="checkline">
+                <input
+                  type="checkbox"
+                  checked={picked.has(app.id)}
+                  disabled={running}
+                  onChange={() => toggle(app)}
+                />
+                <strong>{app.name}</strong>
+                <span className="mod-meta"> {app.publisher}</span>
+              </label>
+            </li>
           ))}
-        </div>
+          {apps.length === 0 ? <li className="empty">Nothing matches that search.</li> : null}
+        </ul>
+        {picked.size > 0 ? (
+          <p className="notes">
+            Selected:{' '}
+            {[...picked.entries()].map(([id, name]) => (
+              <button
+                key={id}
+                type="button"
+                className="btn-ghost small"
+                disabled={running}
+                title="Remove from the selection"
+                onClick={() =>
+                  setPicked((prev) => {
+                    const next = new Map(prev);
+                    next.delete(id);
+                    return next;
+                  })
+                }
+              >
+                {name} ✕
+              </button>
+            ))}
+          </p>
+        ) : null}
         <div className="actions">
           <button
             type="button"
             className="btn-primary"
             disabled={running || busy || picked.size === 0}
             onClick={async () => {
-              if (!confirm(`Validate ${picked.size} game(s)? Each downloads from scratch and is deleted afterwards.`)) return;
+              if (!confirm(`Validate ${picked.size} app(s)? Each downloads from scratch and is deleted afterwards.`)) return;
               setBusy(true);
               setError(null);
               try {
-                await api.startValidation([...picked]);
+                await api.startValidation([...picked.keys()]);
                 await load();
               } catch (err) {
                 setError(
@@ -123,15 +180,21 @@ export function ValidationPage() {
               }
             }}
           >
-            {running ? 'A run is going…' : `Validate ${picked.size || ''} game${picked.size === 1 ? '' : 's'}`}
+            {running ? 'A run is going…' : `Validate ${picked.size || ''} app${picked.size === 1 ? '' : 's'}`}
           </button>
           <button
             type="button"
             className="btn-ghost"
-            disabled={busy || picked.size === games.length}
-            onClick={() => setPicked(new Set(games.map((g) => g.key)))}
+            disabled={running || apps.length === 0}
+            onClick={() =>
+              setPicked((prev) => {
+                const next = new Map(prev);
+                for (const app of apps) next.set(app.id, app.name);
+                return next;
+              })
+            }
           >
-            Select all
+            Add all shown
           </button>
           {running ? (
             <button
@@ -142,7 +205,7 @@ export function ValidationPage() {
                 await load();
               }}
             >
-              Cancel — finish the current game's teardown, skip the rest
+              Cancel — finish the current app's teardown, skip the rest
             </button>
           ) : null}
         </div>
@@ -176,18 +239,18 @@ function RunCard({ run, title }: { run: ValidationRun; title: string }) {
         </span>
       </div>
       <ul className="feed">
-        {run.games.map((g) => (
-          <li key={g.game}>
+        {run.apps.map((a) => (
+          <li key={a.app}>
             <span>
-              <strong>{g.label}</strong>
-              {g.status !== 'done' ? (
-                <> — <span className="spinner" /> {STATUS_LABEL[g.status]}</>
+              <strong>{a.label}</strong>
+              {a.status !== 'done' ? (
+                <> — <span className="spinner" /> {STATUS_LABEL[a.status]}</>
               ) : null}
-              {g.note ? <span className="fieldhelp" style={{ display: 'block' }}>{g.note}</span> : null}
+              {a.note ? <span className="fieldhelp" style={{ display: 'block' }}>{a.note}</span> : null}
             </span>
-            {g.outcome ? (
-              <span className={OUTCOME_LABEL[g.outcome]?.cls ?? 'pill plain'}>
-                {OUTCOME_LABEL[g.outcome]?.text ?? g.outcome}
+            {a.outcome ? (
+              <span className={OUTCOME_LABEL[a.outcome]?.cls ?? 'pill plain'}>
+                {OUTCOME_LABEL[a.outcome]?.text ?? a.outcome}
               </span>
             ) : null}
           </li>
@@ -199,27 +262,27 @@ function RunCard({ run, title }: { run: ValidationRun; title: string }) {
 
 function RunSummary({ run }: { run: ValidationRun }) {
   const counts = new Map<string, number>();
-  for (const g of run.games) {
-    const k = g.outcome ?? 'error';
+  for (const a of run.apps) {
+    const k = a.outcome ?? 'error';
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
   return (
     <details className="handout" style={{ marginBottom: 8 }}>
       <summary>
-        {new Date(run.startedAt).toLocaleString()} — {run.games.length} game(s):{' '}
+        {new Date(run.startedAt).toLocaleString()} — {run.apps.length} app(s):{' '}
         {[...counts.entries()].map(([k, n]) => `${n} ${OUTCOME_LABEL[k]?.text ?? k}`).join(', ')}
         {run.cancelled ? ' (cancelled)' : ''}
       </summary>
       <ul className="feed">
-        {run.games.map((g) => (
-          <li key={g.game}>
+        {run.apps.map((a) => (
+          <li key={a.app}>
             <span>
-              <strong>{g.label}</strong>
-              {g.note ? <span className="fieldhelp" style={{ display: 'block' }}>{g.note}</span> : null}
+              <strong>{a.label}</strong>
+              {a.note ? <span className="fieldhelp" style={{ display: 'block' }}>{a.note}</span> : null}
             </span>
-            {g.outcome ? (
-              <span className={OUTCOME_LABEL[g.outcome]?.cls ?? 'pill plain'}>
-                {OUTCOME_LABEL[g.outcome]?.text ?? g.outcome}
+            {a.outcome ? (
+              <span className={OUTCOME_LABEL[a.outcome]?.cls ?? 'pill plain'}>
+                {OUTCOME_LABEL[a.outcome]?.text ?? a.outcome}
               </span>
             ) : null}
           </li>

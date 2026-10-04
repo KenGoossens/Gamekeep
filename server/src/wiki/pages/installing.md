@@ -79,13 +79,16 @@ GameKeepr writes, which lands in the server's own files where you can read it.
 
 ## Validation runs (owner)
 
-The **Validation** page lets the owner prove that GameKeepr's game registry
-still turns into working servers *from nothing*, on this very machine: pick
-games, and each is deployed for real under a validation name, held to the same
-first-boot verification bar as any deploy (the server must answer **as the
-name it was given**), and then torn down completely — container, volume,
-downloads. Strictly one game at a time, so a run never competes with itself
-for disk, bandwidth or ports.
+The **Validation** page lets the owner prove that what the portal offers
+still turns into working servers *from nothing*, on this very machine. Pick
+**any catalogue apps** — the same search as the Add server tab — and each is
+deployed for real under a validation name, held to the same first-boot
+verification bar as any deploy, and then torn down completely — container,
+volume, downloads. Strictly one app at a time, so a run never competes with
+itself for disk, bandwidth or ports. A game the registry recognises proves
+itself by answering **as the name it was given**; any other app is verified
+as far as it honestly can be — its port accepting connections — and the
+outcome note says which bar was used.
 
 The outcomes extend the verification's three with two honest extras:
 **template refused** (the catalogue template fails the same review a user

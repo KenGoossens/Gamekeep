@@ -16,23 +16,23 @@ export function registerValidationRoutes(app: FastifyInstance, ctx: AppContext) 
     return reply.send(validation.state());
   });
 
-  app.post<{ Body: { games?: string[] } }>(
+  app.post<{ Body: { apps?: string[] } }>(
     '/api/validation/run',
     owner,
     async (request, reply) => {
       const user = request.user!;
-      const games = Array.isArray(request.body?.games)
-        ? request.body.games.filter((g): g is string => typeof g === 'string')
+      const apps = Array.isArray(request.body?.apps)
+        ? request.body.apps.filter((a): a is string => typeof a === 'string')
         : [];
       try {
-        const run = validation.start(games, user.username);
+        const run = validation.start(apps, user.username);
         db.audit({
           userId: user.id,
           username: user.username,
           serverId: null,
           action: 'validation-run',
           result: 'success',
-          detail: `Started: ${run.games.map((g) => g.label).join(', ')}`,
+          detail: `Started: ${run.apps.length} app(s)`,
           ...originOf(request),
         });
         return reply.code(201).send({ run });

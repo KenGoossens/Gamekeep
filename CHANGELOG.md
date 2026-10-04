@@ -19,12 +19,16 @@ releases.
 
 ### Added
 
-- **Validation runs: the registry proves itself on your own machine.** A new
-  owner-only Validation page deploys selected games for real — one at a time,
-  under a validation name, never on the Servers page — holds each first boot
-  to the same verification bar as a user's deploy (the server must answer *as
-  the name it was given*), and then tears everything down: container, volume,
-  downloads. Outcomes are the verification's three plus two honest extras:
+- **Validation runs: the portal proves itself on your own machine.** A new
+  owner-only Validation page validates **any catalogue app** — picked through
+  the same search as the Add server tab, not just the games the registry
+  recognises. A recognised game is held to the full bar (it must answer as the
+  name it was given); any other app is verified as far as it honestly can be,
+  its port accepting connections, and the outcome note says which bar was
+  used. Each app is deployed for real — one at a time, under a validation
+  name, never on the Servers page — followed through its first boot, and then
+  torn down completely: container, volume, downloads. Outcomes are the
+  verification's three plus two honest extras:
   *template refused* (the catalogue template fails the same review a user
   would hit) and *skipped* (this box could not host the attempt — usually a
   port your live server already owns, said with the reason). Runs land in a

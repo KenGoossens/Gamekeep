@@ -401,9 +401,9 @@ export interface Finding {
   detail?: string;
 }
 
-/** One game inside a validation run, with its honest ending. */
-export interface ValidationGameResult {
-  game: string;
+/** One catalogue app inside a validation run, with its honest ending. */
+export interface ValidationAppResult {
+  app: string;
   label: string;
   status: 'pending' | 'resolving' | 'deploying' | 'verifying' | 'tearing-down' | 'done';
   outcome: 'success' | 'unconfirmed' | 'failed' | 'refused' | 'skipped' | 'error' | null;
@@ -417,7 +417,7 @@ export interface ValidationRun {
   startedAt: number;
   finishedAt: number | null;
   startedBy: string;
-  games: ValidationGameResult[];
+  apps: ValidationAppResult[];
   cancelled: boolean;
 }
 
@@ -860,11 +860,9 @@ export const api = {
   deployWatch: (watchId: string) =>
     request<{ watch: DeployWatch }>(`/api/deploys/${encodeURIComponent(watchId)}`),
   validationState: () =>
-    request<{ current: ValidationRun | null; history: ValidationRun[]; games: Array<{ key: string; label: string }> }>(
-      '/api/validation',
-    ),
-  startValidation: (games: string[]) =>
-    request<{ run: ValidationRun }>('/api/validation/run', { ...json({ games }), method: 'POST' }),
+    request<{ current: ValidationRun | null; history: ValidationRun[] }>('/api/validation'),
+  startValidation: (apps: string[]) =>
+    request<{ run: ValidationRun }>('/api/validation/run', { ...json({ apps }), method: 'POST' }),
   cancelValidation: () =>
     request<{ cancelled: boolean }>('/api/validation/cancel', { method: 'POST', ...json({}) }),
   gameSettings: (id: string) =>
