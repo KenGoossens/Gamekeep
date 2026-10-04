@@ -1,22 +1,23 @@
 import { randomUUID } from 'node:crypto';
+import { basename, dirname } from 'node:path';
 import { rm } from 'node:fs/promises';
 import type { Catalog } from './catalog.js';
 import type { ServerConfig } from './config.js';
-import { planDeployment, slugify, DeployError, type Deployer } from './deploy.js';
+import { planDeployment, slugify, DeployError, type Deployer, type DeployPlan } from './deploy.js';
 import { createDeployWatcher, type WatchOutcome } from './deployverify.js';
 import type { DockerClient } from './docker/client.js';
 import type { Db } from './db.js';
 import type { Env } from './config.js';
-import { mkdir, writeFile, chown } from 'node:fs/promises';
-import { join } from 'node:path';
+
+
 import { passes } from './findings.js';
 import { connectSettings, identifyGame } from './games.js';
 import type { Notifier } from './notify.js';
 import type { GameQuery } from './query/gamedig.js';
 import { reviewTemplate } from './review/deploy.js';
-import { reviewSteamAnonymous } from './review/preflight.js';
+import { steamPreflight } from './review/preflight.js';
 import { inspectSteamApp, proposeCommand } from './steam/appinfo.js';
-import { buildComposeFile, buildStartScript, buildSteamPlan } from './steam/compose.js';
+import { buildSteamPlan, writeSteamScaffold } from './steam/compose.js';
 
 /**
  * Validation Runs: proving that what the portal offers still produces a
@@ -136,17 +137,36 @@ export function createValidationRunner(deps: {
     db.setSetting(HISTORY_KEY, JSON.stringify(all));
   }
 
+  /** Does any container by this name exist, whoever made it? */
+  async function containerByNameExists(name: string): Promise<boolean> {
+    try {
+      await docker.docker.getContainer(name).inspect();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function teardown(containerName: string, appdataPath: string | null) {
     try {
       const container = docker.docker.getContainer(containerName);
       await container.stop({ t: 15 }).catch(() => undefined);
       await container.remove({ v: true, force: true });
-    } catch {
-      // Never created, or already gone — both fine at teardown.
+    } catch (err) {
+      // Already gone is fine; anything else is said, because a leftover
+      // container silently turns the next run's attempt into "skipped".
+      if ((err as { statusCode?: number }).statusCode !== 404) {
+        log(`validation teardown of ${containerName} failed: ${(err as Error).message}`);
+      }
     }
-    // The downloads: only ever a path we generated ourselves, and only when
-    // it carries the validation marker — a safety the rm call insists on.
-    if (appdataPath && appdataPath.includes(VALIDATE_PREFIX)) {
+    // The downloads: only ever a directory this run created itself —
+    // directly under the appdata root AND wearing the validation prefix.
+    // `includes` was too loose a guard for an rm -rf.
+    if (
+      appdataPath &&
+      dirname(appdataPath) === env.APPDATA_ROOT.replace(/[\\/]+$/, '') &&
+      basename(appdataPath).startsWith(VALIDATE_PREFIX)
+    ) {
       await rm(appdataPath, { recursive: true, force: true }).catch(() => undefined);
     }
   }
@@ -251,13 +271,18 @@ export function createValidationRunner(deps: {
     }
     result.label = info.name;
 
-    if (!info.linux) {
+    // The same preflight the Steam deploy route runs — by construction, not
+    // by copy. Its fail is a deploy's refusal; its known-no on anonymous
+    // downloads is a skip, because a run without an account would fail on
+    // the download and prove nothing about the server.
+    const findings = steamPreflight(info, false);
+    const fail = findings.find((f) => f.state === 'fail');
+    if (fail) {
       result.outcome = 'refused';
-      result.note = `Steam publishes no Linux build of ${info.name} — the same refusal a deploy would get.`;
+      result.note = `${fail.summary} The same refusal a deploy would get.`;
       return;
     }
-    const login = reviewSteamAnonymous(appId, false);
-    if (login.state === 'warn') {
+    if (findings.some((f) => f.id === 'steam-login' && f.state === 'warn')) {
       result.outcome = 'skipped';
       result.note =
         'This app likely refuses anonymous downloads, and validation runs without a Steam account — the first start would fail on the download, proving nothing about the server.';
@@ -288,13 +313,7 @@ export function createValidationRunner(deps: {
       expectedName: null,
       // The script and compose file go in before the container exists, same
       // as the Steam tab's own deploy: the first start runs the real script.
-      prepare: async () => {
-        const scriptDir = join(plan.appdataPath, 'steamcmd');
-        await mkdir(scriptDir, { recursive: true });
-        await writeFile(join(scriptDir, 'gamekeep-start.sh'), buildStartScript(composeReq), { mode: 0o755 });
-        await writeFile(join(scriptDir, 'docker-compose.yml'), buildComposeFile(composeReq, env.APPDATA_HOST_ROOT));
-        await chown(scriptDir, 99, 100).catch(() => undefined);
-      },
+      prepare: () => writeSteamScaffold(plan, composeReq, env.APPDATA_HOST_ROOT),
     });
   }
 
@@ -302,7 +321,7 @@ export function createValidationRunner(deps: {
   async function proveAndTearDown(
     result: AppResult,
     run: ValidationRun,
-    plan: { containerName: string; appdataPath: string; portBindings: Record<string, unknown> },
+    plan: DeployPlan,
     opts: {
       queryType: string | null;
       displayName: string;
@@ -311,12 +330,32 @@ export function createValidationRunner(deps: {
     },
   ): Promise<void> {
     result.status = 'deploying';
+
+    /*
+     * BEFORE anything is written or created: a container already wearing the
+     * validation name is not ours to touch. It may be a leftover (said in the
+     * note) — but it may also be something someone built by hand, and a
+     * teardown that force-removes it with its volumes would be this feature's
+     * worst possible bug. Hands off, skipped, with the reason.
+     */
+    if (await containerByNameExists(plan.containerName)) {
+      result.outcome = 'skipped';
+      result.note = `A container named "${plan.containerName}" already exists — not touching it. If it is a leftover validation container, remove it by hand once.`;
+      return;
+    }
+
+    let created = false;
     try {
       if (opts.prepare) await opts.prepare();
       await deployer.ensureNetwork(env.GAME_NETWORK, () => undefined);
-      await deployer.create(plan as never, (m) => log(`validation ${result.app}: ${m}`));
+      await deployer.create(plan, (m) => log(`validation ${result.app}: ${m}`));
+      created = true;
     } catch (err) {
-      await teardown(plan.containerName, plan.appdataPath);
+      // Only what this attempt itself made is cleaned up; a name-taken race
+      // means the container is someone else's and stays.
+      if (!(err instanceof DeployError && err.code === 'name-taken')) {
+        await teardown(plan.containerName, plan.appdataPath);
+      }
       if (err instanceof DeployError) {
         // Usually a port a live server already owns: a fact about this box
         // right now, not about the app's data.
@@ -328,6 +367,7 @@ export function createValidationRunner(deps: {
       result.note = (err as Error).message;
       return;
     }
+    void created;
 
     // The ephemeral server the verification watches: never registered, never
     // on anyone's Servers page — it exists for this proof alone.
@@ -335,8 +375,8 @@ export function createValidationRunner(deps: {
       .map((spec) => Number(spec.split('/')[0]))
       .filter((p) => Number.isFinite(p))
       .sort((a, b) => a - b);
-    const server: ServerConfig = {
-      id: `validate-${slugify(result.app) || 'app'}`,
+    const server = {
+      id: `validate-${slugify(result.app) || 'app'}`.slice(0, 32),
       displayName: opts.displayName,
       container: plan.containerName,
       updateStrategy: 'restart',
@@ -345,13 +385,18 @@ export function createValidationRunner(deps: {
         opts.queryType && ports.length > 0
           ? { type: opts.queryType, host: plan.containerName, port: ports[0]! }
           : undefined,
-    } as ServerConfig;
+    } satisfies Partial<ServerConfig> as ServerConfig;
 
     result.status = 'verifying';
+    const watch = watcher.start(server, opts.expectedName);
     try {
-      const watch = watcher.start(server, opts.expectedName);
       while (watcher.getWatch(watch.id)?.phase !== 'settled') {
-        if (run.cancelled) break;
+        if (run.cancelled) {
+          // The watch must not keep polling a container we are about to
+          // remove for the rest of its hour.
+          watcher.stop(watch.id, 'the validation run was cancelled');
+          break;
+        }
         await sleep(5000);
       }
       const settled = watcher.getWatch(watch.id);
@@ -363,6 +408,7 @@ export function createValidationRunner(deps: {
         result.note = settled?.note ?? 'The verification watch disappeared.';
       }
     } finally {
+      watcher.stop(watch.id, 'the validation attempt is over');
       result.status = 'tearing-down';
       await teardown(plan.containerName, plan.appdataPath);
       gameQuery.invalidate(server.id);
@@ -434,7 +480,12 @@ export function createValidationRunner(deps: {
         detail: `${run.apps.length} app(s): ${summary}${run.cancelled ? ' (cancelled)' : ''}`,
       });
       log(`validation run finished: ${summary}`);
-    })();
+    })().catch((err: unknown) => {
+      // A bookkeeping failure (a full disk at remember(), say) must never
+      // become an unhandled rejection that takes the whole portal down.
+      run.finishedAt ??= Date.now();
+      log(`validation run bookkeeping failed: ${(err as Error).message}`);
+    });
 
     return run;
   }

@@ -61,6 +61,60 @@ function timeoutFor(server: ServerConfig): number {
   );
 }
 
+/**
+ * Rebuilds create options from a container's own inspect output so the
+ * recreated container keeps its volumes, ports, env, networks and restart
+ * policy. The deleted fields are the ones Docker generates per-container and
+ * either rejects or mangles on the way back in.
+ *
+ * Exported: the settings manager recreates containers for env changes and
+ * must drop exactly the same runtime fields — a second hand-kept copy of
+ * this list is how one of them silently rots.
+ */
+export function recreateSpec(info: Dockerode.ContainerInspectInfo): Dockerode.ContainerCreateOptions {
+  const config = { ...info.Config } as Record<string, unknown>;
+  const shortId = info.Id.slice(0, 12);
+
+  // Docker defaults Hostname to the container's own short id; carrying that
+  // over would pin the new container to the old one's identity.
+  if (config.Hostname === shortId) delete config.Hostname;
+
+  const networks: Record<string, unknown> = {};
+  for (const [name, endpoint] of Object.entries(info.NetworkSettings?.Networks ?? {})) {
+    const ep = { ...(endpoint as Record<string, unknown>) };
+    // Aliases carry the old short id on user-defined networks, which Docker
+    // then rejects as a duplicate.
+    if (Array.isArray(ep.Aliases)) {
+      const aliases = (ep.Aliases as string[]).filter((a) => a !== shortId);
+      if (aliases.length > 0) ep.Aliases = aliases;
+      else delete ep.Aliases;
+    }
+    // Runtime-assigned values must not be replayed into a create call.
+    for (const key of [
+      'IPAddress',
+      'IPPrefixLen',
+      'Gateway',
+      'IPv6Gateway',
+      'GlobalIPv6Address',
+      'GlobalIPv6PrefixLen',
+      'MacAddress',
+      'EndpointID',
+      'NetworkID',
+      'DriverOpts',
+    ]) {
+      delete ep[key];
+    }
+    networks[name] = ep;
+  }
+
+  return {
+    ...(config as Dockerode.ContainerCreateOptions),
+    name: info.Name.replace(/^\//, ''),
+    HostConfig: info.HostConfig,
+    NetworkingConfig: { EndpointsConfig: networks as never },
+  };
+}
+
 export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQuery) {
   const { docker } = dockerClient;
   /** One active job per server: two friends pressing at once get one restart. */
@@ -104,56 +158,6 @@ export function createActionRunner(dockerClient: DockerClient, gameQuery: GameQu
         },
       );
     });
-  }
-
-  /**
-   * Rebuilds create options from a container's own inspect output so the
-   * recreated container keeps its volumes, ports, env, networks and restart
-   * policy. The deleted fields are the ones Docker generates per-container and
-   * either rejects or mangles on the way back in.
-   */
-  function recreateSpec(info: Dockerode.ContainerInspectInfo): Dockerode.ContainerCreateOptions {
-    const config = { ...info.Config } as Record<string, unknown>;
-    const shortId = info.Id.slice(0, 12);
-
-    // Docker defaults Hostname to the container's own short id; carrying that
-    // over would pin the new container to the old one's identity.
-    if (config.Hostname === shortId) delete config.Hostname;
-
-    const networks: Record<string, unknown> = {};
-    for (const [name, endpoint] of Object.entries(info.NetworkSettings?.Networks ?? {})) {
-      const ep = { ...(endpoint as Record<string, unknown>) };
-      // Aliases carry the old short id on user-defined networks, which Docker
-      // then rejects as a duplicate.
-      if (Array.isArray(ep.Aliases)) {
-        const aliases = (ep.Aliases as string[]).filter((a) => a !== shortId);
-        if (aliases.length > 0) ep.Aliases = aliases;
-        else delete ep.Aliases;
-      }
-      // Runtime-assigned values must not be replayed into a create call.
-      for (const key of [
-        'IPAddress',
-        'IPPrefixLen',
-        'Gateway',
-        'IPv6Gateway',
-        'GlobalIPv6Address',
-        'GlobalIPv6PrefixLen',
-        'MacAddress',
-        'EndpointID',
-        'NetworkID',
-        'DriverOpts',
-      ]) {
-        delete ep[key];
-      }
-      networks[name] = ep;
-    }
-
-    return {
-      ...(config as Dockerode.ContainerCreateOptions),
-      name: info.Name.replace(/^\//, ''),
-      HostConfig: info.HostConfig,
-      NetworkingConfig: { EndpointsConfig: networks as never },
-    };
   }
 
   /** Stage 1: the container process is back up. */

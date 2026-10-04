@@ -3,7 +3,7 @@ import type { ServerConfig } from '../config.js';
 import type { AppContext } from '../context.js';
 import { COMMON_SETTINGS, gameByQueryType, type SettingSpec } from '../games.js';
 import { SettingsError } from '../settings.js';
-import { GameSettingsError } from '../gamesettings.js';
+import { GameSettingsError, JOIN_KEYS, type JoinKey } from '../gamesettings.js';
 import { FileError } from '../files.js';
 import { originOf } from '../auth/origin.js';
 import { RETENTION_MS } from '../metrics.js';
@@ -181,11 +181,16 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
     },
   );
 
+  /** One game-settings write at a time per server; a second PUT waits its turn. */
+  const gameSettingsBusy = new Set<string>();
+
   /**
    * Changes the join keys in the game's own file, with the full choreography:
-   * stop (configs edited under a live server are silently undone), write with
-   * backup, start again, and hand back a verification watch — which proves
-   * through the name-match that the game really read what was written.
+   * everything that can refuse runs BEFORE the stop (a server must never be
+   * taken down for an edit that was going to fail), then stop, write with
+   * backup, and start again in a finally — whatever happened in between. The
+   * re-verification watch proves through the name-match that the game really
+   * read what was written.
    */
   app.put<{ Params: { id: string }; Body: { values?: Partial<Record<string, string>> } }>(
     '/api/servers/:id/gamesettings',
@@ -194,38 +199,70 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
       const user = request.user!;
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      // A match server's lifecycle belongs to its tournament, same as every
+      // other steering wheel it refuses.
+      if (server.transient) return reply.code(403).send({ error: 'match-managed' });
+      if (ctx.actions.activeJobFor(server.id)) {
+        return reply.code(409).send({
+          error: 'busy',
+          message: 'A restart or stop is already running on this server; wait for it to finish.',
+        });
+      }
+      if (gameSettingsBusy.has(server.id)) {
+        return reply.code(409).send({ error: 'busy', message: 'Another game-settings save is already running.' });
+      }
 
       const raw = request.body?.values;
       if (!raw || typeof raw !== 'object') return reply.code(400).send({ error: 'invalid-body' });
-      const values: Partial<Record<'name' | 'world' | 'password' | 'admin', string>> = {};
-      for (const key of ['name', 'world', 'password', 'admin'] as const) {
+      const values: Partial<Record<JoinKey, string>> = {};
+      for (const key of JOIN_KEYS) {
         if (typeof raw[key] === 'string') values[key] = raw[key];
       }
       if (Object.keys(values).length === 0) {
         return reply.send({ applied: [], watchId: null, message: 'Nothing changed.' });
       }
 
+      gameSettingsBusy.add(server.id);
       try {
+        // Every refusal happens here, with the server still running.
+        const prepared = await ctx.gameSettings.prepare(server, values);
+
         const wasRunning = (await docker.getStatus(server)).running;
-        if (wasRunning) {
-          try {
-            await docker.docker.getContainer(server.container).stop({ t: 30 });
-          } catch (err) {
-            if ((err as { statusCode?: number }).statusCode !== 304) throw err;
-          }
-          docker.invalidate(server);
-        }
-
-        const result = await ctx.gameSettings.apply(server, values);
-
         let watchId: string | null = null;
-        if (wasRunning) {
-          await docker.docker.getContainer(server.container).start();
-          docker.invalidate(server);
-          // The re-verification is the proof: if the image regenerates this
-          // file from env, the name will come back wrong and the watch says so.
-          watchId = ctx.deployWatch.start(server, values.name?.trim() || null).id;
+        let commitError: unknown = null;
+        try {
+          if (wasRunning) {
+            try {
+              await docker.docker.getContainer(server.container).stop({ t: 30 });
+            } catch (err) {
+              if ((err as { statusCode?: number }).statusCode !== 304) throw err;
+            }
+            docker.invalidate(server);
+          }
+          await ctx.gameSettings.commit(server, prepared.file, prepared.text);
+        } catch (err) {
+          commitError = err;
+        } finally {
+          // The server comes back whatever happened to the write: a config
+          // edit must never be the reason a server stays down.
+          if (wasRunning) {
+            try {
+              await docker.docker.getContainer(server.container).start();
+              docker.invalidate(server);
+              if (!commitError) {
+                // The re-verification is the proof: if the image regenerates
+                // this file from env, the name comes back wrong and the watch
+                // says so — in settings words, not deploy words.
+                watchId = ctx.deployWatch.start(server, values.name?.trim() || null, 'settings').id;
+              }
+            } catch (err) {
+              if ((err as { statusCode?: number }).statusCode !== 304) {
+                commitError ??= err;
+              }
+            }
+          }
         }
+        if (commitError) throw commitError;
 
         db.audit({
           userId: user.id,
@@ -234,10 +271,12 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
           action: 'settings-changed',
           result: 'success',
           // Only the names, never the values: two of these are passwords.
-          detail: `Game settings changed in ${result.file}: ${result.applied.join(', ')}${wasRunning ? ' (server restarted to apply)' : ''}`,
+          detail: `Game settings changed in ${prepared.file}: ${prepared.applied.join(', ')}${wasRunning ? ' (server restarted to apply)' : ''}`,
           ...originOf(request),
         });
-        return reply.send({ applied: result.applied, file: result.file, watchId });
+        // The fresh view rides along so the client needs no second scan.
+        const scan = await ctx.gameSettings.scan(server).catch(() => null);
+        return reply.send({ applied: prepared.applied, file: prepared.file, watchId, scan });
       } catch (err) {
         if (err instanceof GameSettingsError) {
           const status = err.code === 'unsupported' ? 404 : err.code === 'not-found' ? 409 : 502;
@@ -253,6 +292,8 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
           ...originOf(request),
         });
         return reply.code(500).send({ error: 'apply-failed', message: (err as Error).message });
+      } finally {
+        gameSettingsBusy.delete(server.id);
       }
     },
   );

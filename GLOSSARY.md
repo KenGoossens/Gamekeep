@@ -27,7 +27,8 @@ warning, with reasons, in one place. A failing Preflight blocks the Deploy;
 warnings require acknowledgement. Both deploy paths (catalogue and Steam)
 pass through one.
 _Avoid_: what-if, dry run (nothing is simulated — it is checked), review
-(taken by the template/image review it extends)
+(taken by the template/image review it extends; the preflight module's
+function names carry "review" as a historical exception)
 
 **Deploy Verification**:
 The phase after a Deploy starts the container: the first boot is followed
@@ -52,10 +53,10 @@ detection as the fallback warning.
 _Avoid_: discovery, probe
 
 **Validation Run**:
-An owner-initiated run that deploys registry games for real, one at a time,
-verifies each against the Deploy Verification bar, and tears everything down
-— volume included — reporting per game. Exists to prove the registry's data,
-not anyone's server.
+An owner-initiated (or scheduled) run that deploys catalogue and Steam apps
+for real, one at a time, verifies each against the Deploy Verification bar,
+and tears everything down — volume included — reporting per app. Exists to
+prove what the portal offers, not anyone's server.
 _Avoid_: testbench, test bench, CI (it runs on the owner's machine, on real
 images)
 

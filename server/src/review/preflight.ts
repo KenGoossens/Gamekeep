@@ -90,6 +90,30 @@ const anonByAppid = new Map(
  * operator deploys knowing the first download may demand an account, instead
  * of discovering it in the logs an hour later.
  */
+/**
+ * The Steam path's whole preflight, in one place: the Linux build and the
+ * anonymous-download question, as Findings. The deploy route and the
+ * validation runner both call this, so "the same refusal a deploy would get"
+ * is true by construction rather than by copy.
+ */
+export function steamPreflight(
+  info: { name: string; appId: number; linux: boolean },
+  hasCredentials: boolean,
+): Finding[] {
+  const findings: Finding[] = [];
+  if (!info.linux) {
+    findings.push({
+      id: 'no-linux',
+      label: 'Linux build',
+      state: 'fail',
+      summary: `Steam publishes no Linux build of ${info.name}, so it cannot run here.`,
+      detail: 'The Unraid catalogue may have a Wine-based template for it.',
+    });
+  }
+  findings.push(reviewSteamAnonymous(info.appId, hasCredentials));
+  return findings;
+}
+
 export function reviewSteamAnonymous(appId: number, hasCredentials: boolean): Finding {
   if (hasCredentials) {
     return {

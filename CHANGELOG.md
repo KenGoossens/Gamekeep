@@ -8,6 +8,63 @@ releases.
 
 ## Unreleased
 
+### Security & hardening
+
+Findings from a three-pass adversarial review of everything added since
+1.2.1 (correctness/concurrency, security/resources, principles/efficiency).
+All confirmed findings fixed:
+
+- **A validation run can no longer touch anything it did not create.** The
+  worst finding: a real server deployed under a `gk-validate-*` name could be
+  force-removed — volume, world and all — by a later validation run's
+  teardown. Deploys now refuse the reserved prefix outright, validation keeps
+  its hands off any container that already exists under its name (skipped,
+  with the reason), a name conflict never triggers a teardown, and the
+  delete-downloads guard demands the exact appdata parent plus the prefix
+  instead of a loose substring match.
+- **Update detection actually works now.** The feature shipped reading its
+  Steam install receipts through the hand-editor's file reader, which refuses
+  `.acf` files — so every server reported "no receipt". The receipt is now
+  read through a dedicated confined reader; the volume search walks only the
+  server's own data roots with `-xdev` (never `/proc`, `/sys` or a host
+  bind), a failed search keeps the previous verdict instead of overwriting it
+  with a confident wrong one, "Check now" has a 60-second cooldown, stale
+  entries are pruned when servers are deleted, and a successful restart
+  clears the badge immediately.
+- **A failed game-settings save no longer leaves the server stopped.**
+  Everything that can refuse (missing file, missing key, broken JSON) now
+  runs *before* the stop, the restart sits in a `finally`, concurrent saves
+  and saves during a running restart job are refused with a 409, and match
+  servers are off limits. A save's re-verification now audits and reports as
+  a settings change — not as a "deploy", which is what Discord used to hear.
+- **Crash loops are called failures again.** The deploy verification only
+  ever saw `exited` containers as failed, and `unless-stopped` restarts hid
+  exactly that; the watcher now reads Docker's restart counter and settles
+  `failed` after three revivals. A container removed mid-watch ends the watch
+  honestly instead of being polled for the rest of an hour, a second
+  verification on the same server supersedes the first, and when download
+  activity cannot be measured the verdict says so instead of claiming
+  "nothing has moved".
+- **A `$` in a password no longer corrupts XML configs** (JavaScript's
+  replacement-pattern rules were mangling `pa$$word` on the 7DTD path), and a
+  Steam app name with control characters can no longer smuggle a line into
+  the generated root start script.
+- **Bracket overrides now heal downstream byes.** Overriding a result whose
+  loser had already received an automatic bye used to leave the old
+  beneficiary seeded in both brackets; automatic byes (never played, never
+  overridden) are now re-derived from the corrected graph. Double
+  elimination's drop-ins also use the conventional mirrored slot, so "lost to
+  you in round one, meet you again immediately" stops being a coin-flip
+  certainty.
+- Assorted smaller fixes from the same review: port-conflict refusals name
+  the owning container, validation targets are capped (50 per run) and
+  parsed by one shared function, the settings-scan caches its file location
+  instead of re-searching the volume on every tab open, UI pages stop
+  polling when the tab is hidden and a settled verification stops polling at
+  all (and no longer vanishes from an open page), duplicated recreate and
+  Steam-scaffold logic now has a single owner, and a validation run's
+  bookkeeping failure can no longer crash the portal.
+
 ### Added
 
 - **Update detection: the portal now says when Steam ships a newer build.**

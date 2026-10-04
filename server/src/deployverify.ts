@@ -29,9 +29,13 @@ import { gameByQueryType } from './games.js';
 export type WatchPhase = 'starting' | 'first-boot' | 'waiting-game' | 'settled';
 export type WatchOutcome = 'success' | 'unconfirmed' | 'failed';
 
+/** Why this watch runs — decides how its outcome is audited and announced. */
+export type WatchKind = 'deploy' | 'settings';
+
 export interface DeployWatch {
   id: string;
   serverId: string;
+  kind: WatchKind;
   phase: WatchPhase;
   /** Live, human-readable progress line for the deploy screen. */
   message: string;
@@ -40,6 +44,8 @@ export interface DeployWatch {
   note: string | null;
   startedAt: number;
   settledAt: number | null;
+  /** Set by stop(): the loop exits at its next poll with this as the note. */
+  stopReason?: string;
 }
 
 /** How long a game may stay silent past its budget with nothing moving. */
@@ -95,7 +101,9 @@ export function createDeployWatcher(
     try {
       const stats = (await docker
         .getContainer(container)
-        .stats({ stream: false })) as unknown as {
+        // one-shot: a plain stats call makes the daemon gather two samples
+        // and blocks a second or two; one sample is all a counter needs.
+        .stats({ stream: false, 'one-shot': true } as never)) as unknown as {
         networks?: Record<string, { rx_bytes?: number }>;
         blkio_stats?: { io_service_bytes_recursive?: Array<{ op?: string; value?: number }> };
       };
@@ -146,12 +154,44 @@ export function createDeployWatcher(
 
     let lastCounter: number | null = null;
     let lastMovement = start;
+    /** Whether any counter was ever read: claims about movement need a measurement. */
+    let counterMeasured = false;
+    /** Docker's restart tally when the watch began; growth means a crash loop. */
+    let baseRestarts: number | null = null;
+    /** The port bindings are fixed at create; inspected once, not per poll. */
+    let tcpPorts: number[] | null = null;
 
     watch.phase = 'first-boot';
 
     while (Date.now() < ceiling) {
+      if (watch.stopReason) {
+        watch.outcome = 'unconfirmed';
+        watch.note = `Verification was stopped: ${watch.stopReason}`;
+        return;
+      }
+
       dockerClient.invalidate(server);
       const status = await dockerClient.getStatus(server);
+      if (baseRestarts === null && status.state !== 'missing') {
+        baseRestarts = status.restartCount;
+      }
+
+      // A restart policy of unless-stopped hides a crash loop: Docker revives
+      // the container before this loop ever sees 'exited'. The restart tally
+      // does not lie.
+      if (baseRestarts !== null && status.restartCount - baseRestarts >= 3) {
+        watch.outcome = 'failed';
+        watch.note = `The container is crash-looping (${status.restartCount - baseRestarts} restarts during verification, last exit code ${status.exitCode ?? 'unknown'}). Its log usually names the reason — open the server's Logs tab.`;
+        return;
+      }
+
+      if (status.state === 'missing') {
+        // Someone removed it mid-verification — a deliberate act, not a crash.
+        watch.outcome = 'unconfirmed';
+        watch.note = 'The container was removed while verification was still running.';
+        return;
+      }
+
       if (!status.running) {
         if (status.state === 'exited' || status.state === 'dead') {
           watch.outcome = 'failed';
@@ -187,7 +227,7 @@ export function createDeployWatcher(
           watch.message = 'Container is up — waiting for the game to answer';
         } else {
           // No query protocol: a listening port is the strongest proof left.
-          const ports = await publishedTcpPorts(server.container);
+          const ports = (tcpPorts ??= await publishedTcpPorts(server.container));
           for (const port of ports) {
             if (await portAccepts(server.container, port)) {
               watch.outcome = 'success';
@@ -207,13 +247,25 @@ export function createDeployWatcher(
       // The first-boot rule: past the game's own budget, waiting continues
       // only while the counters say a download is really happening.
       const counter = await activityCounter(server.container);
-      if (counter !== null && (lastCounter === null || counter - lastCounter >= PROGRESS_BYTES)) {
-        lastMovement = Date.now();
+      if (counter !== null) {
+        counterMeasured = true;
+        if (lastCounter === null || counter - lastCounter >= PROGRESS_BYTES) {
+          lastMovement = Date.now();
+        }
+        lastCounter = counter;
       }
-      if (counter !== null) lastCounter = counter;
 
       const elapsed = Date.now() - start;
       if (elapsed > budgetMs) {
+        // The note only ever claims what was measured: when stats never
+        // answered, the verdict says so instead of asserting "nothing moved".
+        if (!counterMeasured) {
+          watch.outcome = 'unconfirmed';
+          watch.note =
+            `No answer after ${Math.round(elapsed / 60000)} minutes, and download activity could not be measured on this container. ` +
+            'It may genuinely still be downloading — check its Logs tab before telling friends it is up.';
+          return;
+        }
         if (Date.now() - lastMovement > stallMs) {
           watch.outcome = 'unconfirmed';
           watch.note =
@@ -236,10 +288,16 @@ export function createDeployWatcher(
    * Starts following one freshly deployed server. Returns the watch the
    * deploy response hands to the UI; the following itself runs detached.
    */
-  function start(server: ServerConfig, expectedName: string | null): DeployWatch {
+  function start(server: ServerConfig, expectedName: string | null, kind: WatchKind = 'deploy'): DeployWatch {
+    // One server, one active watch: a second save or deploy supersedes the
+    // old proof instead of running two polls (and two verdicts) in parallel.
+    const existing = watchForServer(server.id);
+    if (existing) stop(existing.id, 'a newer verification replaced this one');
+
     const watch: DeployWatch = {
       id: randomUUID(),
       serverId: server.id,
+      kind,
       phase: 'starting',
       message: 'Container created — first boot beginning',
       outcome: null,
@@ -277,11 +335,17 @@ export function createDeployWatcher(
     return watch;
   }
 
+  /** Asks a running watch to end at its next poll; a settled one is left be. */
+  function stop(id: string, reason: string) {
+    const watch = watches.get(id);
+    if (watch && watch.phase !== 'settled') watch.stopReason = reason;
+  }
+
   function setOnSettled(fn: (watch: DeployWatch, server: ServerConfig) => void) {
     onSettled.push(fn);
   }
 
-  return { start, getWatch, watchForServer, setOnSettled };
+  return { start, stop, getWatch, watchForServer, setOnSettled };
 }
 
 export type DeployWatcher = ReturnType<typeof createDeployWatcher>;

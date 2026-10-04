@@ -2,7 +2,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { originOf } from '../auth/origin.js';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
-import { DeployError, planDeployment, slugify, type ExtraParameters } from '../deploy.js';
+import { DeployError, planDeployment, RESERVED_NAME_PREFIX, slugify, type ExtraParameters } from '../deploy.js';
 import { passes, uncertain } from '../findings.js';
 import { reviewImage, reviewTemplate } from '../review/deploy.js';
 import { reviewGameSettings } from '../review/preflight.js';
@@ -209,6 +209,12 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
     }
 
     const name = String(body.name ?? found.name).trim();
+    if (name.toLowerCase().startsWith(RESERVED_NAME_PREFIX)) {
+      return reply.code(400).send({
+        error: 'reserved-name',
+        message: `Names starting with "${RESERVED_NAME_PREFIX}" belong to validation runs, which delete them with their data.`,
+      });
+    }
     const serverId = slugify(name);
     if (registry.has(serverId)) {
       return reply.code(409).send({ error: 'server-exists', serverId });

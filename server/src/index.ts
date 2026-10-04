@@ -138,32 +138,33 @@ async function main() {
   scheduler.setBackupRunner(async (server, actor) =>
     backups.describe(await backups.make(server, { actor, kind: 'scheduled' })),
   );
-  // When a watched first boot settles, the record and the channel both hear
-  // the honest version: verified, unconfirmed-with-reason, or failed.
+  // When a watched boot settles, the record and the channel both hear the
+  // honest version — in the vocabulary of what actually happened: a deploy's
+  // first boot speaks deploy words, a settings re-verification speaks
+  // settings words and never pings the channel as if someone deployed.
   deployWatch.setOnSettled((watch, server) => {
+    const result =
+      watch.outcome === 'success' ? 'success' : watch.outcome === 'failed' ? 'failure' : 'unconfirmed';
     db.audit({
       userId: null,
-      username: 'deploy verification',
+      username: watch.kind === 'settings' ? 'settings verification' : 'deploy verification',
       serverId: server.id,
-      action: 'server-deployed',
-      result:
-        watch.outcome === 'success'
-          ? 'success'
-          : watch.outcome === 'failed'
-            ? 'failure'
-            : 'unconfirmed',
+      action: watch.kind === 'settings' ? 'settings-changed' : 'server-deployed',
+      result,
       detail: watch.note,
     });
-    void notify.send({
-      kind:
-        watch.outcome === 'success'
-          ? 'deploy-verified'
-          : watch.outcome === 'failed'
-            ? 'deploy-failed'
-            : 'deploy-unconfirmed',
-      server: notifyServer(server),
-      detail: watch.note ?? undefined,
-    });
+    if (watch.kind === 'deploy') {
+      void notify.send({
+        kind:
+          watch.outcome === 'success'
+            ? 'deploy-verified'
+            : watch.outcome === 'failed'
+              ? 'deploy-failed'
+              : 'deploy-unconfirmed',
+        server: notifyServer(server),
+        detail: watch.note ?? undefined,
+      });
+    }
   });
 
   const updates = createUpdateChecker({
@@ -174,6 +175,13 @@ async function main() {
     log: (message) => console.log(`[GameKeepr] ${message}`),
   });
   updates.startLoop();
+  // A restart installs the update on these servers, so a successful one must
+  // clear the badge now rather than at the next six-hour round.
+  actions.setOnSettled((job) => {
+    if (job.phase !== 'done' || job.action === 'stop') return;
+    const server = registry.get(job.serverId);
+    if (server) updates.recheckAfterRestart(server);
+  });
   const validation = createValidationRunner({
     docker,
     gameQuery,

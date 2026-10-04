@@ -499,6 +499,10 @@ export function createTournamentStore(db: DatabaseSync) {
          override_by = @overrideBy, override_reason = @overrideReason, decided_at = @decidedAt
        WHERE id = @id`,
     ),
+    reopenMatch: db.prepare(
+      `UPDATE matches SET status = 'pending', winner = NULL, forfeit_team = NULL, decided_at = NULL
+       WHERE id = ?`,
+    ),
   };
 
   return {
@@ -763,6 +767,13 @@ export function createTournamentStore(db: DatabaseSync) {
     setReport(id: string, side: 'A' | 'B', winnerTeamId: string | null) {
       (side === 'A' ? st.setReportA : st.setReportB).run(winnerTeamId, id);
     },
+
+    /**
+     * Undoes an automatic bye decision so the graph can re-derive it — the
+     * engine's correction path when an override upstream changes who the bye
+     * should have gone to. Never used on a played or overridden result.
+     */
+    reopenMatch: (id: string) => void st.reopenMatch.run(id),
 
     /** The one way a match gets a winner: play, forfeit or override. */
     decideMatch(row: {

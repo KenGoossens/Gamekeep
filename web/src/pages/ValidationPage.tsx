@@ -67,11 +67,18 @@ export function ValidationPage() {
     }
   }, []);
 
+  const running = current !== null && current.finishedAt === null;
+
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 5000);
+    // Lively only while a run is going; a quiet page on a hidden tab asks
+    // the server for nothing.
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      void load();
+    }, running ? 5_000 : 45_000);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [load, running]);
 
   // The same two searches the Add server tab offers; debounced lightly.
   useEffect(() => {
@@ -116,8 +123,6 @@ export function ValidationPage() {
       clearTimeout(t);
     };
   }, [query, source]);
-
-  const running = current !== null && current.finishedAt === null;
 
   const toggle = (row: PickRow) =>
     setPicked((prev) => {
@@ -269,7 +274,11 @@ export function ValidationPage() {
               type="button"
               className="btn-ghost danger"
               onClick={async () => {
-                await api.cancelValidation().catch(() => undefined);
+                try {
+                  await api.cancelValidation();
+                } catch {
+                  setError('Could not cancel the run — it may have just finished.');
+                }
                 await load();
               }}
             >
@@ -411,9 +420,12 @@ function ScheduleCard({
             disabled={busy}
             onClick={async () => {
               setBusy(true);
+              onError(null);
               try {
                 await api.setValidationSchedule(null);
                 onChanged();
+              } catch {
+                onError('Could not remove the schedule.');
               } finally {
                 setBusy(false);
               }
@@ -424,6 +436,26 @@ function ScheduleCard({
         ) : null}
       </div>
     </section>
+  );
+}
+
+/** One app's row: the same markup whether the run is live or history. */
+function AppRow({ app }: { app: ValidationAppResult }) {
+  return (
+    <li>
+      <span>
+        <strong>{app.label}</strong>
+        {app.status !== 'done' ? (
+          <> — <span className="spinner" /> {STATUS_LABEL[app.status]}</>
+        ) : null}
+        {app.note ? <span className="fieldhelp" style={{ display: 'block' }}>{app.note}</span> : null}
+      </span>
+      {app.outcome ? (
+        <span className={OUTCOME_LABEL[app.outcome]?.cls ?? 'pill plain'}>
+          {OUTCOME_LABEL[app.outcome]?.text ?? app.outcome}
+        </span>
+      ) : null}
+    </li>
   );
 }
 
@@ -438,20 +470,7 @@ function RunCard({ run, title }: { run: ValidationRun; title: string }) {
       </div>
       <ul className="feed">
         {run.apps.map((a) => (
-          <li key={a.app}>
-            <span>
-              <strong>{a.label}</strong>
-              {a.status !== 'done' ? (
-                <> — <span className="spinner" /> {STATUS_LABEL[a.status]}</>
-              ) : null}
-              {a.note ? <span className="fieldhelp" style={{ display: 'block' }}>{a.note}</span> : null}
-            </span>
-            {a.outcome ? (
-              <span className={OUTCOME_LABEL[a.outcome]?.cls ?? 'pill plain'}>
-                {OUTCOME_LABEL[a.outcome]?.text ?? a.outcome}
-              </span>
-            ) : null}
-          </li>
+          <AppRow key={a.app} app={a} />
         ))}
       </ul>
     </section>
@@ -473,17 +492,7 @@ function RunSummary({ run }: { run: ValidationRun }) {
       </summary>
       <ul className="feed">
         {run.apps.map((a) => (
-          <li key={a.app}>
-            <span>
-              <strong>{a.label}</strong>
-              {a.note ? <span className="fieldhelp" style={{ display: 'block' }}>{a.note}</span> : null}
-            </span>
-            {a.outcome ? (
-              <span className={OUTCOME_LABEL[a.outcome]?.cls ?? 'pill plain'}>
-                {OUTCOME_LABEL[a.outcome]?.text ?? a.outcome}
-              </span>
-            ) : null}
-          </li>
+          <AppRow key={a.app} app={a} />
         ))}
       </ul>
     </details>

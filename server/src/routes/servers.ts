@@ -92,7 +92,9 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
     async (request, reply) => {
       const server = registry.get(request.params.id);
       if (!server) return reply.code(404).send({ error: 'unknown-server' });
-      return reply.send({ update: await ctx.updates.checkServer(server) });
+      // A fresh-enough answer is the answer: pressing the button in a loop
+      // must not stack volume searches on the game box.
+      return reply.send({ update: await ctx.updates.checkServer(server, 60_000) });
     },
   );
 

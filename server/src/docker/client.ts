@@ -20,6 +20,8 @@ export interface ContainerStatus {
   uptimeSeconds: number | null;
   health: 'healthy' | 'unhealthy' | 'starting' | 'none';
   exitCode: number | null;
+  /** How often Docker's restart policy revived it — a crash loop's tell. */
+  restartCount: number;
   image: string | null;
   /** Set when Docker itself could not be reached, so the UI can say so. */
   error: string | null;
@@ -46,6 +48,7 @@ const MISSING: ContainerStatus = {
   uptimeSeconds: null,
   health: 'none',
   exitCode: null,
+  restartCount: 0,
   image: null,
   error: null,
 };
@@ -72,6 +75,7 @@ export function createDockerClient(env: Env) {
             : null,
         health: (state.Health?.Status as ContainerStatus['health']) ?? 'none',
         exitCode: typeof state.ExitCode === 'number' ? state.ExitCode : null,
+        restartCount: typeof info.RestartCount === 'number' ? info.RestartCount : 0,
         image: info.Config?.Image ?? null,
         error: null,
       };

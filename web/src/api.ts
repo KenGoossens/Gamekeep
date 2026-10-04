@@ -910,7 +910,7 @@ export const api = {
       `/api/servers/${encodeURIComponent(id)}/gamesettings`,
     ),
   applyGameSettings: (id: string, values: Partial<Record<'name' | 'world' | 'password' | 'admin', string>>) =>
-    request<{ applied: string[]; file?: string; watchId: string | null; message?: string }>(
+    request<{ applied: string[]; file?: string; watchId: string | null; message?: string; scan?: GameSettingsScan | null }>(
       `/api/servers/${encodeURIComponent(id)}/gamesettings`,
       { ...json({ values }), method: 'PUT' },
     ),

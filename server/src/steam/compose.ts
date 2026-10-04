@@ -14,6 +14,7 @@
  * VALIDATE and GAME_PARAMS -- works on these servers unchanged.
  */
 
+import { chown, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DeployPlan } from '../deploy.js';
 import { slugify } from '../deploy.js';
@@ -207,6 +208,24 @@ ${ports ? `    ports:\n${ports}` : '    # no published ports'}
       - ${join(hostRoot, slug, 'steamcmd').replace(/\\/g, '/')}:/serverdata/steamcmd
       - ${join(hostRoot, slug, 'serverfiles').replace(/\\/g, '/')}:/serverdata/serverfiles
 `;
+}
+
+/**
+ * Writes the start script and the compose twin into the server's volume —
+ * BEFORE the container exists, so the very first start already runs the
+ * reviewed script. One writer for the Steam deploy route and the validation
+ * runner; the chown mirrors Unraid's appdata convention and is best-effort.
+ */
+export async function writeSteamScaffold(
+  plan: { appdataPath: string },
+  req: SteamComposeRequest,
+  hostRoot: string,
+): Promise<void> {
+  const scriptDir = join(plan.appdataPath, 'steamcmd');
+  await mkdir(scriptDir, { recursive: true });
+  await writeFile(join(scriptDir, 'gamekeep-start.sh'), buildStartScript(req), { mode: 0o755 });
+  await writeFile(join(scriptDir, 'docker-compose.yml'), buildComposeFile(req, hostRoot));
+  await chown(scriptDir, 99, 100).catch(() => undefined);
 }
 
 export function buildSteamPlan(

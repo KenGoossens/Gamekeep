@@ -47,7 +47,10 @@ export function TournamentDetailPage({ id, me }: { id: string; me: Me }) {
   useEffect(() => {
     void load();
     // Live enough for match night without a socket: the bracket is small.
-    const timer = setInterval(() => void load(), 10_000);
+    // A hidden tab asks for nothing; it catches up when it is looked at.
+    const timer = setInterval(() => {
+      if (!document.hidden) void load();
+    }, 10_000);
     return () => clearInterval(timer);
   }, [load]);
 

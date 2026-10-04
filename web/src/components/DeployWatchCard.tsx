@@ -27,26 +27,35 @@ export function DeployWatchCard({
   useEffect(() => {
     if (!watchId) return;
     let live = true;
-    const poll = () =>
-      api.deployWatch(watchId).then(
+    const timer = setInterval(() => void poll(), 5000);
+    function poll() {
+      api.deployWatch(watchId!).then(
         (r) => {
-          if (live) setWatch(r.watch);
+          if (!live) return;
+          setWatch(r.watch);
+          // A settled verdict is final: stop asking, and keep showing it —
+          // the server forgets the watch after a while, and a page left open
+          // must not watch its own result vanish.
+          if (r.watch.phase === 'settled') clearInterval(timer);
         },
         () => {
-          // The watch retires half an hour after settling; a 404 after that
-          // is history, not an error.
-          if (live) setGone(true);
+          // The watch retires half an hour after settling; a 404 before we
+          // ever saw a result is history, afterwards the last result stands.
+          if (!live) return;
+          clearInterval(timer);
+          setGone(true);
         },
       );
+    }
     void poll();
-    const timer = setInterval(() => void poll(), 5000);
     return () => {
       live = false;
       clearInterval(timer);
     };
   }, [watchId]);
 
-  if (!watchId || gone) return null;
+  // Gone without ever having seen a verdict: history, nothing to show.
+  if (!watchId || (gone && !watch)) return null;
 
   const running = !watch || watch.phase !== 'settled';
 

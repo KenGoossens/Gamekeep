@@ -70,6 +70,13 @@ export interface DeployPlan {
 
 export const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,31}$/;
 
+/**
+ * Names the validation runner creates and TEARS DOWN WITH THEIR DATA. A real
+ * server wearing this prefix could be mistaken for a leftover and deleted by
+ * a later run, so deploys refuse it outright.
+ */
+export const RESERVED_NAME_PREFIX = 'gk-validate-';
+
 export class DeployError extends Error {
   constructor(
     message: string,
@@ -301,13 +308,15 @@ export function planDeployment(
 export function createDeployer(dockerClient: DockerClient) {
   const { docker } = dockerClient;
 
-  /** Host ports already bound by another container, so we can refuse clashes. */
-  async function usedHostPorts(): Promise<Set<string>> {
+  /** Host ports already bound, each naming its owner — a refusal that says
+   * "already in use" without saying by what sends people hunting. */
+  async function usedHostPorts(): Promise<Map<string, string>> {
     const containers = await docker.listContainers({ all: true });
-    const used = new Set<string>();
+    const used = new Map<string, string>();
     for (const c of containers) {
+      const owner = c.Names?.[0]?.replace(/^\//, '') ?? c.Id.slice(0, 12);
       for (const p of c.Ports ?? []) {
-        if (p.PublicPort) used.add(`${p.PublicPort}/${p.Type ?? 'tcp'}`);
+        if (p.PublicPort) used.set(`${p.PublicPort}/${p.Type ?? 'tcp'}`, owner);
       }
     }
     return used;
@@ -386,9 +395,10 @@ export function createDeployer(dockerClient: DockerClient) {
     for (const [key, bindings] of Object.entries(plan.portBindings)) {
       const protocol = key.split('/')[1] ?? 'tcp';
       for (const binding of bindings) {
-        if (used.has(`${binding.HostPort}/${protocol}`)) {
+        const owner = used.get(`${binding.HostPort}/${protocol}`);
+        if (owner) {
           throw new DeployError(
-            `Host port ${binding.HostPort}/${protocol} is already in use by another container.`,
+            `Host port ${binding.HostPort}/${protocol} is already in use by "${owner}"${owner.startsWith('gk-validate-') ? ' (a validation run — it retires itself)' : ''}.`,
             'port-in-use',
           );
         }

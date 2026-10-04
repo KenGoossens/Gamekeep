@@ -1,16 +1,16 @@
-import { mkdir, writeFile, chown } from 'node:fs/promises';
+
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
 import { originOf } from '../auth/origin.js';
-import { DeployError, NAME_PATTERN, slugify } from '../deploy.js';
+import { DeployError, NAME_PATTERN, RESERVED_NAME_PREFIX, slugify } from '../deploy.js';
 import { ModSourceError } from '../mods/sources.js';
 import { inspectSteamApp, proposeCommand } from '../steam/appinfo.js';
-import { buildComposeFile, buildStartScript, buildSteamPlan, STEAM_IMAGE } from '../steam/compose.js';
+import { buildSteamPlan, writeSteamScaffold, STEAM_IMAGE } from '../steam/compose.js';
 import { notifyServer } from '../notify.js';
 import { identifyGame } from '../games.js';
 import { passes, uncertain, type Finding } from '../findings.js';
-import { reviewSteamAnonymous } from '../review/preflight.js';
+import { reviewSteamAnonymous, steamPreflight } from '../review/preflight.js';
 import { autoForward } from '../router/stored.js';
 
 /**
@@ -140,6 +140,12 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
         message: 'Name must be 2-32 characters: letters, digits, and . _ - (starting with a letter or digit).',
       });
     }
+    if (name.toLowerCase().startsWith(RESERVED_NAME_PREFIX)) {
+      return reply.code(400).send({
+        error: 'reserved-name',
+        message: `Names starting with "${RESERVED_NAME_PREFIX}" belong to validation runs, which delete them with their data.`,
+      });
+    }
     const serverId = slugify(name);
     if (registry.get(serverId)) {
       return reply.code(409).send({ error: 'id-taken', message: `"${serverId}" already exists.` });
@@ -173,20 +179,10 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
       /*
        * The Steam path's preflight, in the same Finding language as the
        * catalogue path: a fail refuses, a warn or unknown proceeds only once
-       * acknowledged. Today that is the Linux build and the anonymous-download
-       * question — the one that used to surface an hour later in the logs.
+       * acknowledged. Shared with the validation runner, so a validation's
+       * "refused" is a deploy's refusal by construction.
        */
-      const findings: Finding[] = [];
-      if (!info.linux) {
-        findings.push({
-          id: 'no-linux',
-          label: 'Linux build',
-          state: 'fail',
-          summary: `Steam publishes no Linux build of ${info.name}, so it cannot run here.`,
-          detail: 'The Unraid catalogue may have a Wine-based template for it.',
-        });
-      }
-      findings.push(reviewSteamAnonymous(appId, Boolean(String(body.steamUsername ?? '').trim())));
+      const findings = steamPreflight(info, Boolean(String(body.steamUsername ?? '').trim()));
 
       if (!passes(findings)) {
         db.audit({
@@ -219,21 +215,10 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
         steps.push(`Added ${added}, which ${info.name} needs and the request omitted`);
       }
 
-      /*
-       * The script and the compose file go in before the container exists, so
-       * the very first start already runs the reviewed script -- and both
-       * live inside the volume, where the Files tab shows them.
-       */
-      const scriptDir = join(plan.appdataPath, 'steamcmd');
-      await mkdir(scriptDir, { recursive: true });
-      await writeFile(join(scriptDir, 'gamekeep-start.sh'), buildStartScript(composeReq), {
-        mode: 0o755,
-      });
-      await writeFile(
-        join(scriptDir, 'docker-compose.yml'),
-        buildComposeFile(composeReq, env.APPDATA_HOST_ROOT),
-      );
-      await chown(scriptDir, 99, 100).catch(() => undefined);
+      // The script and the compose twin go in before the container exists, so
+      // the very first start already runs the reviewed script — one writer,
+      // shared with the validation runner.
+      await writeSteamScaffold(plan, composeReq, env.APPDATA_HOST_ROOT);
       steps.push('Wrote gamekeep-start.sh and docker-compose.yml into the steamcmd volume');
 
       await deployer.ensureNetwork(env.GAME_NETWORK, (m) => steps.push(m));

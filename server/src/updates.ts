@@ -2,7 +2,7 @@ import type { ServerConfig } from './config.js';
 import type { Db } from './db.js';
 import type { DockerClient } from './docker/client.js';
 import { createHelperRunner } from './docker/helper.js';
-import { createFileBrowser } from './files.js';
+import { createFileBrowser, dataRootsOf } from './files.js';
 import { notifyServer, type Notifier } from './notify.js';
 import type { ServerRegistry } from './registry.js';
 
@@ -87,35 +87,53 @@ export function createUpdateChecker(deps: {
     }
   }
 
-  /** The installed receipt: the game's appmanifest inside the volume. */
+  /**
+   * The installed receipt: the game's appmanifest inside the volume.
+   *
+   * 'absent' and 'error' are different answers on purpose: a helper timeout
+   * must never overwrite a known "update available" with a confident "not a
+   * Steam game". The search walks only the server's own mounted data roots
+   * (never /proc, /sys or a host bind the game was given), one filesystem
+   * each — the lesson of a find / that spun every disk on the box.
+   */
   async function readManifest(
     server: ServerConfig,
-  ): Promise<{ appId: number; build: string } | null> {
-    let output: string;
+  ): Promise<{ appId: number; build: string } | 'absent' | 'error'> {
+    let roots: string[];
     try {
-      output = await helpers.run(
-        server.container,
-        ['find', '/', '-maxdepth', '8', '-type', 'f', '-name', 'appmanifest_*.acf', '-print'],
-        60_000,
-      );
+      roots = await dataRootsOf(docker, server);
     } catch {
-      return null;
+      return 'absent';
     }
-    const paths = output
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .filter((p) => {
-        const id = Number(/appmanifest_(\d+)\.acf$/.exec(p)?.[1]);
-        return Number.isInteger(id) && !RUNTIME_APPIDS.has(id);
-      });
-    if (paths.length === 0) return null;
+
+    const paths: string[] = [];
+    let searchFailed = false;
+    for (const root of roots) {
+      try {
+        const output = await helpers.run(
+          server.container,
+          ['find', root, '-xdev', '-maxdepth', '6', '-type', 'f', '-name', 'appmanifest_*.acf', '-print'],
+          45_000,
+        );
+        paths.push(...output.split('\n').map((l) => l.trim()).filter(Boolean));
+      } catch {
+        // One root failing (a vanished path, a permission oddity) is noted;
+        // receipts found in the other roots still count.
+        searchFailed = true;
+      }
+    }
+
+    const candidates = paths.filter((p) => {
+      const id = Number(/appmanifest_(\d+)\.acf$/.exec(p)?.[1]);
+      return Number.isInteger(id) && !RUNTIME_APPIDS.has(id);
+    });
+    if (candidates.length === 0) return searchFailed ? 'error' : 'absent';
 
     // More than one game manifest is rare; the biggest install is the game.
     let best: { appId: number; build: string; size: number } | null = null;
-    for (const path of paths) {
+    for (const path of candidates) {
       try {
-        const text = await files.read(server, path);
+        const text = await files.readRaw(server, path);
         const appId = Number(acfField(text, 'appid'));
         const build = acfField(text, 'buildid');
         const size = Number(acfField(text, 'SizeOnDisk') ?? 0);
@@ -125,12 +143,18 @@ export function createUpdateChecker(deps: {
         continue;
       }
     }
-    return best ? { appId: best.appId, build: best.build } : null;
+    return best ?? 'error';
   }
 
-  async function checkServer(server: ServerConfig): Promise<UpdateStatus> {
+  async function checkServer(server: ServerConfig, minIntervalMs = 0): Promise<UpdateStatus> {
+    // "Check now" pressed twice, or scripted: the fresh-enough answer is the
+    // answer, not a second find through the volume.
+    const known = statuses.get(server.id);
+    if (minIntervalMs > 0 && known && Date.now() - known.checkedAt < minIntervalMs) {
+      return known;
+    }
     if (checking.has(server.id)) {
-      return statuses.get(server.id) ?? emptyStatus('A check is already running.');
+      return known ?? emptyStatus('A check is already running.');
     }
     checking.add(server.id);
     try {
@@ -144,7 +168,14 @@ export function createUpdateChecker(deps: {
       }
 
       const manifest = await readManifest(server);
-      if (!manifest) {
+      if (manifest === 'error') {
+        // The check failed; the previous verdict stays rather than being
+        // overwritten by a confident wrong one.
+        const previous = statuses.get(server.id);
+        if (previous) return previous;
+        return record(server.id, emptyStatus('The volume could not be searched just now; tried again next round.'));
+      }
+      if (manifest === 'absent') {
         return record(
           server.id,
           emptyStatus('No Steam install receipt in this server — not a SteamCMD-installed game, so there is nothing to compare.'),
@@ -209,6 +240,17 @@ export function createUpdateChecker(deps: {
   }
 
   async function checkAll() {
+    const live = new Set(registry.list().map((s) => s.id));
+
+    // Prune what no longer exists: a stale status would badge a ghost, and a
+    // stale notified entry would silence the ping for a re-created server.
+    for (const id of [...statuses.keys()]) if (!live.has(id)) statuses.delete(id);
+    const seen = notified();
+    const pruned = Object.fromEntries(Object.entries(seen).filter(([id]) => live.has(id)));
+    if (Object.keys(pruned).length !== Object.keys(seen).length) {
+      db.setSetting(NOTIFIED_KEY, JSON.stringify(pruned));
+    }
+
     for (const server of registry.list()) {
       if (server.transient) continue;
       try {
@@ -223,12 +265,21 @@ export function createUpdateChecker(deps: {
     return statuses.get(serverId) ?? null;
   }
 
+  /** After a restart installed the build, the badge must not linger: the old
+   * verdict is dropped and a fresh check runs in the background. */
+  function recheckAfterRestart(server: ServerConfig) {
+    const known = statuses.get(server.id);
+    if (!known?.updateAvailable) return;
+    statuses.delete(server.id);
+    void checkServer(server).catch(() => undefined);
+  }
+
   function startLoop() {
     setTimeout(() => void checkAll(), BOOT_DELAY_MS).unref();
     setInterval(() => void checkAll(), CHECK_INTERVAL_MS).unref();
   }
 
-  return { get, checkServer, checkAll, startLoop };
+  return { get, checkServer, checkAll, startLoop, recheckAfterRestart };
 }
 
 export type UpdateChecker = ReturnType<typeof createUpdateChecker>;

@@ -122,7 +122,10 @@ door.
 The **organizer's word outranks the game**. The *Decide…* button on any match
 names a winner — with a mandatory reason that lands in the activity log — and
 is also how a no-show becomes a forfeit. A result can be corrected until the
-next round's match starts; after that, correct *that* match instead.
+next round's match starts; after that, correct *that* match instead. Automatic
+byes downstream of a correction heal themselves: a bye that went to the wrong
+team because of the original result is re-derived, while anything actually
+played or decided by an organizer stays untouched.
 
 ## What it costs the machine
 

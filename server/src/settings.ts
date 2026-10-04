@@ -1,4 +1,4 @@
-import type Dockerode from 'dockerode';
+import { recreateSpec } from './docker/actions.js';
 import type { ServerConfig } from './config.js';
 import type { DockerClient } from './docker/client.js';
 import type { SettingSpec } from './games.js';
@@ -154,25 +154,10 @@ export function createSettingsManager(dockerClient: DockerClient) {
 
     if (applied.length === 0) return [];
 
-    const config = { ...info.Config } as Record<string, unknown>;
-    const shortId = info.Id.slice(0, 12);
-    if (config.Hostname === shortId) delete config.Hostname;
-    config.Env = [...current].map(([k, v]) => `${k}=${v}`);
-
-    const networks: Record<string, unknown> = {};
-    for (const [name, endpoint] of Object.entries(info.NetworkSettings?.Networks ?? {})) {
-      const ep = { ...(endpoint as Record<string, unknown>) };
-      if (Array.isArray(ep.Aliases)) {
-        const aliases = (ep.Aliases as string[]).filter((a) => a !== shortId);
-        if (aliases.length > 0) ep.Aliases = aliases;
-        else delete ep.Aliases;
-      }
-      for (const key of ['IPAddress','IPPrefixLen','Gateway','IPv6Gateway','GlobalIPv6Address',
-                         'GlobalIPv6PrefixLen','MacAddress','EndpointID','NetworkID','DriverOpts']) {
-        delete ep[key];
-      }
-      networks[name] = ep;
-    }
+    // The same rebuild the pull-recreate action uses: one list of the
+    // runtime fields Docker rejects, not two hand-kept copies.
+    const spec = recreateSpec(info);
+    spec.Env = [...current].map(([k, v]) => `${k}=${v}`);
 
     onProgress('Stopping the server');
     try {
@@ -183,12 +168,7 @@ export function createSettingsManager(dockerClient: DockerClient) {
     await container.remove({ v: false });
 
     onProgress('Recreating with the new settings');
-    const created = await docker.createContainer({
-      ...(config as Dockerode.ContainerCreateOptions),
-      name: info.Name.replace(/^\//, ''),
-      HostConfig: info.HostConfig,
-      NetworkingConfig: { EndpointsConfig: networks as never },
-    });
+    const created = await docker.createContainer(spec);
 
     onProgress('Starting');
     await created.start();

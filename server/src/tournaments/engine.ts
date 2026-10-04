@@ -88,11 +88,14 @@ function feedersOf(
   }
   if (round % 2 === 0) {
     // A drop-in round: the losers-bracket survivor meets the fresh dropper
-    // from the winners bracket.
+    // from the winners bracket — from the MIRRORED slot, the convention that
+    // keeps "A beat B in round one, B fights back, meets A again immediately"
+    // from being a coin-flip certainty.
     const wbRound = round / 2 + 1;
+    const wbCount = size / 2 ** wbRound;
     return {
       a: { kind: 'take', bracket: 'lb', round: round - 1, slot, take: 'winner' },
-      b: { kind: 'take', bracket: 'wb', round: wbRound, slot, take: 'loser' },
+      b: { kind: 'take', bracket: 'wb', round: wbRound, slot: wbCount - 1 - slot, take: 'loser' },
     };
   }
   // An odd (pairing) round: losers-bracket winners pair among themselves.
@@ -253,10 +256,24 @@ export function settle(store: TournamentStore, tournamentId: string): void {
       return a === null && b === null;
     };
 
+    /**
+     * An automatic bye decision — never played, never overridden — may be
+     * re-derived when an upstream override changed who should have received
+     * it. Everything with a real result (maps, a server, an organizer's
+     * word) stays untouchable.
+     */
+    const isAutoBye = (m: MatchRow): boolean =>
+      m.status === 'decided' &&
+      !m.serverContainer &&
+      !m.overrideBy &&
+      m.maps.length === 0 &&
+      (m.teamA === null || m.teamB === null);
+
     let changed = false;
     for (const match of matches) {
-      // Live or settled matches are never rewritten by the graph.
-      if (match.status !== 'pending' || match.serverContainer) continue;
+      const revisitableBye = isAutoBye(match);
+      // Live or genuinely settled matches are never rewritten by the graph.
+      if ((match.status !== 'pending' && !revisitableBye) || match.serverContainer) continue;
 
       const feeders = feedersOf(format, size, match);
       const a = feeders.a.kind === 'take' ? resolve(feeders.a, match.teamA) : match.teamA;
@@ -265,8 +282,14 @@ export function settle(store: TournamentStore, tournamentId: string): void {
       const nextA = a === 'unknown' ? match.teamA : a;
       const nextB = b === 'unknown' ? match.teamB : b;
       if (nextA !== match.teamA || nextB !== match.teamB) {
+        // A bye whose sides no longer hold is reopened and re-derived; a
+        // pending match simply gets its sides updated.
+        if (revisitableBye) store.reopenMatch(match.id);
         store.setMatchTeams(match.id, nextA, nextB);
         changed = true;
+      } else if (revisitableBye) {
+        // Sides unchanged: the bye stands exactly as derived; nothing to do.
+        continue;
       }
 
       // A bye: one side present, the other provably never coming.

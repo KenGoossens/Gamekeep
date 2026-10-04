@@ -213,6 +213,33 @@ export function createFileBrowser(dockerClient: DockerClient) {
   }
 
   /**
+   * Reads a file the PORTAL asked for, not a person: same mount confinement
+   * and size cap as read(), without the hand-editable allow-list. Built for
+   * machine-read receipts like Steam's appmanifest_*.acf, which the editor
+   * rightly refuses but the update checker must parse.
+   */
+  async function readRaw(server: ServerConfig, requested: string): Promise<string> {
+    const roots = await dataRootsOf(dockerClient, server);
+    const path = resolveInsideAny(roots, requested);
+
+    const stream = (await docker
+      .getContainer(server.container)
+      .getArchive({ path })) as unknown as Readable;
+
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of stream) {
+      total += (chunk as Buffer).length;
+      if (total > MAX_EDIT_BYTES + 8192) {
+        throw new FileError('That file is too large to read.', 'too-large');
+      }
+      chunks.push(chunk as Buffer);
+    }
+
+    return extractSingleFile(Buffer.concat(chunks));
+  }
+
+  /**
    * Writes a file back, keeping a timestamped copy of what was there before.
    *
    * The backup is made inside the container with cp, so it lands next to the
@@ -362,7 +389,7 @@ export function createFileBrowser(dockerClient: DockerClient) {
     return { path: target, bytes: content.length, replaced };
   }
 
-  return { list, read, readBinary, write, create, upload, run };
+  return { list, read, readRaw, readBinary, write, create, upload, run };
 }
 
 /**

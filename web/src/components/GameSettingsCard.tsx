@@ -104,7 +104,10 @@ export function GameSettingsCard({ serverId, serverName }: { serverId: string; s
                 const result = await api.applyGameSettings(serverId, edits);
                 setEdits({});
                 setWatchId(result.watchId);
-                await load();
+                // The PUT brings the fresh view along, so no second scan —
+                // which costs a find through the server's volume — is needed.
+                if (result.scan !== undefined) setScan(result.scan);
+                else await load();
               } catch (err) {
                 setError(
                   err instanceof ApiError && typeof err.body.message === 'string'

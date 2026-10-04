@@ -1,7 +1,7 @@
 import type { ServerConfig } from './config.js';
 import type { DockerClient } from './docker/client.js';
 import { createHelperRunner } from './docker/helper.js';
-import { createFileBrowser } from './files.js';
+import { createFileBrowser, dataRootsOf } from './files.js';
 import { gameByQueryType, type GameConfigFile } from './games.js';
 import { __internals as ini } from './mods/declare.js';
 
@@ -31,7 +31,7 @@ export class GameSettingsError extends Error {
   }
 }
 
-export type JoinKey = 'name' | 'world' | 'password' | 'admin';
+export type JoinKey = (typeof JOIN_KEYS)[number];
 
 export interface GameSettingsView {
   /** The config file, as an absolute container path. */
@@ -43,14 +43,8 @@ export interface GameSettingsView {
   values: Array<{ key: JoinKey; fileKey: string; value: string | null }>;
 }
 
-const LABELS: Record<JoinKey, string> = {
-  name: 'Server name',
-  world: 'World',
-  password: 'Password',
-  admin: 'Admin password',
-};
-
-export const JOIN_LABELS = LABELS;
+/** The four join-setting classes, in one place: routes and type derive from it. */
+export const JOIN_KEYS = ['name', 'world', 'password', 'admin'] as const;
 
 /** 7DTD-style <property name="X" value="Y"/> lines, edited line by line. */
 function readXmlProp(text: string, key: string): string | null {
@@ -67,7 +61,10 @@ function writeXmlProp(text: string, key: string, value: string): string {
       'not-found',
     );
   }
-  return text.replace(pattern, `$1${encodeXml(value)}$2`);
+  // A FUNCTION replacement, never a string: in a string, $& and friends are
+  // replacement patterns, so a password like pa$$word would be mangled and
+  // a value of $' would splice the rest of the file into the attribute.
+  return text.replace(pattern, (_match, open: string, close: string) => open + encodeXml(value) + close);
 }
 
 const encodeXml = (v: string): string =>
@@ -109,6 +106,13 @@ function writeJsonKey(text: string, key: string, value: string): string {
 export function createGameSettings(dockerClient: DockerClient) {
   const helpers = createHelperRunner(dockerClient);
   const files = createFileBrowser(dockerClient);
+  /**
+   * Where each server's config file was last found. The find walks the
+   * container's data roots, which is not worth repeating on every Settings
+   * tab open — the backup browser learned the same lesson. A cached path
+   * that stopped existing is dropped and searched for again.
+   */
+  const located = new Map<string, string>();
 
   function profileFor(server: ServerConfig): { label: string; config: GameConfigFile } | null {
     const game = gameByQueryType(server.query?.type);
@@ -116,34 +120,53 @@ export function createGameSettings(dockerClient: DockerClient) {
     return { label: game.label, config: game.configFile };
   }
 
-  /** Finds the config file inside the container; null when it does not exist yet. */
-  async function locate(server: ServerConfig, config: GameConfigFile): Promise<string | null> {
+  /**
+   * The find, scoped: the server's own mounted data roots, one filesystem
+   * each — never /, never /proc, never a host bind the game was given.
+   */
+  async function findInRoots(server: ServerConfig, args: string[]): Promise<string[]> {
+    let roots: string[];
     try {
-      if ('fileName' in config.locate) {
+      roots = await dataRootsOf(dockerClient, server);
+    } catch {
+      return [];
+    }
+    const hits: string[] = [];
+    for (const root of roots) {
+      try {
         const output = await helpers.run(
           server.container,
-          // -maxdepth keeps this off the SteamCMD tree; a game's own config
-          // is never buried that deep.
-          ['find', '/', '-maxdepth', '9', '-type', 'f', '-name', config.locate.fileName, '-print'],
-          60_000,
+          ['find', root, '-xdev', '-maxdepth', '9', ...args, '-print'],
+          45_000,
         );
-        const hits = output.split('\n').map((l) => l.trim()).filter(Boolean)
-          // Steam keeps pristine copies under its own bookkeeping trees, and
-          // Unity games ship their factory defaults under StreamingAssets
-          // (V Rising keeps a second ServerHostSettings.json there); the live
-          // file is the one the game actually reads.
-          .filter((p) => !p.includes('/steamapps/') && !p.includes('/StreamingAssets/'))
-          .sort((a, b) => a.length - b.length);
-        return hits[0] ?? null;
+        hits.push(...output.split('\n').map((l) => l.trim()).filter(Boolean));
+      } catch {
+        // One root failing must not blank the others' results.
       }
+    }
+    return hits;
+  }
 
+  /** Finds the config file inside the container; null when it does not exist yet. */
+  async function locate(server: ServerConfig, config: GameConfigFile): Promise<string | null> {
+    // The cache answers first — verified cheaply by reading the file later;
+    // a vanished path throws there, clearing the entry for the next call.
+    const cached = located.get(server.id);
+    if (cached) return cached;
+
+    let found: string | null = null;
+    if ('fileName' in config.locate) {
+      const hits = (await findInRoots(server, ['-type', 'f', '-name', config.locate.fileName]))
+        // Steam keeps pristine copies under its own bookkeeping trees, and
+        // Unity games ship their factory defaults under StreamingAssets
+        // (V Rising keeps a second ServerHostSettings.json there); the live
+        // file is the one the game actually reads.
+        .filter((p) => !p.includes('/steamapps/') && !p.includes('/StreamingAssets/'))
+        .sort((a, b) => a.length - b.length);
+      found = hits[0] ?? null;
+    } else {
       const { directory, file } = config.locate;
-      const output = await helpers.run(
-        server.container,
-        ['find', '/', '-maxdepth', '9', '-type', 'd', '-path', `*/${directory}`, '-print'],
-        60_000,
-      );
-      for (const dir of output.split('\n').map((l) => l.trim()).filter(Boolean)) {
+      for (const dir of await findInRoots(server, ['-type', 'd', '-path', `*/${directory}`])) {
         let listing: string;
         try {
           listing = await helpers.run(server.container, ['ls', '-1', '--', dir], 30_000);
@@ -155,15 +178,33 @@ export function createGameSettings(dockerClient: DockerClient) {
           .map((l) => l.trim())
           .filter((l) => file.test(l))
           .sort()[0];
-        if (name) return `${dir}/${name}`;
+        if (name) {
+          found = `${dir}/${name}`;
+          break;
+        }
       }
-      return null;
-    } catch (err) {
-      throw new GameSettingsError(
-        `Could not search this server for its configuration: ${(err as Error).message}`,
-        'io',
-      );
     }
+
+    if (found) located.set(server.id, found);
+    return found;
+  }
+
+  /** Reads the located file; a vanished cache entry is cleared and retried once. */
+  async function readLocated(server: ServerConfig, config: GameConfigFile): Promise<{ file: string; text: string } | null> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const file = await locate(server, config);
+      if (!file) return null;
+      try {
+        return { file, text: await files.read(server, file) };
+      } catch (err) {
+        if (located.delete(server.id) && attempt === 0) continue;
+        throw new GameSettingsError(
+          `Could not read ${file}: ${(err as Error).message}`,
+          'io',
+        );
+      }
+    }
+    return null;
   }
 
   const specOf = (raw: string | { key: string; section: string }) =>
@@ -184,19 +225,18 @@ export function createGameSettings(dockerClient: DockerClient) {
   async function scan(server: ServerConfig): Promise<GameSettingsView | null> {
     const profile = profileFor(server);
     if (!profile) return null;
-    const file = await locate(server, profile.config);
-    if (!file) return null;
+    const read = await readLocated(server, profile.config);
+    if (!read) return null;
 
-    const text = await files.read(server, file);
     const values = (
       Object.entries(profile.config.keys) as Array<[JoinKey, string | { key: string; section: string }]>
     ).map(([key, raw]) => ({
       key,
       fileKey: specOf(raw).key,
-      value: readValue(text, profile.config, raw),
+      value: readValue(read.text, profile.config, raw),
     }));
     return {
-      file,
+      file: read.file,
       gameLabel: profile.label,
       envAuthoritative: profile.config.envAuthoritative === true,
       values,
@@ -204,28 +244,28 @@ export function createGameSettings(dockerClient: DockerClient) {
   }
 
   /**
-   * Writes the changed join keys into the file — nothing else moves, and the
-   * file browser's backup covers the regret case. The caller owns the
-   * stop/start choreography and the re-verification; this is only the edit.
+   * Everything that can refuse, done BEFORE anyone stops a server: find the
+   * file, read it, apply every edit in memory. All the not-found/bad-value
+   * throws happen here, so the caller only stops a server for a write that
+   * is certain to succeed. Nothing on disk has changed yet.
    */
-  async function apply(
+  async function prepare(
     server: ServerConfig,
     changes: Partial<Record<JoinKey, string>>,
-  ): Promise<{ file: string; applied: JoinKey[] }> {
+  ): Promise<{ file: string; text: string; applied: JoinKey[] }> {
     const profile = profileFor(server);
     if (!profile) {
       throw new GameSettingsError('This game has no described configuration file.', 'unsupported');
     }
-    const file = await locate(server, profile.config);
-    if (!file) {
+    const read = await readLocated(server, profile.config);
+    if (!read) {
       throw new GameSettingsError(
         'No configuration file yet — the game writes one on its first boot.',
         'not-found',
       );
     }
 
-    // Read-modify-write against the file as it is right now, never a stale copy.
-    let text = await files.read(server, file);
+    let text = read.text;
     const applied: JoinKey[] = [];
     for (const [key, raw] of Object.entries(changes) as Array<[JoinKey, string]>) {
       const keySpec = profile.config.keys[key];
@@ -240,11 +280,15 @@ export function createGameSettings(dockerClient: DockerClient) {
             : ini.writeKey(text, fileKey, section, value);
       applied.push(key);
     }
-    if (applied.length > 0) await files.write(server, file, text);
-    return { file, applied };
+    return { file: read.file, text, applied };
   }
 
-  return { scan, apply };
+  /** The write itself; the file browser's backup covers the regret case. */
+  async function commit(server: ServerConfig, file: string, text: string): Promise<void> {
+    await files.write(server, file, text);
+  }
+
+  return { scan, prepare, commit };
 }
 
 export type GameSettings = ReturnType<typeof createGameSettings>;

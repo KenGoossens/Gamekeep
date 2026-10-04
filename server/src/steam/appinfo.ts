@@ -119,7 +119,16 @@ export async function inspectSteamApp(appId: number): Promise<SteamAppInfo> {
 
   return {
     appId,
-    name: String(app.common.name ?? `App ${appId}`),
+    // Control characters stripped and length capped: this name ends up in a
+    // root start script's comment header and a compose file, and a newline
+    // smuggled through a third-party app-info record must never become a
+    // line that executes. Supply-chain caution, not paranoia.
+    name:
+      String(app.common.name ?? `App ${appId}`)
+        // eslint-disable-next-line no-control-regex
+        .replace(/[\u0000-\u001f\u007f]/g, ' ')
+        .trim()
+        .slice(0, 120) || `App ${appId}`,
     type: String(app.common.type ?? ''),
     osList,
     launches,
