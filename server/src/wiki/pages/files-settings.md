@@ -27,6 +27,35 @@ Saving **recreates the container** (environment variables cannot change on a
 running one), which takes the server offline for one start. Secrets are shown
 as dots and never echoed back; leave them as-is to keep the current value.
 
+## The game's own config file
+
+For games the registry knows well enough (Minecraft, Project Zomboid, 7 Days
+to Die today — the list grows), the Settings tab also finds **the file the
+game actually loads** — `server.properties`, `servertest.ini`,
+`serverconfig.xml` — inside the server, and shows its join settings with
+labels: server name, world, password. The file beats environment variables as
+a source of truth where the image allows it: the file's keys are defined by
+the *game* and identical under every image, while env spellings differ per
+image maintainer.
+
+Three honest behaviours:
+
+- **Apply restarts and verifies.** Saving stops the server, edits only the
+  asked-for lines (comments and everything else stay byte-for-byte, with the
+  same timestamped backup as a hand edit), starts it again, and then runs the
+  same first-boot verification a deploy gets — the game answering *as the name
+  you just set* is the proof the change really landed.
+- **Env-templated images are told apart.** Some images (Minecraft's itzg, for
+  one) rewrite this file from environment variables on every start; editing
+  the file there is lost work, so the portal shows it read-only with a pointer
+  to the matching variables above instead of offering an edit it knows will be
+  undone.
+- **No file yet is said plainly.** Most games write their config on first
+  boot; before that the section says to start the server once, instead of
+  inventing a file the game might ignore.
+
+Everything else in the file remains editable on the Files tab.
+
 ## For composed Steam servers
 
 Two files in the `steamcmd` directory are GameKeepr's own and worth knowing:

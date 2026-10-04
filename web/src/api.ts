@@ -401,6 +401,19 @@ export interface Finding {
   detail?: string;
 }
 
+/** The game's own config file: where it is and what its join keys say. */
+export interface GameSettingsScan {
+  file: string;
+  gameLabel: string;
+  /** The image rewrites this file from env on start — editing it is lost work. */
+  envAuthoritative: boolean;
+  values: Array<{
+    key: 'name' | 'world' | 'password' | 'admin';
+    fileKey: string;
+    value: string | null;
+  }>;
+}
+
 /** One deploy's first boot, followed until the game proves itself. */
 export interface DeployWatch {
   id: string;
@@ -826,6 +839,15 @@ export const api = {
     request<{ ok: true }>(`/api/servers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   deployWatch: (watchId: string) =>
     request<{ watch: DeployWatch }>(`/api/deploys/${encodeURIComponent(watchId)}`),
+  gameSettings: (id: string) =>
+    request<{ supported: boolean; scan: GameSettingsScan | null }>(
+      `/api/servers/${encodeURIComponent(id)}/gamesettings`,
+    ),
+  applyGameSettings: (id: string, values: Partial<Record<'name' | 'world' | 'password' | 'admin', string>>) =>
+    request<{ applied: string[]; file?: string; watchId: string | null; message?: string }>(
+      `/api/servers/${encodeURIComponent(id)}/gamesettings`,
+      { ...json({ values }), method: 'PUT' },
+    ),
   portForwards: (id: string) =>
     request<PortForwardState>(`/api/servers/${encodeURIComponent(id)}/portforward`),
   openPortForwards: (id: string, ports: string[]) =>

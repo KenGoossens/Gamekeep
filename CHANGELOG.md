@@ -10,6 +10,23 @@ releases.
 
 ### Added
 
+- **The Settings Scan: the game's own config file, found and edited in
+  place.** For games the registry knows well enough (Minecraft, Project
+  Zomboid, 7 Days to Die to start), the Settings tab now locates the file the
+  game actually loads — `server.properties`, `servertest.ini`,
+  `serverconfig.xml` — inside the server and shows its join settings with
+  labels. The file beats environment variables as a source of truth where the
+  image allows it: its keys are defined by the game and identical under every
+  image, while env spellings differ per maintainer (the Valheim lesson,
+  attacked at the root). Saving stops the server, edits only the asked-for
+  lines (same timestamped backup as a hand edit), restarts, and then runs the
+  same first-boot verification a deploy gets — the game answering as the name
+  you just set is the proof the change landed. Images known to regenerate the
+  file from environment variables (Minecraft's itzg) are shown read-only with
+  a pointer to the matching variables, instead of offering an edit that would
+  be silently undone. A verified deploy now points at this section for the
+  "now set your server name and password" moment.
+
 - **Deploy verification: created is not the same claim as works.** Every
   deploy now gets a first-boot watch that follows the new server until the
   game itself answers — and where the game reports a server name, until it

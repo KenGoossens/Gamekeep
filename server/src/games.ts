@@ -64,6 +64,42 @@ export interface WorkshopLayout {
 }
 
 /**
+ * Where a game keeps its own configuration file, and which keys in it are the
+ * join settings. The point of describing the FILE rather than more env-var
+ * spellings: server.properties is defined by Minecraft and identical under
+ * every image, while env names differ per image maintainer — the exact
+ * confusion the Valheim SRV_PWD bug grew from.
+ *
+ * The file is searched for, never assumed (same lesson as WorkshopLayout:
+ * images root the game in different places), and it usually exists only after
+ * the first boot, which is why the Settings Scan runs after deploy
+ * verification rather than before.
+ */
+export interface GameConfigFile {
+  /**
+   * How to find the file: a directory suffix plus a name pattern (Project
+   * Zomboid names the file after the server), or one exact file name searched
+   * anywhere under the game's tree (serverconfig.xml, server.properties).
+   */
+  locate: { directory: string; file: RegExp } | { fileName: string };
+  /**
+   * How the file spells a setting: 'keyvalue' is key=value lines (INI without
+   * sections, server.properties, servertest.ini); 'xml-properties' is 7DTD's
+   * <property name="..." value="..."/> lines.
+   */
+  format: 'keyvalue' | 'xml-properties';
+  /** The file's own key for each join-setting class it supports. */
+  keys: Partial<Record<'name' | 'world' | 'password' | 'admin', string>>;
+  /**
+   * True when the common images for this game regenerate the file from
+   * environment variables on every start — editing the file then is lost
+   * work, and the scan says so up front instead of letting the re-verify
+   * discover it.
+   */
+  envAuthoritative?: boolean;
+}
+
+/**
  * A port a game actually needs, as opposed to one its container happens to
  * publish.
  *
@@ -232,6 +268,8 @@ export interface GameProfile {
   mods?: ModLayout;
   /** Set instead of `mods` for the games that fetch their own from Steam. */
   workshop?: WorkshopLayout;
+  /** Where the game's own config file lives, for the Settings Scan. */
+  configFile?: GameConfigFile;
   /**
    * Said plainly when a game has mods but no API worth automating, so the UI
    * can explain rather than just refuse.
@@ -386,6 +424,15 @@ export const GAMES: GameProfile[] = [
       tcp(25575, 'RCON. Never forward this one to the internet', false),
     ],
     saves: ['world', 'world_nether', 'world_the_end'],
+    configFile: {
+      locate: { fileName: 'server.properties' },
+      format: 'keyvalue',
+      // motd is what the server list (and the query) shows as the name.
+      keys: { name: 'motd', world: 'level-name' },
+      // The itzg image — what nearly every Minecraft container is — rewrites
+      // server.properties from environment variables on every start.
+      envAuthoritative: true,
+    },
     settings: [
       { key: 'MOTD', label: 'Message of the day', type: 'text' },
       { key: 'MAX_PLAYERS', label: 'Player limit', type: 'number', min: 1, max: 1000 },
@@ -540,6 +587,12 @@ export const GAMES: GameProfile[] = [
     // this is the script it actually ships.
     serverLaunch: './start-server.sh',
     match: [/zomboid/i],
+    configFile: {
+      // The same found-not-assumed file the Workshop declarations edit.
+      locate: { directory: 'Zomboid/Server', file: /\.ini$/i },
+      format: 'keyvalue',
+      keys: { name: 'PublicName', password: 'Password' },
+    },
     workshop: {
       // The file is named after the server, so it is found rather than
       // assumed: the default is servertest.ini but nothing guarantees it.
@@ -619,6 +672,13 @@ export const GAMES: GameProfile[] = [
     saves: ['Saves'],
     // No Linux launch entry in Steam's app info; the depot ships this script.
     serverLaunch: './startserver.sh -configfile=serverconfig.xml',
+    configFile: {
+      // The depot ships serverconfig.xml beside the start script; the launch
+      // line above names it explicitly.
+      locate: { fileName: 'serverconfig.xml' },
+      format: 'xml-properties',
+      keys: { name: 'ServerName', world: 'GameWorld', password: 'ServerPassword' },
+    },
     match: [/7[\s_-]?days/i],
   },
   {

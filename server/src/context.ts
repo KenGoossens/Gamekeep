@@ -11,6 +11,7 @@ import type { Catalog } from './catalog.js';
 import type { Deployer } from './deploy.js';
 import type { MetricsCollector } from './metrics.js';
 import type { SettingsManager } from './settings.js';
+import type { GameSettings } from './gamesettings.js';
 import type { createFileBrowser } from './files.js';
 import type { HealthReporter } from './health.js';
 import type { ModInstaller } from './mods/install.js';
@@ -46,6 +47,8 @@ export interface AppContext {
   deployer: Deployer;
   metrics: MetricsCollector;
   settings: SettingsManager;
+  /** The game's own config file: found, read and edited in place. */
+  gameSettings: GameSettings;
   files: ReturnType<typeof createFileBrowser>;
   /** Tells someone when something went wrong. */
   notify: Notifier;

@@ -3,6 +3,7 @@ import type { ServerConfig } from '../config.js';
 import type { AppContext } from '../context.js';
 import { COMMON_SETTINGS, gameByQueryType, type SettingSpec } from '../games.js';
 import { SettingsError } from '../settings.js';
+import { GameSettingsError } from '../gamesettings.js';
 import { FileError } from '../files.js';
 import { originOf } from '../auth/origin.js';
 import { RETENTION_MS } from '../metrics.js';
@@ -138,6 +139,109 @@ export function registerManageRoutes(app: FastifyInstance, ctx: AppContext) {
         // container, so it is the operator's input to fix, not an incident.
         if (err instanceof SettingsError) {
           return reply.code(400).send({ error: 'invalid-value', message: err.message });
+        }
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'settings-changed',
+          result: 'failure',
+          detail: (err as Error).message,
+          ...originOf(request),
+        });
+        return reply.code(500).send({ error: 'apply-failed', message: (err as Error).message });
+      }
+    },
+  );
+
+  // ---- the game's own config file (the Settings Scan) -------------------
+
+  /**
+   * Where this game keeps its Game Settings and what the join keys say now.
+   * Null scan = either the game has no described config file, or the file does
+   * not exist yet (most games write it on first boot) — the response says
+   * which, so the UI can speak plainly.
+   */
+  app.get<{ Params: { id: string } }>(
+    '/api/servers/:id/gamesettings',
+    operator,
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      try {
+        const scan = await ctx.gameSettings.scan(server);
+        const supported = gameByQueryType(server.query?.type)?.configFile !== undefined;
+        return reply.send({ supported, scan });
+      } catch (err) {
+        if (err instanceof GameSettingsError) {
+          return reply.code(502).send({ error: err.code, message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  /**
+   * Changes the join keys in the game's own file, with the full choreography:
+   * stop (configs edited under a live server are silently undone), write with
+   * backup, start again, and hand back a verification watch — which proves
+   * through the name-match that the game really read what was written.
+   */
+  app.put<{ Params: { id: string }; Body: { values?: Partial<Record<string, string>> } }>(
+    '/api/servers/:id/gamesettings',
+    operator,
+    async (request, reply) => {
+      const user = request.user!;
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+
+      const raw = request.body?.values;
+      if (!raw || typeof raw !== 'object') return reply.code(400).send({ error: 'invalid-body' });
+      const values: Partial<Record<'name' | 'world' | 'password' | 'admin', string>> = {};
+      for (const key of ['name', 'world', 'password', 'admin'] as const) {
+        if (typeof raw[key] === 'string') values[key] = raw[key];
+      }
+      if (Object.keys(values).length === 0) {
+        return reply.send({ applied: [], watchId: null, message: 'Nothing changed.' });
+      }
+
+      try {
+        const wasRunning = (await docker.getStatus(server)).running;
+        if (wasRunning) {
+          try {
+            await docker.docker.getContainer(server.container).stop({ t: 30 });
+          } catch (err) {
+            if ((err as { statusCode?: number }).statusCode !== 304) throw err;
+          }
+          docker.invalidate(server);
+        }
+
+        const result = await ctx.gameSettings.apply(server, values);
+
+        let watchId: string | null = null;
+        if (wasRunning) {
+          await docker.docker.getContainer(server.container).start();
+          docker.invalidate(server);
+          // The re-verification is the proof: if the image regenerates this
+          // file from env, the name will come back wrong and the watch says so.
+          watchId = ctx.deployWatch.start(server, values.name?.trim() || null).id;
+        }
+
+        db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'settings-changed',
+          result: 'success',
+          // Only the names, never the values: two of these are passwords.
+          detail: `Game settings changed in ${result.file}: ${result.applied.join(', ')}${wasRunning ? ' (server restarted to apply)' : ''}`,
+          ...originOf(request),
+        });
+        return reply.send({ applied: result.applied, file: result.file, watchId });
+      } catch (err) {
+        if (err instanceof GameSettingsError) {
+          const status = err.code === 'unsupported' ? 404 : err.code === 'not-found' ? 409 : 502;
+          return reply.code(status).send({ error: err.code, message: err.message });
         }
         db.audit({
           userId: user.id,

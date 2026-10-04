@@ -18,6 +18,7 @@ import { createCatalog, DEFAULT_TRUSTED_PUBLISHERS } from './catalog.js';
 import { createDeployer } from './deploy.js';
 import { createMetricsCollector } from './metrics.js';
 import { createSettingsManager } from './settings.js';
+import { createGameSettings } from './gamesettings.js';
 import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
 import { createModInstaller } from './mods/install.js';
@@ -95,6 +96,7 @@ async function main() {
   const deployer = createDeployer(docker);
   const metrics = createMetricsCollector(docker, registry, gameQuery, db);
   const settings = createSettingsManager(docker);
+  const gameSettings = createGameSettings(docker);
   const files = createFileBrowser(docker);
   const notify = createNotifier({
     publicUrl: env.PUBLIC_URL,
@@ -181,6 +183,7 @@ async function main() {
     deployer,
     metrics,
     settings,
+    gameSettings,
     files,
     notify,
     mods,

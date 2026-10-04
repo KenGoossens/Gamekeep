@@ -15,6 +15,7 @@ import { RestartButton } from '../components/RestartButton.tsx';
 import { AdminControls } from '../components/AdminControls.tsx';
 import { MetricsTab } from '../components/MetricsTab.tsx';
 import { SettingsTab } from '../components/SettingsTab.tsx';
+import { GameSettingsCard } from '../components/GameSettingsCard.tsx';
 import { FilesTab } from '../components/FilesTab.tsx';
 import { NetworkTab } from '../components/NetworkTab.tsx';
 import { ConnectCard } from '../components/ConnectCard.tsx';
@@ -271,6 +272,7 @@ export function ServerDetailPage({
             <h2>Server settings</h2>
           </div>
           <SettingsTab serverId={server.id} onChanged={refresh} readOnly={status.running} />
+          <GameSettingsCard serverId={server.id} serverName={server.displayName} />
         </section>
       ) : null}
 

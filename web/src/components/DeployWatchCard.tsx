@@ -69,6 +69,14 @@ export function DeployWatchCard({
         </p>
       )}
 
+      {!running && watch.outcome === 'success' ? (
+        <p className="notes">
+          Want a different server name, world or password? The Settings tab on the server's page
+          now has <strong>the game's own config file</strong> — change it there and the portal
+          verifies the change the same way it just verified this boot.
+        </p>
+      ) : null}
+
       {!running && watch.outcome !== 'success' ? (
         <div className="actions">
           <button type="button" className="btn-primary" onClick={() => navigate(`/servers/${serverId}`)}>
