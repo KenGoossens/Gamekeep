@@ -32,6 +32,7 @@ export interface Route {
     | 'users'
     | 'catalog'
     | 'settings'
+    | 'validation'
     | 'wiki'
     | 'tournaments'
     | 'tournament';
@@ -47,6 +48,7 @@ export function parseRoute(path: string): Route {
   if (parts[0] === 'users') return { page: 'users' };
   if (parts[0] === 'catalog') return { page: 'catalog' };
   if (parts[0] === 'settings') return { page: 'settings' };
+  if (parts[0] === 'validation') return { page: 'validation' };
   if (parts[0] === 'wiki') return { page: 'wiki', wikiPage: parts[1] ? decodeURIComponent(parts[1]) : undefined };
   if (parts[0] === 'tournaments' && parts[1]) {
     return { page: 'tournament', tournamentId: decodeURIComponent(parts[1]) };

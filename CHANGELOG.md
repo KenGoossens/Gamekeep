@@ -10,6 +10,19 @@ releases.
 
 ### Added
 
+- **Validation runs: the registry proves itself on your own machine.** A new
+  owner-only Validation page deploys selected games for real — one at a time,
+  under a validation name, never on the Servers page — holds each first boot
+  to the same verification bar as a user's deploy (the server must answer *as
+  the name it was given*), and then tears everything down: container, volume,
+  downloads. Outcomes are the verification's three plus two honest extras:
+  *template refused* (the catalogue template fails the same review a user
+  would hit) and *skipped* (this box could not host the attempt — usually a
+  port your live server already owns, said with the reason). Runs land in a
+  history on the page and as one Discord summary. The deliberate price, per
+  ADR-0003: no download cache survives a run — a pass on last month's download
+  would prove nothing about the path a new user walks.
+
 - **The registry now knows where ten games keep their real settings.** The
   Settings Scan grew from three games to ten — Minecraft (Java and Bedrock),
   Project Zomboid, 7 Days to Die, Factorio, Terraria, V Rising, ARK, Conan

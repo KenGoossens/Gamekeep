@@ -50,7 +50,8 @@ export type AuditAction =
   | 'team-changed'
   | 'team-removed'
   | 'match-overridden'
-  | 'match-decided';
+  | 'match-decided'
+  | 'validation-run';
 
 
 export type ScheduleAction = 'restart' | 'start' | 'stop' | 'backup';

@@ -22,6 +22,7 @@ export function AppShell({ me, current, onSignedOut, children }: Props) {
     ...(me.role === 'owner'
       ? [
           { href: '/users', label: 'Users', key: 'users' },
+          { href: '/validation', label: 'Validation', key: 'validation' },
           { href: '/settings', label: 'Settings', key: 'settings' },
         ]
       : []),

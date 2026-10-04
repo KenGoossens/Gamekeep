@@ -19,6 +19,7 @@ import { createDeployer } from './deploy.js';
 import { createMetricsCollector } from './metrics.js';
 import { createSettingsManager } from './settings.js';
 import { createGameSettings } from './gamesettings.js';
+import { createValidationRunner } from './validation.js';
 import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
 import { createModInstaller } from './mods/install.js';
@@ -44,6 +45,7 @@ import { registerAuditRoutes } from './routes/audit.js';
 import { registerArtworkRoutes } from './routes/artwork.js';
 import { registerCatalogRoutes } from './routes/catalog.js';
 import { registerManageRoutes } from './routes/manage.js';
+import { registerValidationRoutes } from './routes/validation.js';
 import { registerNetworkRoutes } from './routes/network.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerModRoutes } from './routes/mods.js';
@@ -163,6 +165,16 @@ async function main() {
     });
   });
 
+  const validation = createValidationRunner({
+    docker,
+    gameQuery,
+    catalog,
+    deployer,
+    db,
+    env,
+    notify,
+    log: (message) => console.log(`[GameKeepr] ${message}`),
+  });
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
@@ -194,6 +206,7 @@ async function main() {
     gslt,
     tournaments,
     matches,
+    validation,
     health,
     sessions,
     setup,
@@ -281,6 +294,7 @@ async function main() {
   registerArtworkRoutes(app, ctx);
   registerCatalogRoutes(app, ctx);
   registerManageRoutes(app, ctx);
+  registerValidationRoutes(app, ctx);
   registerNetworkRoutes(app, ctx);
   registerSystemRoutes(app, ctx);
   registerModRoutes(app, ctx);

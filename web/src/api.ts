@@ -401,6 +401,26 @@ export interface Finding {
   detail?: string;
 }
 
+/** One game inside a validation run, with its honest ending. */
+export interface ValidationGameResult {
+  game: string;
+  label: string;
+  status: 'pending' | 'resolving' | 'deploying' | 'verifying' | 'tearing-down' | 'done';
+  outcome: 'success' | 'unconfirmed' | 'failed' | 'refused' | 'skipped' | 'error' | null;
+  note: string | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
+export interface ValidationRun {
+  id: string;
+  startedAt: number;
+  finishedAt: number | null;
+  startedBy: string;
+  games: ValidationGameResult[];
+  cancelled: boolean;
+}
+
 /** The game's own config file: where it is and what its join keys say. */
 export interface GameSettingsScan {
   file: string;
@@ -839,6 +859,14 @@ export const api = {
     request<{ ok: true }>(`/api/servers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   deployWatch: (watchId: string) =>
     request<{ watch: DeployWatch }>(`/api/deploys/${encodeURIComponent(watchId)}`),
+  validationState: () =>
+    request<{ current: ValidationRun | null; history: ValidationRun[]; games: Array<{ key: string; label: string }> }>(
+      '/api/validation',
+    ),
+  startValidation: (games: string[]) =>
+    request<{ run: ValidationRun }>('/api/validation/run', { ...json({ games }), method: 'POST' }),
+  cancelValidation: () =>
+    request<{ cancelled: boolean }>('/api/validation/cancel', { method: 'POST', ...json({}) }),
   gameSettings: (id: string) =>
     request<{ supported: boolean; scan: GameSettingsScan | null }>(
       `/api/servers/${encodeURIComponent(id)}/gamesettings`,

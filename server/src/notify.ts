@@ -30,7 +30,8 @@ export type EventKind =
   | 'access-granted'
   | 'match-ready'
   | 'match-decided'
-  | 'tournament-finished';
+  | 'tournament-finished'
+  | 'validation-finished';
 
 /**
  * Events the portal itself caused, as opposed to ones it merely noticed.
@@ -57,6 +58,7 @@ const DELIBERATE: EventKind[] = [
   'match-ready',
   'match-decided',
   'tournament-finished',
+  'validation-finished',
 ];
 
 /**
@@ -147,6 +149,7 @@ export const ALL_EVENTS: Array<{ kind: EventKind; label: string }> = [
   { kind: 'match-ready', label: 'A tournament match server is ready to join' },
   { kind: 'match-decided', label: 'A tournament match was decided' },
   { kind: 'tournament-finished', label: 'A tournament crowned its champion' },
+  { kind: 'validation-finished', label: 'A validation run finished (owner-run registry check)' },
 ];
 
 /** Colour and wording per event, so a glance at the channel is enough. */
@@ -168,6 +171,7 @@ const SHAPE: Record<EventKind, { title: string; colour: number }> = {
   'match-ready': { title: 'Match server ready', colour: 0xe8b44c },
   'match-decided': { title: 'Match decided', colour: 0xe8b44c },
   'tournament-finished': { title: 'Champion crowned', colour: 0xe8b44c },
+  'validation-finished': { title: 'Validation run finished', colour: 0x49c9f7 },
 };
 
 /**

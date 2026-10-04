@@ -77,6 +77,29 @@ GameKeepr writes, which lands in the server's own files where you can read it.
   cleaning up is one deliberate click, never automatic. The outcome also lands
   in the activity feed and on Discord.
 
+## Validation runs (owner)
+
+The **Validation** page lets the owner prove that GameKeepr's game registry
+still turns into working servers *from nothing*, on this very machine: pick
+games, and each is deployed for real under a validation name, held to the same
+first-boot verification bar as any deploy (the server must answer **as the
+name it was given**), and then torn down completely — container, volume,
+downloads. Strictly one game at a time, so a run never competes with itself
+for disk, bandwidth or ports.
+
+The outcomes extend the verification's three with two honest extras:
+**template refused** (the catalogue template fails the same review a user
+would hit — a finding about the catalogue, not your machine) and **skipped**
+(this box could not host the attempt right now — usually a port your live
+server of the same game already owns, said with the reason).
+
+The deliberate price: every run downloads each game from scratch, because a
+warm cache would skip exactly the first-install experience being tested —
+hundreds of gigabytes for a full sweep. Run the full set once, then validate
+subsets. The result lands in a run history on the page and as one Discord
+summary (enable *A validation run finished* under Notifications). Validation
+servers never appear on the Servers page and never ping anyone mid-run.
+
 ## Renaming and removing
 
 Operators can **rename** a server from its card (the pencil on hover): only
