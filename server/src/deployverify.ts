@@ -136,10 +136,17 @@ export function createDeployWatcher(
   async function publishedTcpPorts(container: string): Promise<number[]> {
     try {
       const info = await docker.getContainer(container).inspect();
-      return Object.keys(info.HostConfig?.PortBindings ?? {})
-        .filter((spec) => spec.endsWith('/tcp'))
-        .map((spec) => Number(spec.split('/')[0]))
-        .filter((p) => Number.isInteger(p) && p > 0);
+      const fromSpecs = (specs: Record<string, unknown> | undefined) =>
+        Object.keys(specs ?? {})
+          .filter((spec) => spec.endsWith('/tcp'))
+          .map((spec) => Number(spec.split('/')[0]))
+          .filter((p) => Number.isInteger(p) && p > 0);
+      // The keys of PortBindings are CONTAINER ports, which is what the probe
+      // dials (it connects by container name, over the shared network). A
+      // container that publishes nothing — a validation server, deliberately —
+      // still exposes its ports, so those serve as the fallback.
+      const bound = fromSpecs(info.HostConfig?.PortBindings as Record<string, unknown>);
+      return bound.length > 0 ? bound : fromSpecs(info.Config?.ExposedPorts as Record<string, unknown>);
     } catch {
       return [];
     }

@@ -109,8 +109,12 @@ All confirmed findings fixed:
   torn down completely: container, volume, downloads. Outcomes are the
   verification's three plus two honest extras:
   *template refused* (the catalogue template fails the same review a user
-  would hit) and *skipped* (this box could not host the attempt — usually a
-  port your live server already owns, said with the reason). Runs land in a
+  would hit) and *skipped* (this attempt could not run, said with the
+  reason). Validation servers publish no host ports — the verification talks
+  over the internal Docker network — so a run never collides with a live
+  server of the same game (Satisfactory and a Terraria validation can both
+  think 7777 is theirs) and a throwaway server never stands open on the LAN.
+  Runs land in a
   history on the page and as one Discord summary. The deliberate price, per
   ADR-0003: no download cache survives a run — a pass on last month's download
   would prove nothing about the path a new user walks.

@@ -332,6 +332,21 @@ export function createValidationRunner(deps: {
     result.status = 'deploying';
 
     /*
+     * A validation server publishes NO host ports. Nobody joins it — the
+     * verification talks over the Docker network, by container name on the
+     * CONTAINER port — so publishing would only buy two problems: a port
+     * conflict with the live server of the same game (Satisfactory and
+     * Terraria both default to 7777), and a throwaway server standing open
+     * on the LAN. The container ports are captured first: they are what the
+     * query and the port probe actually use.
+     */
+    const containerPorts = Object.keys(plan.portBindings)
+      .map((spec) => Number(spec.split('/')[0]))
+      .filter((p) => Number.isFinite(p) && p > 0)
+      .sort((a, b) => a - b);
+    plan.portBindings = {};
+
+    /*
      * BEFORE anything is written or created: a container already wearing the
      * validation name is not ours to touch. It may be a leftover (said in the
      * note) — but it may also be something someone built by hand, and a
@@ -370,11 +385,8 @@ export function createValidationRunner(deps: {
     void created;
 
     // The ephemeral server the verification watches: never registered, never
-    // on anyone's Servers page — it exists for this proof alone.
-    const ports = Object.keys(plan.portBindings)
-      .map((spec) => Number(spec.split('/')[0]))
-      .filter((p) => Number.isFinite(p))
-      .sort((a, b) => a - b);
+    // on anyone's Servers page — it exists for this proof alone. The query
+    // goes by container name and CONTAINER port over the shared network.
     const server = {
       id: `validate-${slugify(result.app) || 'app'}`.slice(0, 32),
       displayName: opts.displayName,
@@ -382,8 +394,8 @@ export function createValidationRunner(deps: {
       updateStrategy: 'restart',
       cooldownSeconds: 0,
       query:
-        opts.queryType && ports.length > 0
-          ? { type: opts.queryType, host: plan.containerName, port: ports[0]! }
+        opts.queryType && containerPorts.length > 0
+          ? { type: opts.queryType, host: plan.containerName, port: containerPorts[0]! }
           : undefined,
     } satisfies Partial<ServerConfig> as ServerConfig;
 

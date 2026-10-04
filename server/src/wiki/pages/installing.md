@@ -94,10 +94,16 @@ outcome note says which bar was used.
 The outcomes extend the verification's three with two honest extras:
 **template refused** (the app fails the same review a user's deploy would hit
 — an untrusted publisher, a refused template, or on the Steam path a missing
-Linux build) and **skipped** (this attempt could not run right now — a port
-your live server already owns, or a Steam app that refuses anonymous
-downloads, which a validation run without an account cannot prove anything
-about).
+Linux build) and **skipped** (this attempt could not run right now — a
+leftover container wearing the validation name, or a Steam app that refuses
+anonymous downloads, which a validation run without an account cannot prove
+anything about).
+
+Validation servers **publish no host ports**: nobody joins them, the
+verification talks over the internal Docker network, and a run therefore
+never collides with a live server of the same game — validating Terraria
+while Satisfactory holds port 7777 is a non-event. It also means a throwaway
+server never stands open on your LAN.
 
 The deliberate price: every run downloads each game from scratch, because a
 warm cache would skip exactly the first-install experience being tested —

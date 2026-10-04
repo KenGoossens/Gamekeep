@@ -154,8 +154,9 @@ export function ValidationPage() {
         <p className="notes">
           The honest price: every run downloads each app from scratch — a recognised game proves
           itself by answering <em>as the name it was given</em>; anything else is verified as far
-          as it honestly can be, its port accepting connections. Apps your live servers share
-          ports with are skipped with the reason.
+          as it honestly can be, its port accepting connections. Validation servers publish no
+          host ports, so they never collide with your live servers — Satisfactory and a Terraria
+          validation can both think 7777 is theirs.
         </p>
         <nav className="tabs" style={{ margin: '18px 0 14px' }}>
           {(
