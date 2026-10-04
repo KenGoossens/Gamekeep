@@ -16,16 +16,29 @@ export function registerValidationRoutes(app: FastifyInstance, ctx: AppContext) 
     return reply.send(validation.state());
   });
 
-  app.post<{ Body: { apps?: string[] } }>(
+  app.post<{ Body: { apps?: string[]; steam?: Array<{ appId?: number; name?: string }> } }>(
     '/api/validation/run',
     owner,
     async (request, reply) => {
       const user = request.user!;
-      const apps = Array.isArray(request.body?.apps)
-        ? request.body.apps.filter((a): a is string => typeof a === 'string')
-        : [];
+      const targets = [
+        ...(Array.isArray(request.body?.apps)
+          ? request.body.apps
+              .filter((a): a is string => typeof a === 'string')
+              .map((id) => ({ kind: 'catalog' as const, id }))
+          : []),
+        ...(Array.isArray(request.body?.steam)
+          ? request.body.steam
+              .filter((s) => Number.isInteger(Number(s?.appId)) && Number(s?.appId) > 0)
+              .map((s) => ({
+                kind: 'steam' as const,
+                appId: Number(s.appId),
+                name: typeof s.name === 'string' ? s.name.slice(0, 80) : undefined,
+              }))
+          : []),
+      ];
       try {
-        const run = validation.start(apps, user.username);
+        const run = validation.start(targets, user.username);
         db.audit({
           userId: user.id,
           username: user.username,

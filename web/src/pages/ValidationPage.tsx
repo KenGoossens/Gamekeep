@@ -29,11 +29,20 @@ const STATUS_LABEL: Record<ValidationAppResult['status'], string> = {
   done: '',
 };
 
+/** One pickable row, whichever tab it came from. */
+interface PickRow {
+  key: string;
+  name: string;
+  meta: string;
+  target: { kind: 'catalog'; id: string } | { kind: 'steam'; appId: number };
+}
+
 export function ValidationPage() {
+  const [source, setSource] = useState<'catalog' | 'steam'>('catalog');
   const [query, setQuery] = useState('');
-  const [apps, setApps] = useState<CatalogApp[]>([]);
+  const [rows, setRows] = useState<PickRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [picked, setPicked] = useState<Map<string, string>>(new Map());
+  const [picked, setPicked] = useState<Map<string, PickRow>>(new Map());
   const [current, setCurrent] = useState<ValidationRun | null>(null);
   const [history, setHistory] = useState<ValidationRun[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -55,32 +64,57 @@ export function ValidationPage() {
     return () => clearInterval(timer);
   }, [load]);
 
-  // The same catalogue the Add server tab searches; debounced lightly.
+  // The same two searches the Add server tab offers; debounced lightly.
   useEffect(() => {
     let live = true;
     const t = setTimeout(() => {
-      api.catalog(query).then(
-        (r) => {
-          if (!live) return;
-          setApps(r.apps);
-          setTotal(r.total);
-        },
-        () => undefined,
-      );
+      if (source === 'catalog') {
+        api.catalog(query).then(
+          (r) => {
+            if (!live) return;
+            setRows(
+              r.apps.map((app: CatalogApp) => ({
+                key: `c:${app.id}`,
+                name: app.name,
+                meta: app.publisher,
+                target: { kind: 'catalog', id: app.id },
+              })),
+            );
+            setTotal(r.total);
+          },
+          () => undefined,
+        );
+      } else {
+        api.steamSearch(query).then(
+          (r) => {
+            if (!live) return;
+            setRows(
+              r.results.slice(0, 60).map((s) => ({
+                key: `s:${s.appId}`,
+                name: s.name,
+                meta: s.known ? `Steam · ${s.known}` : `Steam app ${s.appId}`,
+                target: { kind: 'steam', appId: s.appId },
+              })),
+            );
+            setTotal(r.total);
+          },
+          () => undefined,
+        );
+      }
     }, 250);
     return () => {
       live = false;
       clearTimeout(t);
     };
-  }, [query]);
+  }, [query, source]);
 
   const running = current !== null && current.finishedAt === null;
 
-  const toggle = (app: CatalogApp) =>
+  const toggle = (row: PickRow) =>
     setPicked((prev) => {
       const next = new Map(prev);
-      if (next.has(app.id)) next.delete(app.id);
-      else next.set(app.id, app.name);
+      if (next.has(row.key)) next.delete(row.key);
+      else next.set(row.key, row);
       return next;
     });
 
@@ -109,8 +143,27 @@ export function ValidationPage() {
           as it honestly can be, its port accepting connections. Apps your live servers share
           ports with are skipped with the reason.
         </p>
+        <nav className="tabs">
+          {(
+            [
+              ['catalog', 'Unraid apps'],
+              ['steam', 'Steam dedicated servers'],
+            ] as Array<['catalog' | 'steam', string]>
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={source === key ? 'tab active' : 'tab'}
+              onClick={() => setSource(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
         <label className="field">
-          <span>Search the catalogue ({total} apps)</span>
+          <span>
+            Search {source === 'catalog' ? `the catalogue (${total} apps)` : `Steam's dedicated servers (${total})`}
+          </span>
           <input
             value={query}
             placeholder="valheim, minecraft, satisfactory…"
@@ -118,28 +171,28 @@ export function ValidationPage() {
           />
         </label>
         <ul className="feed" style={{ maxHeight: 320, overflowY: 'auto' }}>
-          {apps.map((app) => (
-            <li key={app.id}>
+          {rows.map((row) => (
+            <li key={row.key}>
               <label className="checkline">
                 <input
                   type="checkbox"
-                  checked={picked.has(app.id)}
+                  checked={picked.has(row.key)}
                   disabled={running}
-                  onChange={() => toggle(app)}
+                  onChange={() => toggle(row)}
                 />
-                <strong>{app.name}</strong>
-                <span className="mod-meta"> {app.publisher}</span>
+                <strong>{row.name}</strong>
+                <span className="mod-meta"> {row.meta}</span>
               </label>
             </li>
           ))}
-          {apps.length === 0 ? <li className="empty">Nothing matches that search.</li> : null}
+          {rows.length === 0 ? <li className="empty">Nothing matches that search.</li> : null}
         </ul>
         {picked.size > 0 ? (
           <p className="notes">
             Selected:{' '}
-            {[...picked.entries()].map(([id, name]) => (
+            {[...picked.values()].map((row) => (
               <button
-                key={id}
+                key={row.key}
                 type="button"
                 className="btn-ghost small"
                 disabled={running}
@@ -147,12 +200,12 @@ export function ValidationPage() {
                 onClick={() =>
                   setPicked((prev) => {
                     const next = new Map(prev);
-                    next.delete(id);
+                    next.delete(row.key);
                     return next;
                   })
                 }
               >
-                {name} ✕
+                {row.name} ✕
               </button>
             ))}
           </p>
@@ -167,7 +220,13 @@ export function ValidationPage() {
               setBusy(true);
               setError(null);
               try {
-                await api.startValidation([...picked.keys()]);
+                const targets = [...picked.values()];
+                await api.startValidation(
+                  targets.filter((t) => t.target.kind === 'catalog').map((t) => (t.target as { id: string }).id),
+                  targets
+                    .filter((t) => t.target.kind === 'steam')
+                    .map((t) => ({ appId: (t.target as { appId: number }).appId, name: t.name })),
+                );
                 await load();
               } catch (err) {
                 setError(
@@ -185,11 +244,11 @@ export function ValidationPage() {
           <button
             type="button"
             className="btn-ghost"
-            disabled={running || apps.length === 0}
+            disabled={running || rows.length === 0}
             onClick={() =>
               setPicked((prev) => {
                 const next = new Map(prev);
-                for (const app of apps) next.set(app.id, app.name);
+                for (const row of rows) next.set(row.key, row);
                 return next;
               })
             }

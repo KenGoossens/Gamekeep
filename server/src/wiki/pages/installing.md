@@ -81,7 +81,8 @@ GameKeepr writes, which lands in the server's own files where you can read it.
 
 The **Validation** page lets the owner prove that what the portal offers
 still turns into working servers *from nothing*, on this very machine. Pick
-**any catalogue apps** — the same search as the Add server tab — and each is
+targets from **both deploy paths** — Unraid catalogue apps and Steam dedicated
+servers, through the same searches as the Add server tab — and each is
 deployed for real under a validation name, held to the same first-boot
 verification bar as any deploy, and then torn down completely — container,
 volume, downloads. Strictly one app at a time, so a run never competes with
@@ -91,10 +92,12 @@ as far as it honestly can be — its port accepting connections — and the
 outcome note says which bar was used.
 
 The outcomes extend the verification's three with two honest extras:
-**template refused** (the catalogue template fails the same review a user
-would hit — a finding about the catalogue, not your machine) and **skipped**
-(this box could not host the attempt right now — usually a port your live
-server of the same game already owns, said with the reason).
+**template refused** (the app fails the same review a user's deploy would hit
+— an untrusted publisher, a refused template, or on the Steam path a missing
+Linux build) and **skipped** (this attempt could not run right now — a port
+your live server already owns, or a Steam app that refuses anonymous
+downloads, which a validation run without an account cannot prove anything
+about).
 
 The deliberate price: every run downloads each game from scratch, because a
 warm cache would skip exactly the first-install experience being tested —

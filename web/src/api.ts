@@ -401,9 +401,10 @@ export interface Finding {
   detail?: string;
 }
 
-/** One catalogue app inside a validation run, with its honest ending. */
+/** One app inside a validation run, with its honest ending. */
 export interface ValidationAppResult {
   app: string;
+  source: 'catalog' | 'steam';
   label: string;
   status: 'pending' | 'resolving' | 'deploying' | 'verifying' | 'tearing-down' | 'done';
   outcome: 'success' | 'unconfirmed' | 'failed' | 'refused' | 'skipped' | 'error' | null;
@@ -861,8 +862,8 @@ export const api = {
     request<{ watch: DeployWatch }>(`/api/deploys/${encodeURIComponent(watchId)}`),
   validationState: () =>
     request<{ current: ValidationRun | null; history: ValidationRun[] }>('/api/validation'),
-  startValidation: (apps: string[]) =>
-    request<{ run: ValidationRun }>('/api/validation/run', { ...json({ apps }), method: 'POST' }),
+  startValidation: (apps: string[], steam: Array<{ appId: number; name?: string }>) =>
+    request<{ run: ValidationRun }>('/api/validation/run', { ...json({ apps, steam }), method: 'POST' }),
   cancelValidation: () =>
     request<{ cancelled: boolean }>('/api/validation/cancel', { method: 'POST', ...json({}) }),
   gameSettings: (id: string) =>

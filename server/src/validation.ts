@@ -7,11 +7,16 @@ import { createDeployWatcher, type WatchOutcome } from './deployverify.js';
 import type { DockerClient } from './docker/client.js';
 import type { Db } from './db.js';
 import type { Env } from './config.js';
+import { mkdir, writeFile, chown } from 'node:fs/promises';
+import { join } from 'node:path';
 import { passes } from './findings.js';
 import { connectSettings, identifyGame } from './games.js';
 import type { Notifier } from './notify.js';
 import type { GameQuery } from './query/gamedig.js';
 import { reviewTemplate } from './review/deploy.js';
+import { reviewSteamAnonymous } from './review/preflight.js';
+import { inspectSteamApp, proposeCommand } from './steam/appinfo.js';
+import { buildComposeFile, buildStartScript, buildSteamPlan } from './steam/compose.js';
 
 /**
  * Validation Runs: proving that what the portal offers still produces a
@@ -37,9 +42,15 @@ import { reviewTemplate } from './review/deploy.js';
 
 export type AppOutcome = WatchOutcome | 'refused' | 'skipped' | 'error';
 
+/** What one row of a run points at: an Unraid catalogue app, or a Steam one. */
+export type ValidationTarget =
+  | { kind: 'catalog'; id: string }
+  | { kind: 'steam'; appId: number; name?: string };
+
 export interface AppResult {
-  /** The catalogue app id this row validates. */
+  /** The catalogue app id, or the Steam app id as text. */
   app: string;
+  source: 'catalog' | 'steam';
   label: string;
   status: 'pending' | 'resolving' | 'deploying' | 'verifying' | 'tearing-down' | 'done';
   outcome: AppOutcome | null;
@@ -93,6 +104,7 @@ export function createValidationRunner(deps: {
         apps: (run.apps ?? run.games ?? []).map((row) => ({
           ...row,
           app: row.app ?? (row as { game?: string }).game ?? row.label,
+          source: row.source ?? 'catalog',
         })),
       }));
     } catch {
@@ -191,10 +203,99 @@ export function createValidationRunner(deps: {
       return;
     }
 
+    await proveAndTearDown(result, run, plan, {
+      queryType: game?.query ?? null,
+      displayName: expectedName,
+      expectedName: nameSpecs.length > 0 ? expectedName : null,
+      prepare: null,
+    });
+  }
+
+  /**
+   * A Steam target walks the same path the Steam tab's deploy walks: inspect
+   * the app server-side, refuse what a deploy would refuse (no Linux build),
+   * skip what the anonymous run cannot download, compose the start script,
+   * and prove the first boot. No connect-name lever exists on this path, so
+   * the bar is the game answering (recognised) or a port opening.
+   */
+  async function runSteam(result: AppResult, run: ValidationRun, appId: number): Promise<void> {
+    result.startedAt = Date.now();
+    result.status = 'resolving';
+
+    let info;
+    try {
+      info = await inspectSteamApp(appId);
+    } catch (err) {
+      result.outcome = 'skipped';
+      result.note = `Steam did not answer for app ${appId}: ${(err as Error).message}`;
+      return;
+    }
+    result.label = info.name;
+
+    if (!info.linux) {
+      result.outcome = 'refused';
+      result.note = `Steam publishes no Linux build of ${info.name} — the same refusal a deploy would get.`;
+      return;
+    }
+    const login = reviewSteamAnonymous(appId, false);
+    if (login.state === 'warn') {
+      result.outcome = 'skipped';
+      result.note =
+        'This app likely refuses anonymous downloads, and validation runs without a Steam account — the first start would fail on the download, proving nothing about the server.';
+      return;
+    }
+
+    const known = identifyGame(info.name, '');
+    const command = proposeCommand(info).command || known?.serverLaunch || '';
+    const ports = (known?.ports ?? [])
+      .filter((p) => p.required)
+      .map((p) => ({ container: p.port, host: p.port, protocol: p.protocol }));
+
+    const deployName = `${VALIDATE_PREFIX}s${appId}`.slice(0, 32);
+    const composeReq = {
+      appId,
+      appName: info.name,
+      name: deployName,
+      command,
+      ports,
+      gameParams: '',
+      validate: false,
+    };
+    const { plan, game } = buildSteamPlan(composeReq, env.APPDATA_ROOT, env.APPDATA_HOST_ROOT, env.GAME_NETWORK);
+
+    await proveAndTearDown(result, run, plan, {
+      queryType: game?.query ?? null,
+      displayName: `GK Validation ${info.name}`.slice(0, 48),
+      expectedName: null,
+      // The script and compose file go in before the container exists, same
+      // as the Steam tab's own deploy: the first start runs the real script.
+      prepare: async () => {
+        const scriptDir = join(plan.appdataPath, 'steamcmd');
+        await mkdir(scriptDir, { recursive: true });
+        await writeFile(join(scriptDir, 'gamekeep-start.sh'), buildStartScript(composeReq), { mode: 0o755 });
+        await writeFile(join(scriptDir, 'docker-compose.yml'), buildComposeFile(composeReq, env.APPDATA_HOST_ROOT));
+        await chown(scriptDir, 99, 100).catch(() => undefined);
+      },
+    });
+  }
+
+  /** The shared back half: create, follow the first boot, always tear down. */
+  async function proveAndTearDown(
+    result: AppResult,
+    run: ValidationRun,
+    plan: { containerName: string; appdataPath: string; portBindings: Record<string, unknown> },
+    opts: {
+      queryType: string | null;
+      displayName: string;
+      expectedName: string | null;
+      prepare: (() => Promise<void>) | null;
+    },
+  ): Promise<void> {
     result.status = 'deploying';
     try {
+      if (opts.prepare) await opts.prepare();
       await deployer.ensureNetwork(env.GAME_NETWORK, () => undefined);
-      await deployer.create(plan, (m) => log(`validation ${result.app}: ${m}`));
+      await deployer.create(plan as never, (m) => log(`validation ${result.app}: ${m}`));
     } catch (err) {
       await teardown(plan.containerName, plan.appdataPath);
       if (err instanceof DeployError) {
@@ -216,20 +317,20 @@ export function createValidationRunner(deps: {
       .filter((p) => Number.isFinite(p))
       .sort((a, b) => a - b);
     const server: ServerConfig = {
-      id: `validate-${slugify(app.id) || 'app'}`,
-      displayName: expectedName,
+      id: `validate-${slugify(result.app) || 'app'}`,
+      displayName: opts.displayName,
       container: plan.containerName,
       updateStrategy: 'restart',
       cooldownSeconds: 0,
       query:
-        game && ports.length > 0
-          ? { type: game.query, host: plan.containerName, port: ports[0]! }
+        opts.queryType && ports.length > 0
+          ? { type: opts.queryType, host: plan.containerName, port: ports[0]! }
           : undefined,
     } as ServerConfig;
 
     result.status = 'verifying';
     try {
-      const watch = watcher.start(server, nameSpecs.length > 0 ? expectedName : null);
+      const watch = watcher.start(server, opts.expectedName);
       while (watcher.getWatch(watch.id)?.phase !== 'settled') {
         if (run.cancelled) break;
         await sleep(5000);
@@ -249,12 +350,28 @@ export function createValidationRunner(deps: {
     }
   }
 
-  function start(appIds: string[], startedBy: string): ValidationRun {
+  function start(targets: ValidationTarget[], startedBy: string): ValidationRun {
     if (current && !current.finishedAt) {
       throw new Error('A validation run is already going; one at a time is the whole idea.');
     }
-    const ids = [...new Set(appIds.map((id) => String(id)).filter(Boolean))];
-    if (ids.length === 0) throw new Error('Pick at least one app.');
+    const seen = new Set<string>();
+    const rows: AppResult[] = [];
+    for (const target of targets) {
+      const key = target.kind === 'catalog' ? `c:${target.id}` : `s:${target.appId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({
+        app: target.kind === 'catalog' ? target.id : String(target.appId),
+        source: target.kind,
+        label: target.kind === 'catalog' ? target.id : (target.name ?? `Steam app ${target.appId}`),
+        status: 'pending',
+        outcome: null,
+        note: null,
+        startedAt: null,
+        finishedAt: null,
+      });
+    }
+    if (rows.length === 0) throw new Error('Pick at least one app.');
 
     const run: ValidationRun = {
       id: randomUUID(),
@@ -262,15 +379,7 @@ export function createValidationRunner(deps: {
       finishedAt: null,
       startedBy,
       cancelled: false,
-      apps: ids.map((id) => ({
-        app: id,
-        label: id,
-        status: 'pending',
-        outcome: null,
-        note: null,
-        startedAt: null,
-        finishedAt: null,
-      })),
+      apps: rows,
     };
     current = run;
 
@@ -283,7 +392,8 @@ export function createValidationRunner(deps: {
           continue;
         }
         try {
-          await runApp(result, run);
+          if (result.source === 'steam') await runSteam(result, run, Number(result.app));
+          else await runApp(result, run);
         } catch (err) {
           result.outcome = 'error';
           result.note = (err as Error).message;

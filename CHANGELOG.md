@@ -20,9 +20,13 @@ releases.
 ### Added
 
 - **Validation runs: the portal proves itself on your own machine.** A new
-  owner-only Validation page validates **any catalogue app** — picked through
-  the same search as the Add server tab, not just the games the registry
-  recognises. A recognised game is held to the full bar (it must answer as the
+  owner-only Validation page validates **both deploy paths**: any Unraid
+  catalogue app and any Steam dedicated server, picked through the same
+  searches as the Add server tab — not just the games the registry recognises.
+  Steam targets walk the Steam tab's own road (inspect, compose, generated
+  start script); one without a Linux build is *refused* with the same words a
+  deploy would use, and one that refuses anonymous downloads is *skipped*
+  honestly, since a run without an account can prove nothing about it. A recognised game is held to the full bar (it must answer as the
   name it was given); any other app is verified as far as it honestly can be,
   its port accepting connections, and the outcome note says which bar was
   used. Each app is deployed for real — one at a time, under a validation
