@@ -69,8 +69,27 @@ export interface ValidationRun {
 }
 
 const HISTORY_KEY = 'validation.history';
+const SCHEDULE_KEY = 'validation.schedule';
 const HISTORY_LIMIT = 20;
 const VALIDATE_PREFIX = 'gk-validate-';
+
+/**
+ * A standing instruction: run this saved selection at a set time on set days.
+ * The same three rules as every other schedule here: it fires on the portal's
+ * own clock, a missed run stays missed (the portal must be up at that minute),
+ * and it never stacks — a run already going means the scheduled one is
+ * skipped, said in the log.
+ */
+export interface ValidationSchedule {
+  enabled: boolean;
+  /** 24h portal-clock time, "HH:MM". */
+  time: string;
+  /** Days of the week, 0 = Sunday … 6 = Saturday. */
+  days: number[];
+  targets: ValidationTarget[];
+  /** The last calendar day this fired, so one minute never fires twice. */
+  lastFiredDay?: string;
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -426,11 +445,54 @@ export function createValidationRunner(deps: {
     return true;
   }
 
-  function state() {
-    return { current, history: history() };
+  // ---- the schedule ---------------------------------------------------
+
+  function schedule(): ValidationSchedule | null {
+    try {
+      const raw = db.getSetting(SCHEDULE_KEY);
+      return raw ? (JSON.parse(raw) as ValidationSchedule) : null;
+    } catch {
+      return null;
+    }
   }
 
-  return { start, cancel, state };
+  function setSchedule(next: ValidationSchedule | null) {
+    if (next === null) db.deleteSetting(SCHEDULE_KEY);
+    else db.setSetting(SCHEDULE_KEY, JSON.stringify(next));
+  }
+
+  /** Checked once a minute; fires only in the scheduled minute itself. */
+  function tick(now = new Date()) {
+    const sched = schedule();
+    if (!sched?.enabled || sched.targets.length === 0) return;
+    if (!sched.days.includes(now.getDay())) return;
+    const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    if (hhmm !== sched.time) return;
+    const today = now.toISOString().slice(0, 10);
+    if (sched.lastFiredDay === today) return;
+
+    setSchedule({ ...sched, lastFiredDay: today });
+    if (current && !current.finishedAt) {
+      log('scheduled validation skipped: a run is already going');
+      return;
+    }
+    try {
+      start(sched.targets, 'schedule');
+      log(`scheduled validation started: ${sched.targets.length} app(s)`);
+    } catch (err) {
+      log(`scheduled validation failed to start: ${(err as Error).message}`);
+    }
+  }
+
+  function startLoop() {
+    setInterval(() => tick(), 60_000).unref();
+  }
+
+  function state() {
+    return { current, history: history(), schedule: schedule() };
+  }
+
+  return { start, cancel, state, schedule, setSchedule, tick, startLoop };
 }
 
 export type ValidationRunner = ReturnType<typeof createValidationRunner>;

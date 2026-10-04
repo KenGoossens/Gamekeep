@@ -86,6 +86,8 @@ export interface GameServer {
     error: string | null;
   };
   players: { online: number; max: number | null; names: string[]; map: string | null } | null;
+  /** Set only when Steam ships a newer build than the volume holds. */
+  update: { available: true; installedBuild: string | null; latestBuild: string | null; checkedAt: number } | null;
   cooldownSeconds: number;
   cooldownRemaining: number;
   lastRestartAt: number | null;
@@ -399,6 +401,25 @@ export interface Finding {
   state: 'pass' | 'warn' | 'fail' | 'unknown';
   summary: string;
   detail?: string;
+}
+
+/** The standing validation instruction: a saved selection, a time, days. */
+export interface ValidationSchedule {
+  enabled: boolean;
+  time: string;
+  days: number[];
+  targets: Array<{ kind: 'catalog'; id: string } | { kind: 'steam'; appId: number; name?: string }>;
+  lastFiredDay?: string;
+}
+
+/** The full update verdict for one server, honest "cannot tell" included. */
+export interface ServerUpdateStatus {
+  appId: number | null;
+  installedBuild: string | null;
+  latestBuild: string | null;
+  updateAvailable: boolean;
+  checkedAt: number;
+  note: string | null;
 }
 
 /** One app inside a validation run, with its honest ending. */
@@ -861,7 +882,25 @@ export const api = {
   deployWatch: (watchId: string) =>
     request<{ watch: DeployWatch }>(`/api/deploys/${encodeURIComponent(watchId)}`),
   validationState: () =>
-    request<{ current: ValidationRun | null; history: ValidationRun[] }>('/api/validation'),
+    request<{ current: ValidationRun | null; history: ValidationRun[]; schedule: ValidationSchedule | null }>(
+      '/api/validation',
+    ),
+  setValidationSchedule: (
+    schedule:
+      | null
+      | { enabled: boolean; time: string; days: number[]; apps: string[]; steam: Array<{ appId: number; name?: string }> },
+  ) =>
+    request<{ schedule: ValidationSchedule | null }>('/api/validation/schedule', {
+      ...json({ schedule }),
+      method: 'PUT',
+    }),
+  serverUpdate: (id: string) =>
+    request<{ update: ServerUpdateStatus | null }>(`/api/servers/${encodeURIComponent(id)}/update`),
+  serverUpdateCheck: (id: string) =>
+    request<{ update: ServerUpdateStatus }>(`/api/servers/${encodeURIComponent(id)}/update-check`, {
+      method: 'POST',
+      ...json({}),
+    }),
   startValidation: (apps: string[], steam: Array<{ appId: number; name?: string }>) =>
     request<{ run: ValidationRun }>('/api/validation/run', { ...json({ apps, steam }), method: 'POST' }),
   cancelValidation: () =>

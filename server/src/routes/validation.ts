@@ -55,6 +55,71 @@ export function registerValidationRoutes(app: FastifyInstance, ctx: AppContext) 
     },
   );
 
+  /**
+   * The standing instruction: run a saved selection at a set time on set
+   * days. Null disables and forgets it. Same clock rules as every schedule:
+   * portal time, a missed run stays missed, never stacks on a running one.
+   */
+  app.put<{
+    Body: {
+      schedule: null | {
+        enabled?: boolean;
+        time?: string;
+        days?: number[];
+        apps?: string[];
+        steam?: Array<{ appId?: number; name?: string }>;
+      };
+    };
+  }>('/api/validation/schedule', owner, async (request, reply) => {
+    const user = request.user!;
+    const body = request.body?.schedule;
+    if (body === null) {
+      validation.setSchedule(null);
+      db.audit({
+        userId: user.id, username: user.username, serverId: null,
+        action: 'validation-run', result: 'success',
+        detail: 'Schedule removed', ...originOf(request),
+      });
+      return reply.send({ schedule: null });
+    }
+    const time = String(body?.time ?? '');
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+      return reply.code(400).send({ error: 'bad-time', message: 'Time must be HH:MM, 24-hour.' });
+    }
+    const days = Array.isArray(body?.days)
+      ? [...new Set(body.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))]
+      : [];
+    if (days.length === 0) {
+      return reply.code(400).send({ error: 'bad-days', message: 'Pick at least one day.' });
+    }
+    const targets = [
+      ...(Array.isArray(body?.apps)
+        ? body.apps.filter((a): a is string => typeof a === 'string').map((id) => ({ kind: 'catalog' as const, id }))
+        : []),
+      ...(Array.isArray(body?.steam)
+        ? body.steam
+            .filter((s) => Number.isInteger(Number(s?.appId)) && Number(s?.appId) > 0)
+            .map((s) => ({
+              kind: 'steam' as const,
+              appId: Number(s.appId),
+              name: typeof s.name === 'string' ? s.name.slice(0, 80) : undefined,
+            }))
+        : []),
+    ];
+    if (targets.length === 0) {
+      return reply.code(400).send({ error: 'no-targets', message: 'Pick at least one app for the schedule.' });
+    }
+    const schedule = { enabled: body?.enabled !== false, time, days, targets };
+    validation.setSchedule(schedule);
+    db.audit({
+      userId: user.id, username: user.username, serverId: null,
+      action: 'validation-run', result: 'success',
+      detail: `Schedule set: ${targets.length} app(s) at ${time} on ${days.length} day(s)`,
+      ...originOf(request),
+    });
+    return reply.send({ schedule: validation.schedule() });
+  });
+
   app.post('/api/validation/cancel', owner, async (request, reply) => {
     const user = request.user!;
     const cancelled = validation.cancel();

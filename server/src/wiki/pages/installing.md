@@ -106,6 +106,12 @@ subsets. The result lands in a run history on the page and as one Discord
 summary (enable *A validation run finished* under Notifications). Validation
 servers never appear on the Servers page and never ping anyone mid-run.
 
+A **schedule** makes it a standing instruction: save the current selection
+with a time and days (the night before a release is the classic), and the run
+fires on the portal's own clock. The same three rules as every schedule here:
+portal time, a missed minute stays missed, and a scheduled run never stacks on
+one already going.
+
 ## Renaming and removing
 
 Operators can **rename** a server from its card (the pencil on hover): only

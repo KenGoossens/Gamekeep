@@ -8,6 +8,24 @@ releases.
 
 ## Unreleased
 
+### Added
+
+- **Update detection: the portal now says when Steam ships a newer build.**
+  Every six hours each server's installed build — read from its own Steam
+  install receipt (`appmanifest` in the volume), so it works whatever image
+  built the server — is compared against the current public build from Steam's
+  app info. When Steam is ahead: an **update** badge on the card, a Game
+  updates card on the overview with both build ids and the one sentence that
+  matters (*a restart installs it* — these servers run SteamCMD on every
+  start), and a Discord notification **once per build**, never once per
+  polling round. Operators get a Check now button; a server without a Steam
+  receipt honestly says it cannot tell instead of claiming to be current.
+- **Validation runs can be scheduled.** Save the current selection with a time
+  and days — the night before a release is the classic — and the run fires on
+  the portal's own clock. The same three rules as every other schedule here: a
+  missed minute stays missed, it never stacks on a run already going, and the
+  outcome still lands in the history and the Discord summary.
+
 ### Fixed
 
 - **The dashboard's window buttons work again.** The 1h/6h/24h/7d switch had

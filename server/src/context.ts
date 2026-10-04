@@ -15,6 +15,7 @@ import type { GameSettings } from './gamesettings.js';
 import type { createFileBrowser } from './files.js';
 import type { HealthReporter } from './health.js';
 import type { ValidationRunner } from './validation.js';
+import type { UpdateChecker } from './updates.js';
 import type { ModInstaller } from './mods/install.js';
 import type { WorkshopDeclarations } from './mods/declare.js';
 import type { Scheduler } from './schedule.js';
@@ -69,6 +70,8 @@ export interface AppContext {
   tournaments: TournamentStore;
   /** Builds, briefs and retires the server behind each match. */
   matches: MatchOrchestrator;
+  /** Compares each server's installed Steam build against what Steam ships. */
+  updates: UpdateChecker;
   /** Owner-run registry check: deploy, verify, tear down — one game at a time. */
   validation: ValidationRunner;
   /** Read-only status of every connection the portal depends on. */

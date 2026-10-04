@@ -57,12 +57,44 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
       players: players
         ? { online: players.online, max: players.max, names: players.names, map: players.map }
         : null,
+      /** Steam-build comparison, when this server carries an install receipt. */
+      update: (() => {
+        const u = ctx.updates.get(server.id);
+        return u && u.updateAvailable
+          ? { available: true as const, installedBuild: u.installedBuild, latestBuild: u.latestBuild, checkedAt: u.checkedAt }
+          : null;
+      })(),
       cooldownSeconds: server.cooldownSeconds,
       cooldownRemaining: remainingSeconds,
       lastRestartAt,
       activeJob: jobView(actions.activeJobFor(server.id)),
     };
   }
+
+  /**
+   * The full update verdict for one server, including the honest "cannot
+   * tell" cases the card's badge leaves out. The POST runs a fresh check now
+   * — operator level, since it reads the server's volume.
+   */
+  app.get<{ Params: { id: string } }>(
+    '/api/servers/:id/update',
+    { preHandler: guard.requireServerMember },
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      return reply.send({ update: ctx.updates.get(server.id) });
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/servers/:id/update-check',
+    { preHandler: guard.requireServerOperator },
+    async (request, reply) => {
+      const server = registry.get(request.params.id);
+      if (!server) return reply.code(404).send({ error: 'unknown-server' });
+      return reply.send({ update: await ctx.updates.checkServer(server) });
+    },
+  );
 
   app.get('/api/servers', { preHandler: guard.requireActiveUser }, async (request, reply) => {
     const user = request.user!;

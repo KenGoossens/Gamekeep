@@ -22,6 +22,7 @@ export type EventKind =
   | 'restart-failed'
   | 'server-down'
   | 'server-recovered'
+  | 'update-available'
   | 'deployed'
   | 'deploy-verified'
   | 'deploy-unconfirmed'
@@ -140,6 +141,7 @@ export const ALL_EVENTS: Array<{ kind: EventKind; label: string }> = [
   { kind: 'restart-failed', label: 'A restart failed outright' },
   { kind: 'server-down', label: 'A server stopped without anyone asking' },
   { kind: 'server-recovered', label: 'A server that was down came back' },
+  { kind: 'update-available', label: 'Steam ships a newer build than a server runs' },
   { kind: 'deployed', label: 'A new server was deployed' },
   { kind: 'deploy-verified', label: 'A new server proved it works (first boot verified)' },
   { kind: 'deploy-unconfirmed', label: 'A new server came up but could not fully prove itself' },
@@ -161,6 +163,7 @@ const SHAPE: Record<EventKind, { title: string; colour: number }> = {
   'restart-failed': { title: 'Restart failed', colour: 0xf87171 },
   'server-down': { title: 'Server went down', colour: 0xf87171 },
   'server-recovered': { title: 'Server is back', colour: 0x4ade80 },
+  'update-available': { title: 'Update available', colour: 0x49c9f7 },
   deployed: { title: 'Server deployed', colour: 0x7c6cf2 },
   'deploy-verified': { title: 'First boot verified', colour: 0x4ade80 },
   'deploy-unconfirmed': { title: 'First boot unconfirmed', colour: 0xfbbf24 },

@@ -20,6 +20,7 @@ import { createMetricsCollector } from './metrics.js';
 import { createSettingsManager } from './settings.js';
 import { createGameSettings } from './gamesettings.js';
 import { createValidationRunner } from './validation.js';
+import { createUpdateChecker } from './updates.js';
 import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
 import { createModInstaller } from './mods/install.js';
@@ -165,6 +166,14 @@ async function main() {
     });
   });
 
+  const updates = createUpdateChecker({
+    docker,
+    registry,
+    db,
+    notify,
+    log: (message) => console.log(`[GameKeepr] ${message}`),
+  });
+  updates.startLoop();
   const validation = createValidationRunner({
     docker,
     gameQuery,
@@ -175,6 +184,7 @@ async function main() {
     notify,
     log: (message) => console.log(`[GameKeepr] ${message}`),
   });
+  validation.startLoop();
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
@@ -206,6 +216,7 @@ async function main() {
     gslt,
     tournaments,
     matches,
+    updates,
     validation,
     health,
     sessions,

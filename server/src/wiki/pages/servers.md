@@ -25,10 +25,23 @@ set for. Hand a friend the card's contents and they are in.
 | **Never started** | Installed but not yet started for the first time. |
 | **Restarting…** | Someone pressed the button; the card shows live progress and who started it. |
 
+## Knowing when an update exists
+
+Every six hours the portal compares what Steam currently ships against what
+each server actually has installed — read from the server's own install
+receipt (`appmanifest`), so it works whatever Docker image built the server.
+When Steam is ahead, the card wears an **update** badge, the server's overview
+says which build is which, and Discord hears about it **once per build**
+(enable *Steam ships a newer build* under Notifications). Operators can also
+press **Check now** on the overview's Game updates card. A server without a
+Steam install receipt — a non-Steam game, a hand-built container — honestly
+says it cannot tell, rather than claiming to be up to date.
+
 ## What a restart actually does
 
 For most servers here, a restart is also the update: the container checks for
-a new game version on the way up. GameKeepr then verifies the result in two
+a new game version on the way up — which is why the update badge's advice is
+always the same sentence: **a restart installs it**. GameKeepr then verifies the result in two
 stages — first that the container is back, then that the **game itself
 answers**. A running container with a dead game inside is precisely the
 failure this catches.

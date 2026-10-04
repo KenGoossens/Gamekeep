@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api, type CatalogApp, type ValidationAppResult, type ValidationRun } from '../api.ts';
+import {
+  ApiError,
+  api,
+  type CatalogApp,
+  type ValidationAppResult,
+  type ValidationRun,
+  type ValidationSchedule,
+} from '../api.ts';
 
 /**
  * Validation Runs, for the owner: prove that what the portal offers still
@@ -45,6 +52,7 @@ export function ValidationPage() {
   const [picked, setPicked] = useState<Map<string, PickRow>>(new Map());
   const [current, setCurrent] = useState<ValidationRun | null>(null);
   const [history, setHistory] = useState<ValidationRun[]>([]);
+  const [schedule, setSchedule] = useState<ValidationSchedule | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -53,6 +61,7 @@ export function ValidationPage() {
       const state = await api.validationState();
       setCurrent(state.current);
       setHistory(state.history);
+      setSchedule(state.schedule);
     } catch {
       setError('Could not read the validation state.');
     }
@@ -270,6 +279,13 @@ export function ValidationPage() {
         </div>
       </section>
 
+      <ScheduleCard
+        schedule={schedule}
+        picked={picked}
+        onError={setError}
+        onChanged={() => void load()}
+      />
+
       {current ? <RunCard run={current} title={running ? 'Running now' : 'Last run'} /> : null}
 
       {history.filter((run) => run.id !== current?.id).length > 0 ? (
@@ -285,6 +301,129 @@ export function ValidationPage() {
         </section>
       ) : null}
     </>
+  );
+}
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * The standing instruction: run a saved selection at a set time on set days —
+ * the night before a release is the classic. Saving captures the CURRENT
+ * selection above; the schedule then runs that exact list, whatever is later
+ * picked for manual runs.
+ */
+function ScheduleCard({
+  schedule,
+  picked,
+  onError,
+  onChanged,
+}: {
+  schedule: ValidationSchedule | null;
+  picked: Map<string, PickRow>;
+  onError: (message: string | null) => void;
+  onChanged: () => void;
+}) {
+  const [time, setTime] = useState('04:00');
+  const [days, setDays] = useState<Set<number>>(new Set([1]));
+  const [busy, setBusy] = useState(false);
+
+  const toggleDay = (d: number) =>
+    setDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d);
+      else next.add(d);
+      return next;
+    });
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Schedule</h2>
+        {schedule?.enabled ? (
+          <span className="pill ok">
+            {schedule.targets.length} app(s) at {schedule.time} on{' '}
+            {schedule.days.map((d) => DAY_LABELS[d]).join(', ')}
+          </span>
+        ) : (
+          <span className="pill plain">none</span>
+        )}
+      </div>
+      <p className="notes">
+        Runs the saved selection on the portal's own clock — the night before a release is the
+        classic. A missed time stays missed (the portal must be up at that minute), and a
+        scheduled run never stacks on one already going.
+      </p>
+      <div className="fieldrow">
+        <label className="field">
+          <span>Time (24h, portal clock)</span>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Days</span>
+          <span>
+            {DAY_LABELS.map((label, d) => (
+              <label key={label} className="checkline" style={{ marginRight: 10 }}>
+                <input type="checkbox" checked={days.has(d)} onChange={() => toggleDay(d)} />
+                {label}
+              </label>
+            ))}
+          </span>
+        </label>
+      </div>
+      <div className="actions">
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={busy || picked.size === 0 || days.size === 0}
+          title={picked.size === 0 ? 'Pick apps above first — the schedule saves that selection' : undefined}
+          onClick={async () => {
+            setBusy(true);
+            onError(null);
+            try {
+              const targets = [...picked.values()];
+              await api.setValidationSchedule({
+                enabled: true,
+                time,
+                days: [...days],
+                apps: targets.filter((t) => t.target.kind === 'catalog').map((t) => (t.target as { id: string }).id),
+                steam: targets
+                  .filter((t) => t.target.kind === 'steam')
+                  .map((t) => ({ appId: (t.target as { appId: number }).appId, name: t.name })),
+              });
+              onChanged();
+            } catch (err) {
+              onError(
+                err instanceof ApiError && typeof err.body.message === 'string'
+                  ? err.body.message
+                  : 'Could not save the schedule.',
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Save schedule — {picked.size} selected app{picked.size === 1 ? '' : 's'}
+        </button>
+        {schedule ? (
+          <button
+            type="button"
+            className="btn-ghost danger"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await api.setValidationSchedule(null);
+                onChanged();
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Remove the schedule
+          </button>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

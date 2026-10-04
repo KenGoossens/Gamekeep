@@ -108,6 +108,11 @@ export function GameTile({ server }: { server: GameServer }) {
           error={status.error}
         />
         {server.transient ? <span className="pill plain beta-tag-pill">match</span> : null}
+        {server.update?.available ? (
+          <span className="pill warn beta-tag-pill" title="Steam ships a newer build — a restart installs it">
+            update
+          </span>
+        ) : null}
         {canOperate ? (
           <span className="tile-actions">
             <button type="button" className="tile-action" title="Rename" onClick={rename}>
