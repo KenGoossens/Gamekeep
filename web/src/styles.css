@@ -83,7 +83,7 @@ body::after {
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   padding: 16px 0 14px;
   margin-bottom: 26px;
   background: linear-gradient(to bottom, var(--bg) 62%, transparent);
@@ -107,14 +107,26 @@ body::after {
   box-shadow: 0 0 20px rgba(124, 108, 242, 0.35);
 }
 
-.navlinks { display: flex; gap: 4px; }
+/* Nowrap and scroll-on-overflow: a label must never fold onto two lines
+   ("Add server" did, the day the nav grew its tenth item), and on a width
+   where ten items genuinely don't fit the strip pans instead of stacking. */
+.navlinks {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.navlinks::-webkit-scrollbar { display: none; }
 .navlinks a {
   color: var(--muted);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
-  padding: 7px 13px;
+  padding: 7px 11px;
   border-radius: 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: color 0.15s, background 0.15s;
 }
 .navlinks a:hover { color: var(--text); background: var(--surface); }

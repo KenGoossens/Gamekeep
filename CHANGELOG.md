@@ -8,6 +8,15 @@ releases.
 
 ## Unreleased
 
+### Fixed
+
+- **The dashboard's window buttons work again.** The 1h/6h/24h/7d switch had
+  stopped sending its value with the request, so every click silently
+  refetched the default six hours. The buttons now really change the window.
+- **The navigation bar no longer folds.** Adding the Validation page made
+  "Add server" wrap onto two lines; nav labels now never wrap, and on a width
+  where the items genuinely do not fit the strip pans instead of stacking.
+
 ### Added
 
 - **Validation runs: the registry proves itself on your own machine.** A new

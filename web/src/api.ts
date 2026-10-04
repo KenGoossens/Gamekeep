@@ -1045,7 +1045,7 @@ export const api = {
     ).then((r) => r.policy),
 
   dashboard: (windowMs: number) =>
-    request<Dashboard>(`/api/dashboard?window=`),
+    request<Dashboard>(`/api/dashboard?window=${Math.round(windowMs)}`),
 
   mods: (serverId: string) => request<ModStatus>(`/api/servers/${serverId}/mods`),
 
