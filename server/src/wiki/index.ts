@@ -41,6 +41,10 @@ export const WIKI_PAGES: WikiPageMeta[] = [
   { id: 'dashboard', title: 'The dashboard', section: 'Using GameKeepr', role: 'member' },
   { id: 'account', title: 'Your account', section: 'Using GameKeepr', role: 'member' },
   { id: 'roles', title: 'Roles and permissions', section: 'Using GameKeepr', role: 'member' },
+  // Member-level on purpose, both of them: anyone the portal serves deserves
+  // to read what it may send out and how to say something is broken.
+  { id: 'reporting-issues', title: 'Reporting an issue', section: 'Using GameKeepr', role: 'member' },
+  { id: 'statistics', title: 'Anonymous usage statistics', section: 'Using GameKeepr', role: 'member' },
   { id: 'installing', title: 'Installing game servers', section: 'Operating servers', role: 'operator' },
   { id: 'mods', title: 'Mods', section: 'Operating servers', role: 'operator' },
   { id: 'files-settings', title: 'Files and settings', section: 'Operating servers', role: 'operator' },
