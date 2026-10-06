@@ -63,7 +63,13 @@ export function AppShell({ me, current, onSignedOut, children }: Props) {
           {me.username}
           {me.role !== 'member' ? <span className="pill ok plain">{me.role}</span> : null}
         </span>
-        <button type="button" className="btn-ghost small" onClick={() => void api.logout().finally(onSignedOut)}>
+        <button
+          type="button"
+          className="btn-ghost small"
+          // One line, always: the nav just learned that lesson with "Add server".
+          style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+          onClick={() => void api.logout().finally(onSignedOut)}
+        >
           Sign out
         </button>
       </nav>

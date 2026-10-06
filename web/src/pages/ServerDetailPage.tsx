@@ -360,6 +360,23 @@ export function ServerDetailPage({
             {canOperate ? (
               <AdminControls server={server} onAction={refresh} onStarted={() => setTab('logs')} />
             ) : null}
+            <div className="actions" style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                className="btn-ghost small"
+                title="Opens a GitHub issue prefilled with this server's sanitised context — game, state, build — visible in the form before you submit. Never names, addresses or logs."
+                onClick={async () => {
+                  try {
+                    const { url } = await api.issueTemplate(server.id);
+                    window.open(url, '_blank', 'noreferrer');
+                  } catch {
+                    window.open('https://github.com/KenGoossens/Gamekeep/issues/new', '_blank', 'noreferrer');
+                  }
+                }}
+              >
+                Something wrong? Report an issue
+              </button>
+            </div>
           </>
         )}
       </section>

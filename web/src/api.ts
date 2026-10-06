@@ -836,7 +836,10 @@ export const api = {
   setup: (token: string, username: string, password: string, telemetry: boolean) =>
     request<{ username: string; role: Role }>('/api/auth/setup', json({ token, username, password, telemetry })),
   telemetry: () => request<TelemetryState>('/api/telemetry'),
-  issueTemplate: () => request<{ url: string }>('/api/issue-template'),
+  issueTemplate: (serverId?: string) =>
+    request<{ url: string }>(
+      serverId ? `/api/issue-template?server=${encodeURIComponent(serverId)}` : '/api/issue-template',
+    ),
   setTelemetry: (enabled: boolean) =>
     request<TelemetryState>('/api/telemetry', { ...json({ enabled }), method: 'PUT' }),
   login: (username: string, password: string) =>
