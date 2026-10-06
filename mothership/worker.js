@@ -157,6 +157,12 @@ async function statsPage(env) {
   const bar = (count, max) => Math.max(2, Math.round((count / Math.max(max, 1)) * 100));
   const maxGame = data.games[0]?.[1] ?? 1;
 
+  /*
+   * The portal's own look, token for token — the same theme layer the public
+   * tournament page wears, so this page is unmistakably the same product.
+   * The logo comes from jsDelivr because that is public; this worker has no
+   * access to anything behind the portal's door, by construction.
+   */
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -164,30 +170,71 @@ async function statsPage(env) {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="dark" />
 <title>GameKeepr — public statistics</title>
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/KenGoossens/Gamekeep@main/web/public/logo.png" />
 <style>
-:root { --bg:#090e1c; --surface:#121a30; --border:#273252; --text:#eef1f8; --muted:#9aa5c4;
-  --accent:#7c6cf2; color-scheme: dark; }
+:root {
+  --bg: #090e1c; --surface: #121a30; --surface-2: #1a2440;
+  --border: #273252; --border-soft: #1d2740;
+  --text: #eef1f8; --muted: #9aa5c4; --faint: #6b779c;
+  --accent: #7c6cf2; --accent-cyan: #49c9f7;
+  --ok: #4ade80; --gold: #e8b44c; --radius: 16px;
+  color-scheme: dark;
+}
 * { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--text); min-height:100vh;
-  font:15px/1.55 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; }
-main { max-width:860px; margin:0 auto; padding:28px 20px 60px; }
-h1 { font-size:1.6rem; margin:0 0 4px; }
-.sub { color:var(--muted); margin:0 0 26px; }
-.tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:12px; margin-bottom:26px; }
-.tile { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
-.tile b { display:block; font-size:1.9rem; }
-.tile span { color:var(--muted); font-size:.85rem; }
-h2 { font-size:1.02rem; margin:26px 0 10px; }
-.row { display:flex; align-items:center; gap:10px; margin:5px 0; }
-.row .name { width:220px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.row .bar { height:10px; border-radius:5px; background:var(--accent); }
-.row .n { color:var(--muted); font-size:.85rem; }
-footer { margin-top:40px; color:var(--muted); font-size:.84rem; border-top:1px solid var(--border); padding-top:14px; }
-footer a { color:var(--muted); }
+body {
+  margin: 0; background: var(--bg); color: var(--text); min-height: 100vh;
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+/* The portal's grid backdrop: hairlines fading out, plus a soft glow. */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(900px 480px at 75% -10%, rgba(124, 108, 242, 0.14), transparent 65%),
+    radial-gradient(700px 420px at 15% 0%, rgba(73, 201, 247, 0.07), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 44px);
+  mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 95%);
+}
+main { max-width: 900px; margin: 0 auto; padding: 22px 20px 60px; }
+.brand {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 26px;
+  color: var(--muted); font-weight: 650; font-size: 0.95rem;
+}
+.brand img { width: 26px; height: 26px; }
+h1 { margin: 0; font-size: 1.7rem; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 6px 0 26px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.tile {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 16px 18px;
+}
+.tile b { display: block; font-size: 2rem; letter-spacing: -0.02em; }
+.tile span { color: var(--faint); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 650; }
+h2 { font-size: 1.02rem; margin: 30px 0 10px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 14px 18px;
+}
+.row { display: flex; align-items: center; gap: 12px; margin: 7px 0; }
+.row .name { width: 230px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .track { flex: 1; display: flex; align-items: center; gap: 10px; }
+.row .bar {
+  height: 10px; border-radius: 5px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-cyan));
+}
+.row .n { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.empty { color: var(--faint); }
+footer {
+  margin-top: 44px; color: var(--faint); font-size: 0.84rem;
+  border-top: 1px solid var(--border-soft); padding-top: 16px;
+}
+footer a { color: var(--muted); }
 </style>
 </head>
 <body><main>
-<h1>GameKeepr — public statistics</h1>
+<div class="brand"><img src="https://cdn.jsdelivr.net/gh/KenGoossens/Gamekeep@main/web/public/logo.png" alt="" width="26" height="26" /> GameKeepr</div>
+<h1>Public statistics</h1>
 <p class="sub">From opt-in, anonymous daily pings. Everyone sees this page — the people sharing the
 numbers included. Counting installs active in the last 48 hours. Updated ${esc(data.generatedAt)}.</p>
 <div class="tiles">
@@ -196,19 +243,32 @@ numbers included. Counting installs active in the last 48 hours. Updated ${esc(d
   <div class="tile"><b>${esc(data.games.length)}</b><span>different games</span></div>
 </div>
 <h2>Games people run</h2>
-${data.games
-  .map(
-    ([name, count]) =>
-      `<div class="row"><span class="name">${esc(name)}</span><span class="bar" style="width:${bar(count, maxGame)}px"></span><span class="n">${esc(count)}</span></div>`,
-  )
-  .join('')}
+<div class="card">
+${
+  data.games.length === 0
+    ? '<p class="empty">Nothing yet — the numbers appear as installs opt in.</p>'
+    : data.games
+        .map(
+          ([name, count]) =>
+            `<div class="row"><span class="name">${esc(name)}</span><span class="track"><span class="bar" style="width:${bar(count, maxGame)}px"></span><span class="n">${esc(count)}</span></span></div>`,
+        )
+        .join('')
+}
+</div>
 <h2>Versions</h2>
-${data.versions
-  .map(([name, count]) => `<div class="row"><span class="name">${esc(name)}</span><span class="n">${esc(count)} installs</span></div>`)
-  .join('')}
+<div class="card">
+${
+  data.versions.length === 0
+    ? '<p class="empty">Nothing yet.</p>'
+    : data.versions
+        .map(([name, count]) => `<div class="row"><span class="name">${esc(name)}</span><span class="n">${esc(count)} install${count === 1 ? '' : 's'}</span></div>`)
+        .join('')
+}
+</div>
 <footer>Raw aggregates: <a href="/stats.json">stats.json</a> ·
 What a ping contains, line by line: <a href="https://kengoossens.github.io/Gamekeep/wiki/security.html">the GameKeepr wiki</a> ·
-This page's code is in <a href="https://github.com/KenGoossens/Gamekeep/tree/main/mothership">the open repository</a>.</footer>
+This page's code is in <a href="https://github.com/KenGoossens/Gamekeep/tree/main/mothership">the open repository</a> ·
+Run with <a href="https://kengoossens.github.io/Gamekeep/">GameKeepr</a>, the self-hosted game server portal.</footer>
 </main></body></html>`;
 
   return new Response(html, {

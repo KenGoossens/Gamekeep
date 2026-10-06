@@ -407,6 +407,7 @@ export interface Finding {
 export interface TelemetryState {
   enabled: boolean;
   endpointConfigured: boolean;
+  statsUrl: string | null;
   lastSentAt: number | null;
   lastStatus: string | null;
   payload: {

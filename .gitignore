@@ -6,3 +6,6 @@ dist/
 data/
 config/servers.json
 *.tsbuildinfo
+
+# wrangler leaves a local cache beside the worker; never commit it
+mothership/.wrangler/

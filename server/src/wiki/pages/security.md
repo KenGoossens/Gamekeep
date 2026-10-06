@@ -91,8 +91,8 @@ day**. This is the entire payload, line by line:
 The receiving side is as open as the sending side: the
 [mothership](https://github.com/KenGoossens/Gamekeep/tree/main/mothership) is
 a small Cloudflare Worker in this repository — it never reads your IP address,
-keeps raw rows only while an install stays active (90 days), and feeds a
-**public statistics page** where you see exactly the same numbers the
+keeps raw rows only while an install stays active (90 days), and feeds the
+**live public statistics page** at [gamekeepr-stats.gamekeepr.workers.dev/stats](https://gamekeepr-stats.gamekeepr.workers.dev/stats), where you see exactly the same numbers the
 developer does. That is the deal: share a little, see it all.
 
 **Errors and logs are never collected.** Logs carry player names, addresses

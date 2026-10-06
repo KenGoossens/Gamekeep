@@ -14,7 +14,7 @@ compatibility_date = "2026-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "gamekeepr-stats"
-database_id = "REPLACE-WITH-THE-ID-WRANGLER-PRINTS"
+database_id = "edd45c36-0224-4a66-b049-fc9bd65b775e"
 
 # Nightly: sweep installs silent for 90 days, keeping only daily aggregates.
 [triggers]

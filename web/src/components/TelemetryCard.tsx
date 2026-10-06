@@ -30,6 +30,14 @@ export function TelemetryCard() {
         your server names, addresses, players or logs) and which features see use. It feeds the
         public statistics page, so you can see the same numbers everyone else does. The random
         install id exists only so one install is not counted twice; it identifies nothing.
+        {state.statsUrl ? (
+          <>
+            {' '}
+            <a href={state.statsUrl} target="_blank" rel="noreferrer">
+              See the public statistics page ↗
+            </a>
+          </>
+        ) : null}
       </p>
 
       {!state.endpointConfigured ? (

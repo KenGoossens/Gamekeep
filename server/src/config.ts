@@ -12,11 +12,14 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   PUBLIC_URL: z.string().url('PUBLIC_URL must be a full URL, e.g. https://gm.example.com'),
   /**
-   * Where the opt-in anonymous usage ping goes. Empty disables sending even
-   * when the owner opted in — a build without a mothership stays silent and
-   * says so, rather than posting into the void.
+   * Where the opt-in anonymous usage ping goes. Defaults to the project's own
+   * mothership (open source, in mothership/) so an end user who opts in needs
+   * to configure nothing; set it EMPTY to make a build silent even when opted
+   * in — it then says so in the UI rather than posting into the void.
    */
-  TELEMETRY_ENDPOINT: z.string().url().optional(),
+  TELEMETRY_ENDPOINT: z
+    .union([z.string().url(), z.literal('')])
+    .default('https://gamekeepr-stats.gamekeepr.workers.dev/ping'),
   SESSION_SECRET: z
     .string()
     .min(32, 'SESSION_SECRET must be at least 32 characters (openssl rand -hex 32)'),

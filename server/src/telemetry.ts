@@ -133,6 +133,8 @@ export function createTelemetry(deps: {
     return {
       enabled: enabled(),
       endpointConfigured: Boolean(env.TELEMETRY_ENDPOINT),
+      /** Where the shared numbers are publicly visible — part of the deal. */
+      statsUrl: env.TELEMETRY_ENDPOINT ? env.TELEMETRY_ENDPOINT.replace(/\/ping$/, '/stats') : null,
       lastSentAt,
       lastStatus: db.getSetting(LAST_STATUS_KEY),
       /** The literal payload the next ping would carry — the whole point. */
