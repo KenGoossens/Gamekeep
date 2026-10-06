@@ -1,0 +1,21 @@
+# The GameKeepr mothership: a Cloudflare Worker + D1 database receiving the
+# opt-in anonymous pings and serving the public stats page. Deploy with the
+# wizard in this directory (deploy-mothership.sh) or by hand:
+#
+#   npx wrangler d1 create gamekeepr-stats
+#   (paste the database_id it prints below)
+#   npx wrangler d1 execute gamekeepr-stats --remote --file=schema.sql
+#   npx wrangler deploy
+
+name = "gamekeepr-stats"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gamekeepr-stats"
+database_id = "REPLACE-WITH-THE-ID-WRANGLER-PRINTS"
+
+# Nightly: sweep installs silent for 90 days, keeping only daily aggregates.
+[triggers]
+crons = ["30 4 * * *"]

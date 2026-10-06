@@ -20,6 +20,7 @@ import { createMetricsCollector } from './metrics.js';
 import { createSettingsManager } from './settings.js';
 import { createGameSettings } from './gamesettings.js';
 import { createValidationRunner } from './validation.js';
+import { createTelemetry } from './telemetry.js';
 import { createUpdateChecker } from './updates.js';
 import { createFileBrowser } from './files.js';
 import { createHealthReporter } from './health.js';
@@ -47,6 +48,7 @@ import { registerArtworkRoutes } from './routes/artwork.js';
 import { registerCatalogRoutes } from './routes/catalog.js';
 import { registerManageRoutes } from './routes/manage.js';
 import { registerValidationRoutes } from './routes/validation.js';
+import { registerTelemetryRoutes } from './routes/telemetry.js';
 import { registerNetworkRoutes } from './routes/network.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerModRoutes } from './routes/mods.js';
@@ -193,6 +195,14 @@ async function main() {
     log: (message) => console.log(`[GameKeepr] ${message}`),
   });
   validation.startLoop();
+  const telemetry = createTelemetry({
+    db,
+    registry,
+    env,
+    version: VERSION,
+    log: (message) => console.log(`[GameKeepr] ${message}`),
+  });
+  telemetry.startLoop();
   const health = createHealthReporter({ env, db, docker, registry });
   const sessions = createSessions(env, db);
   const setup = createSetupGuard(db);
@@ -226,6 +236,7 @@ async function main() {
     matches,
     updates,
     validation,
+    telemetry,
     health,
     sessions,
     setup,
@@ -314,6 +325,7 @@ async function main() {
   registerCatalogRoutes(app, ctx);
   registerManageRoutes(app, ctx);
   registerValidationRoutes(app, ctx);
+  registerTelemetryRoutes(app, ctx);
   registerNetworkRoutes(app, ctx);
   registerSystemRoutes(app, ctx);
   registerModRoutes(app, ctx);

@@ -6,6 +6,26 @@ All notable changes to GameKeepr. The format follows
 only when a version is released; `edge` tracks the main branch between
 releases.
 
+## Unreleased
+
+### Added
+
+- **Anonymous usage statistics — off by default, opt-in, radically
+  transparent.** An unticked box at setup and a switch under Settings that
+  shows the **literal payload** before you decide: one daily ping carrying the
+  version, the platform, recognised *game names* with counts (never your
+  server names, addresses, ports or logs), three feature booleans, and a
+  random install id that identifies nothing. The receiving side is in the
+  open repository too (`mothership/` — a Cloudflare Worker that never reads
+  your IP and sweeps inactive installs after 90 days) and feeds a **public
+  statistics page**, so everyone who shares the numbers can see them. The
+  wiki's security page documents every field, line by line.
+- **Report an issue, without error telemetry.** Logs and stack traces carry
+  player names and addresses, so GameKeepr deliberately never collects them.
+  Instead a button opens a GitHub issue prefilled with the sanitised
+  environment lines — visible in the form before you press submit. Consent
+  per report, nothing silent.
+
 ## 1.3.0 — 2026-10-04
 
 ### Security & hardening

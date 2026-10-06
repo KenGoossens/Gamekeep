@@ -29,7 +29,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext) {
     });
   });
 
-  app.post<{ Body: { token?: string; username?: string; password?: string } }>(
+  app.post<{ Body: { token?: string; username?: string; password?: string; telemetry?: boolean } }>(
     '/api/auth/setup',
     async (request, reply) => {
       const body = request.body ?? {};
@@ -69,6 +69,9 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext) {
         createdBy: null,
       });
       setup.complete();
+      // Off unless the box was EXPLICITLY ticked — absent means no, and no
+      // other value is ever read as yes.
+      db.setSetting('telemetry.enabled', body.telemetry === true ? 'true' : 'false');
       // Setup signs you straight in, so record it as a login.
       db.touchLogin(id);
 

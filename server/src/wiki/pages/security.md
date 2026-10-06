@@ -69,3 +69,35 @@ cannot carry GameKeepr's feature set today. Worth revisiting as it matures.
 rotate it only deliberately. Integration keys (VirusTotal, UniFi, the Discord
 webhook, tunnel tokens) rotate at their own services; GameKeepr stores only
 encrypted copies and survives any of them changing.
+
+## Anonymous usage statistics — every line, documented
+
+**Off by default.** Nothing is ever sent unless the owner explicitly opts in —
+an unticked box at setup, a switch under *Settings → Anonymous usage
+statistics* that shows the **literal payload** before you decide, and the
+decision is reversible at any moment. Opted in, GameKeepr sends **one ping per
+day**. This is the entire payload, line by line:
+
+| Field | What it is | What it is NOT |
+|---|---|---|
+| `install` | A random id generated once, so one install is not counted twice | Not derived from your machine, MAC, hostname or anything else |
+| `version` | The GameKeepr version | — |
+| `platform` | `unraid` or the OS name | Never a hostname or address |
+| `servers` | How many servers the portal watches | Match servers excluded |
+| `games` | Recognised **game names** with a count each (`"Valheim": 1`); unrecognised games count as `"Unknown"` | **Never your server names**, worlds, passwords, addresses or ports |
+| `features` | Three booleans: tournaments, schedules and validation runs in use at all | No usage details, no contents |
+| `sentAt` | The timestamp | — |
+
+The receiving side is as open as the sending side: the
+[mothership](https://github.com/KenGoossens/Gamekeep/tree/main/mothership) is
+a small Cloudflare Worker in this repository — it never reads your IP address,
+keeps raw rows only while an install stays active (90 days), and feeds a
+**public statistics page** where you see exactly the same numbers the
+developer does. That is the deal: share a little, see it all.
+
+**Errors and logs are never collected.** Logs carry player names, addresses
+and paths — silently harvesting them is where tools lose their community.
+Instead, *Report an issue* (next to the statistics switch) opens a GitHub
+issue **prefilled with the sanitised environment lines above, visible in the
+form before you press submit**. Consent per report, nothing silent, and a
+better bug report than any error counter could file.

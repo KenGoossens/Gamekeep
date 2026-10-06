@@ -403,6 +403,23 @@ export interface Finding {
   detail?: string;
 }
 
+/** The anonymous usage ping: its switch, its history, and its LITERAL payload. */
+export interface TelemetryState {
+  enabled: boolean;
+  endpointConfigured: boolean;
+  lastSentAt: number | null;
+  lastStatus: string | null;
+  payload: {
+    install: string;
+    version: string;
+    platform: string;
+    servers: number;
+    games: Record<string, number>;
+    features: Record<string, boolean>;
+    sentAt: string;
+  };
+}
+
 /** The standing validation instruction: a saved selection, a time, days. */
 export interface ValidationSchedule {
   enabled: boolean;
@@ -815,8 +832,12 @@ export const api = {
   authStatus: () => request<AuthStatus>('/api/auth/status'),
   me: () => request<Me>('/api/me'),
 
-  setup: (token: string, username: string, password: string) =>
-    request<{ username: string; role: Role }>('/api/auth/setup', json({ token, username, password })),
+  setup: (token: string, username: string, password: string, telemetry: boolean) =>
+    request<{ username: string; role: Role }>('/api/auth/setup', json({ token, username, password, telemetry })),
+  telemetry: () => request<TelemetryState>('/api/telemetry'),
+  issueTemplate: () => request<{ url: string }>('/api/issue-template'),
+  setTelemetry: (enabled: boolean) =>
+    request<TelemetryState>('/api/telemetry', { ...json({ enabled }), method: 'PUT' }),
   login: (username: string, password: string) =>
     request<{ username: string; role: Role; mustChangePassword: boolean }>(
       '/api/auth/login',

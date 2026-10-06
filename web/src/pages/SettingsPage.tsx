@@ -4,6 +4,7 @@ import { HealthPanel, ScannerSettings } from '../components/HealthPanel.tsx';
 import { AccessPanel } from '../components/AccessPanel.tsx';
 import { NotifyPanel } from '../components/NotifyPanel.tsx';
 import { SteamPanel } from '../components/SteamPanel.tsx';
+import { TelemetryCard } from '../components/TelemetryCard.tsx';
 
 /**
  * Owner-only. The router connection is optional: without it the portal still
@@ -180,6 +181,8 @@ export function SettingsPage() {
           ) : null}
         </div>
       </section>
+
+      <TelemetryCard />
     </>
   );
 }

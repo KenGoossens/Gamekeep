@@ -15,6 +15,7 @@ import type { GameSettings } from './gamesettings.js';
 import type { createFileBrowser } from './files.js';
 import type { HealthReporter } from './health.js';
 import type { ValidationRunner } from './validation.js';
+import type { Telemetry } from './telemetry.js';
 import type { UpdateChecker } from './updates.js';
 import type { ModInstaller } from './mods/install.js';
 import type { WorkshopDeclarations } from './mods/declare.js';
@@ -74,6 +75,8 @@ export interface AppContext {
   updates: UpdateChecker;
   /** Owner-run registry check: deploy, verify, tear down — one game at a time. */
   validation: ValidationRunner;
+  /** Opt-in anonymous usage ping — off by default, payload fully previewable. */
+  telemetry: Telemetry;
   /** Read-only status of every connection the portal depends on. */
   health: HealthReporter;
   sessions: Sessions;

@@ -11,6 +11,8 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // OFF unless this person ticks it: absent is no, and nothing pre-ticks it.
+  const [telemetry, setTelemetry] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -22,7 +24,7 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await api.setup(token.trim(), username, password);
+      await api.setup(token.trim(), username, password, telemetry);
       onDone();
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
@@ -88,6 +90,18 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
             autoComplete="new-password"
             required
           />
+        </label>
+
+        <label
+          className="checkline"
+          style={{ marginTop: 6, whiteSpace: 'normal', alignItems: 'flex-start', display: 'flex' }}
+        >
+          <input type="checkbox" checked={telemetry} onChange={(e) => setTelemetry(e.target.checked)} />
+          <span>
+            Share anonymous usage statistics — a daily ping with the GameKeepr version, platform,
+            and which games run (never names, addresses or logs). You can inspect the exact payload
+            and switch this off any time under Settings.
+          </span>
         </label>
 
         {mismatch ? <p className="hint bad">Passwords do not match.</p> : null}
