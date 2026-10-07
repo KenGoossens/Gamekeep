@@ -267,6 +267,12 @@ function areaChart(history, pick, esc) {
   const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p[pick]).toFixed(1)}`).join(' ');
   const area = `${line} L${W},${H} L0,${H} Z`;
   const last = points[points.length - 1];
+  const day = (iso) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    return Number.isNaN(d.getTime())
+      ? iso
+      : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  };
   return `<svg class="area" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
       aria-label="Trend over the last ${points.length} days, now ${esc(last[pick])}">
     <path d="${area}" fill="url(#fade)"></path>
@@ -276,7 +282,7 @@ function areaChart(history, pick, esc) {
       <stop offset="100%" stop-color="${SERIES}" stop-opacity="0"></stop>
     </linearGradient></defs>
   </svg>
-  <p class="axis"><span>${esc(points[0].day)}</span><span>${esc(last.day)} · ${esc(last[pick])}</span></p>`;
+  <p class="axis"><span>${esc(day(points[0].day))}</span><span>${esc(day(last.day))} · ${esc(last[pick])}</span></p>`;
 }
 
 async function statsJson(env) {
@@ -388,7 +394,17 @@ footer a { color: var(--muted); }
 <div class="brand"><img src="https://cdn.jsdelivr.net/gh/KenGoossens/Gamekeep@main/web/public/logo.png" alt="" width="26" height="26" /> GameKeepr</div>
 <h1>Public statistics</h1>
 <p class="sub">From opt-in, anonymous daily pings. Everyone sees this page — the people sharing the
-numbers included. Counting installs active in the last 48 hours. Updated ${esc(data.generatedAt)}.</p>
+numbers included. Counting installs active in the last 48 hours. Updated
+<time datetime="${esc(data.generatedAt)}">${esc(
+    new Date(data.generatedAt).toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'UTC',
+    }),
+  )} UTC</time>.</p>
 <div class="tiles">
   <div class="tile"><b>${esc(data.activeInstalls)}</b><span>active installs</span></div>
   <div class="tile"><b>${esc(data.activeServers)}</b><span>game servers watched</span></div>
@@ -425,7 +441,22 @@ numbers included. Counting installs active in the last 48 hours. Updated ${esc(d
 What a ping contains, line by line: <a href="https://kengoossens.github.io/Gamekeep/wiki/security.html">the GameKeepr wiki</a> ·
 This page's code is in <a href="https://github.com/KenGoossens/Gamekeep/tree/main/mothership">the open repository</a> ·
 Run with <a href="https://kengoossens.github.io/Gamekeep/">GameKeepr</a>, the self-hosted game server portal.</footer>
-</main></body></html>`;
+</main>
+<script>
+// The page renders a readable UTC time server-side, so it is right with or
+// without scripting; this upgrades it to the reader's own clock.
+(function () {
+  var el = document.querySelector('time[datetime]');
+  if (!el) return;
+  var when = new Date(el.getAttribute('datetime'));
+  if (isNaN(when.getTime())) return;
+  el.textContent = when.toLocaleString(undefined, {
+    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  el.title = 'Your local time';
+})();
+</script>
+</body></html>`;
 
   return new Response(html, {
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' },
