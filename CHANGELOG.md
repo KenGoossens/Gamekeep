@@ -36,6 +36,16 @@ releases.
 - **An Unraid box could report itself as plain `linux`.** Platform detection
   hung on a template mount whose path can differ from the variable naming it;
   it now also reads the `HOST_OS` marker Unraid stamps into its containers.
+- **Copying `.env.example` silently disabled statistics forever.** It carried
+  an empty `TELEMETRY_ENDPOINT`, which is the "send nothing, ever" setting —
+  so anyone following the Docker install instructions could opt in and still
+  never be counted. The line is commented out now, and says what an empty
+  value means.
+- The stats page prints human time (in the reader's own clock and language)
+  instead of `2026-10-07T21:30:47.688Z`, and its trend axes read `6 Oct`
+  rather than `2026-10-06`.
+- The README's link to the Community Applications template pointed at a path
+  that does not exist (`unraid/`); it is `templates/gamekeep.xml`.
 
 ## 1.4.0 — 2026-10-07
 

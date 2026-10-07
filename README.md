@@ -604,7 +604,7 @@ reason Plex and the *arr apps tell you to keep their databases off it. Point the
 data volume at `/mnt/cache/...` and make sure the share stays on that pool.
 
 A Community Applications template is in
-[`unraid/gamekeep.xml`](unraid/gamekeep.xml), pointing at the published image.
+[`templates/gamekeep.xml`](templates/gamekeep.xml), pointing at the published image.
 
 ## Troubleshooting
 
@@ -697,6 +697,28 @@ block instead of a `mods` one: which directory holds its config, which file and
 INI section the list lives in, and which key. `server/src/mods/declare.ts` does
 the rest — it searches the container for that file rather than assuming a path,
 and rewrites one line while leaving every comment and unrelated setting alone.
+
+## Anonymous usage statistics (off by default)
+
+GameKeepr can send **one anonymous ping a day** so the project knows how many
+people run it and which games they play — and it is **off until you turn it
+on**. The switch sits under Settings and shows the **literal payload** before
+you decide: a random install id, the version, the platform, counts of servers
+and players, which *games* run (never your server names, addresses, players'
+names or logs), and which features see use.
+
+What makes it a fair trade: the receiving end is in this repository too
+([`mothership/`](mothership/) — a Cloudflare Worker that never reads your IP
+and forgets inactive installs after 90 days), and it feeds a **public
+statistics page** anyone can read:
+[gamekeepr-stats.gamekeepr.workers.dev/stats](https://gamekeepr-stats.gamekeepr.workers.dev/stats).
+Every field is documented line by line in
+[the wiki](https://kengoossens.github.io/Gamekeep/wiki/statistics.html).
+
+**Errors and logs are never collected** — they carry player names and
+addresses. Instead, each server's Controls card has *Report an issue*, which
+opens a GitHub issue prefilled with sanitised context you read before
+submitting.
 
 ## Support the project
 

@@ -6,7 +6,10 @@ purpose: anyone can read exactly what happens to a ping.
 
 - `worker.js` — a Cloudflare Worker: `POST /ping` validates and stores a
   payload, `GET /stats` is the public page, `GET /stats.json` the raw
-  aggregates. It never reads the caller's IP address.
+  aggregates. It never reads the caller's IP address. The page's charts are
+  hand-rolled inline SVG (a worker ships no chart library) on a palette
+  validated for the dark surface, and every value is written as text as well,
+  so colour is never the only channel.
 - `schema.sql` — one row per install (latest ping wins) plus one aggregate
   row per day. Installs silent for 90 days are swept nightly; only the daily
   aggregates remain.
