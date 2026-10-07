@@ -6,7 +6,7 @@ All notable changes to GameKeepr. The format follows
 only when a version is released; `edge` tracks the main branch between
 releases.
 
-## Unreleased
+## 1.4.0 — 2026-10-07
 
 ### Added
 
@@ -22,9 +22,17 @@ releases.
   wiki's security page documents every field, line by line.
 - **Report an issue, without error telemetry.** Logs and stack traces carry
   player names and addresses, so GameKeepr deliberately never collects them.
-  Instead a button opens a GitHub issue prefilled with the sanitised
-  environment lines — visible in the form before you press submit. Consent
-  per report, nothing silent.
+  Instead, every server's Controls card carries *Something wrong? Report an
+  issue*: it opens a GitHub issue prefilled with that server's sanitised
+  context — game, container state with exit code, update strategy, Steam
+  build comparison — visible in the form before you press submit. Never
+  server names, addresses or log contents; consent per report, nothing
+  silent. A portal-wide button sits next to the statistics switch, and both
+  features have their own wiki pages now.
+
+### Fixed
+
+- The Sign out button no longer folds onto two lines on wide screens.
 
 ## 1.3.0 — 2026-10-04
 
