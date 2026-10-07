@@ -16,9 +16,20 @@ line by line:
 | `version` | The GameKeepr version | — |
 | `platform` | `unraid` or the OS name | Never a hostname or address |
 | `servers` | How many servers the portal watches | Match servers excluded |
+| `serversRunning` | How many of them are up at ping time | — |
+| `players` | How many people are playing right now, as a number | **Never player names** — the portal knows them, the ping never carries them |
+| `playersPeak24h` | The busiest minute of the last day, summed across your servers | Read from the portal's own metrics; still a count, nothing more |
 | `games` | Recognised **game names** with a count each (`"Valheim": 1`); unrecognised games count as `"Unknown"` | **Never your server names**, worlds, passwords, addresses or ports |
-| `features` | Three booleans: tournaments, schedules and validation runs in use at all | No usage details, no contents |
+| `features` | Seven booleans: tournaments, schedules, validation runs, backups, mods, Discord notifications and a router integration — in use at all | No usage details, no contents, no credentials |
 | `sentAt` | The timestamp | — |
+
+## Being asked, once
+
+A fresh install answers the question during setup, with the box unticked. A
+portal that **upgraded** into this feature never saw that box, so it is
+invited once — a single dialog, showing the same literal payload, with *Yes,
+count me in* and *No thanks*. Either answer spends the invitation: nobody is
+asked twice, and the switch under Settings stays available forever.
 
 ## The deal: share a little, see it all
 
@@ -30,7 +41,9 @@ swept; only daily aggregates remain), and feeds the **live public statistics
 page** at
 [gamekeepr-stats.gamekeepr.workers.dev/stats](https://gamekeepr-stats.gamekeepr.workers.dev/stats).
 Everyone who shares the numbers sees exactly the same numbers the developer
-does — how many installs are active and which games the community runs.
+does: how many installs are active, which games the community runs, how many
+people are playing at the daily peak, which platforms host it, which features
+get used, and how all of that moves over time.
 
 ## What is deliberately never collected
 

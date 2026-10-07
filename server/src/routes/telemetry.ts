@@ -14,7 +14,17 @@ export function registerTelemetryRoutes(app: FastifyInstance, ctx: AppContext) {
   const owner = { preHandler: guard.requireOwner };
 
   app.get('/api/telemetry', owner, async (_request, reply) => {
-    return reply.send(telemetry.state());
+    return reply.send(await telemetry.state());
+  });
+
+  /**
+   * "Asked and answered" without opting in. An install that upgraded into
+   * this feature never saw the setup question, so it is invited once — and
+   * once only, whichever way it answers. Nobody gets nagged.
+   */
+  app.post('/api/telemetry/dismiss-invite', owner, async (_request, reply) => {
+    telemetry.markInvited();
+    return reply.send({ invitePending: false });
   });
 
   /**
@@ -28,7 +38,7 @@ export function registerTelemetryRoutes(app: FastifyInstance, ctx: AppContext) {
     '/api/issue-template',
     { preHandler: guard.requireActiveUser },
     async (request, reply) => {
-      const p = telemetry.payload();
+      const p = await telemetry.payload();
       const games = Object.entries(p.games)
         .map(([name, count]) => `${name} ×${count}`)
         .join(', ');
@@ -99,6 +109,6 @@ export function registerTelemetryRoutes(app: FastifyInstance, ctx: AppContext) {
     // An opt-in sends the first ping right away: the owner just read the
     // payload and said yes — making them wait a day to appear would be odd.
     if (enabled) void telemetry.send();
-    return reply.send(telemetry.state());
+    return reply.send(await telemetry.state());
   });
 }

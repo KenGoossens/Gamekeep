@@ -11,6 +11,7 @@ import { ActivityPage } from './pages/ActivityPage.tsx';
 import { DashboardPage } from './pages/DashboardPage.tsx';
 import { UsersPage } from './pages/UsersPage.tsx';
 import { ValidationPage } from './pages/ValidationPage.tsx';
+import { TelemetryInvite } from './components/TelemetryInvite.tsx';
 import { CatalogPage } from './pages/CatalogPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { WikiPage } from './pages/WikiPage.tsx';
@@ -102,6 +103,7 @@ export function App() {
 
   return (
     <AppShell me={me} current={route.page} onSignedOut={decideScreen}>
+      <TelemetryInvite isOwner={me.role === 'owner'} />
       {offline ? (
         <div className="banner">
           Can’t reach the portal right now. Retrying — this page will catch up on its own.

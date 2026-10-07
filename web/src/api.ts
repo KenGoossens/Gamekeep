@@ -407,6 +407,7 @@ export interface Finding {
 export interface TelemetryState {
   enabled: boolean;
   endpointConfigured: boolean;
+  invitePending: boolean;
   statsUrl: string | null;
   lastSentAt: number | null;
   lastStatus: string | null;
@@ -415,6 +416,9 @@ export interface TelemetryState {
     version: string;
     platform: string;
     servers: number;
+    serversRunning: number;
+    players: number;
+    playersPeak24h: number;
     games: Record<string, number>;
     features: Record<string, boolean>;
     sentAt: string;
@@ -840,6 +844,8 @@ export const api = {
     request<{ url: string }>(
       serverId ? `/api/issue-template?server=${encodeURIComponent(serverId)}` : '/api/issue-template',
     ),
+  dismissTelemetryInvite: () =>
+    request<{ invitePending: boolean }>('/api/telemetry/dismiss-invite', { method: 'POST', ...json({}) }),
   setTelemetry: (enabled: boolean) =>
     request<TelemetryState>('/api/telemetry', { ...json({ enabled }), method: 'PUT' }),
   login: (username: string, password: string) =>

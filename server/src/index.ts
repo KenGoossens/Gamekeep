@@ -198,6 +198,8 @@ async function main() {
   const telemetry = createTelemetry({
     db,
     registry,
+    docker,
+    gameQuery,
     env,
     version: VERSION,
     log: (message) => console.log(`[GameKeepr] ${message}`),

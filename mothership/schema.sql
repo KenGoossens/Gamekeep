@@ -20,4 +20,11 @@ CREATE TABLE IF NOT EXISTS daily (
   servers INTEGER NOT NULL
 );
 
+-- Added after the first release; run them on an existing database and the
+-- "duplicate column" errors are the harmless proof they were already there.
+ALTER TABLE installs ADD COLUMN servers_running INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE installs ADD COLUMN players INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE installs ADD COLUMN players_peak INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE daily ADD COLUMN players_peak INTEGER NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS idx_installs_last_seen ON installs (last_seen);

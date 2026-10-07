@@ -4,6 +4,8 @@ import type { Db } from './db.js';
 import type { Env } from './config.js';
 import { gameByQueryType } from './games.js';
 import type { ServerRegistry } from './registry.js';
+import type { DockerClient } from './docker/client.js';
+import type { GameQuery } from './query/gamedig.js';
 
 /**
  * Anonymous usage statistics — OFF by default, opt-in only, and radically
@@ -26,11 +28,28 @@ export interface TelemetryPayload {
   platform: string;
   /** How many servers this portal watches (match servers excluded). */
   servers: number;
+  /** How many of them are up right now. */
+  serversRunning: number;
+  /**
+   * Player counts as plain numbers: how many are playing at this moment, and
+   * the busiest moment of the last day. Counts only — player names never
+   * leave the portal, and the community page is more fun with a pulse.
+   */
+  players: number;
+  playersPeak24h: number;
   /** Recognised games by NAME with a count each; unrecognised ones are
    * counted as "Unknown" — never their actual names, which are the owner's. */
   games: Record<string, number>;
   /** Which big features see any use at all — booleans, nothing finer. */
-  features: { tournaments: boolean; schedules: boolean; validationRuns: boolean };
+  features: {
+    tournaments: boolean;
+    schedules: boolean;
+    validationRuns: boolean;
+    backups: boolean;
+    mods: boolean;
+    notifications: boolean;
+    router: boolean;
+  };
   sentAt: string;
 }
 
@@ -38,6 +57,7 @@ const ENABLED_KEY = 'telemetry.enabled';
 const INSTALL_KEY = 'telemetry.install';
 const LAST_SENT_KEY = 'telemetry.lastSentAt';
 const LAST_STATUS_KEY = 'telemetry.lastStatus';
+const INVITED_KEY = 'telemetry.invited';
 
 /** Checked hourly; sent when a day has passed. */
 const CHECK_MS = 60 * 60_000;
@@ -46,16 +66,45 @@ const SEND_EVERY_MS = 24 * 3_600_000 - 2 * 60_000;
 export function createTelemetry(deps: {
   db: Db;
   registry: ServerRegistry;
+  docker: DockerClient;
+  gameQuery: GameQuery;
   env: Env;
   version: string;
   log: (message: string) => void;
 }) {
-  const { db, registry, env, version, log } = deps;
+  const { db, registry, docker, gameQuery, env, version, log } = deps;
+
+  /**
+   * Which kind of host this is, by two independent signs — because one was
+   * not enough: a real Unraid box reported itself as plain 'linux' for days
+   * because its template mount sat at a different path than the variable
+   * named. Unraid's own Docker UI stamps HOST_OS into every container it
+   * creates, which is the sign that does not depend on anyone's mount.
+   */
+  function detectPlatform(): string {
+    if ((process.env.HOST_OS ?? '').toLowerCase().includes('unraid')) return 'unraid';
+    if (existsSync(env.UNRAID_TEMPLATE_DIR)) return 'unraid';
+    return process.platform;
+  }
 
   const enabled = (): boolean => db.getSetting(ENABLED_KEY) === 'true';
 
   function setEnabled(value: boolean) {
     db.setSetting(ENABLED_KEY, value ? 'true' : 'false');
+    // Deciding is being asked: whichever way it went, the invitation is spent.
+    db.setSetting(INVITED_KEY, String(Date.now()));
+  }
+
+  /**
+   * Whether this install has ever been ASKED. New installs answer the
+   * question at setup, so only portals that upgraded into this feature are
+   * pending — they would otherwise never learn the invitation exists.
+   * Dismissing counts as answering: nobody is asked twice.
+   */
+  const invitePending = (): boolean => db.getSetting(INVITED_KEY) === null;
+
+  function markInvited() {
+    db.setSetting(INVITED_KEY, String(Date.now()));
   }
 
   function installId(): string {
@@ -68,7 +117,7 @@ export function createTelemetry(deps: {
   }
 
   /** A guarded count: a table that cannot be counted counts as zero. */
-  function countOf(table: 'tournaments' | 'schedules'): number {
+  function countOf(table: 'tournaments' | 'schedules' | 'backups' | 'installed_mods'): number {
     try {
       const row = db.raw.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number };
       return row.n;
@@ -77,13 +126,40 @@ export function createTelemetry(deps: {
     }
   }
 
+  /**
+   * The busiest minute of the last day, summed across servers. Read from the
+   * metrics the portal already keeps for its own charts — counts only, never
+   * who was playing. Bucketed per minute because each server is sampled on
+   * its own clock and raw timestamps would never line up.
+   */
+  function peakPlayers24h(): number {
+    try {
+      const row = db.raw
+        .prepare(
+          `SELECT COALESCE(MAX(total), 0) AS peak FROM (
+             SELECT SUM(COALESCE(players, 0)) AS total
+             FROM metrics WHERE ts > ? GROUP BY ts / 60000
+           )`,
+        )
+        .get(Date.now() - 24 * 3_600_000) as { peak: number } | undefined;
+      return Math.max(0, Math.round(row?.peak ?? 0));
+    } catch {
+      return 0;
+    }
+  }
+
   /** The whole truth, buildable at any time — this IS the preview. */
-  function payload(): TelemetryPayload {
+  async function payload(): Promise<TelemetryPayload> {
     const servers = registry.list().filter((s) => !s.transient);
     const games: Record<string, number> = {};
+    let serversRunning = 0;
+    let players = 0;
     for (const server of servers) {
       const label = gameByQueryType(server.query?.type)?.label ?? 'Unknown';
       games[label] = (games[label] ?? 0) + 1;
+      const status = await docker.getStatus(server).catch(() => null);
+      if (status?.running) serversRunning++;
+      players += gameQuery.getPlayersCached(server)?.online ?? 0;
     }
     let validationRuns = false;
     try {
@@ -94,13 +170,20 @@ export function createTelemetry(deps: {
     return {
       install: installId(),
       version,
-      platform: existsSync(env.UNRAID_TEMPLATE_DIR) ? 'unraid' : process.platform,
+      platform: detectPlatform(),
       servers: servers.length,
+      serversRunning,
+      players,
+      playersPeak24h: peakPlayers24h(),
       games,
       features: {
         tournaments: countOf('tournaments') > 0,
         schedules: countOf('schedules') > 0,
         validationRuns,
+        backups: countOf('backups') > 0,
+        mods: countOf('installed_mods') > 0,
+        notifications: Boolean(db.getSetting('notifications')),
+        router: Boolean(db.getSetting('router')),
       },
       sentAt: new Date().toISOString(),
     };
@@ -114,7 +197,7 @@ export function createTelemetry(deps: {
       const response = await fetch(env.TELEMETRY_ENDPOINT, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'user-agent': `GameKeepr/${version}` },
-        body: JSON.stringify(payload()),
+        body: JSON.stringify(await payload()),
         signal: AbortSignal.timeout(10_000),
       });
       const detail = response.ok ? 'ok' : `The endpoint answered ${response.status}.`;
@@ -128,17 +211,18 @@ export function createTelemetry(deps: {
     }
   }
 
-  function state() {
+  async function state() {
     const lastSentAt = Number(db.getSetting(LAST_SENT_KEY)) || null;
     return {
       enabled: enabled(),
+      invitePending: invitePending(),
       endpointConfigured: Boolean(env.TELEMETRY_ENDPOINT),
       /** Where the shared numbers are publicly visible — part of the deal. */
       statsUrl: env.TELEMETRY_ENDPOINT ? env.TELEMETRY_ENDPOINT.replace(/\/ping$/, '/stats') : null,
       lastSentAt,
       lastStatus: db.getSetting(LAST_STATUS_KEY),
       /** The literal payload the next ping would carry — the whole point. */
-      payload: payload(),
+      payload: await payload(),
     };
   }
 
@@ -154,7 +238,7 @@ export function createTelemetry(deps: {
     setInterval(() => void tick(), CHECK_MS).unref();
   }
 
-  return { state, setEnabled, send, payload, startLoop };
+  return { state, setEnabled, send, payload, startLoop, invitePending, markInvited };
 }
 
 export type Telemetry = ReturnType<typeof createTelemetry>;

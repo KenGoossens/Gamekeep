@@ -6,6 +6,37 @@ All notable changes to GameKeepr. The format follows
 only when a version is released; `edge` tracks the main branch between
 releases.
 
+## Unreleased
+
+### Added
+
+- **An invitation to be counted, shown once.** A fresh install answers the
+  statistics question during setup; a portal that *upgraded* into the feature
+  never saw that box and would never learn the invitation existed. Owners now
+  get a single dialog — with the same literal payload in it — offering *Yes,
+  count me in* or *No thanks*. Either answer spends the invitation: nobody is
+  asked twice, and the Settings switch stays available forever.
+- **The public statistics page became a real dashboard.** Four headline
+  tiles (active installs, servers watched, servers up, players at today's
+  peak), a bar chart of the games people run, a donut of the platforms, a bar
+  chart of which features get used, and two trends over time — installs and
+  the daily player peak. Charts are hand-rolled inline SVG (a worker ships no
+  chart library), with a palette validated for the dark surface: worst
+  adjacent colour-blind separation ΔE 8.4, and every value is also written as
+  text, so colour is never the only channel.
+- **Richer, still-anonymous numbers.** The daily ping now also carries how
+  many servers are *up*, how many people are playing right now, the busiest
+  minute of the last day, and four more feature booleans (backups, mods,
+  Discord notifications, router integration). Counts only: player names are
+  known to the portal and never leave it. The wiki's table documents every
+  new field, and the preview in Settings shows them before anyone opts in.
+
+### Fixed
+
+- **An Unraid box could report itself as plain `linux`.** Platform detection
+  hung on a template mount whose path can differ from the variable naming it;
+  it now also reads the `HOST_OS` marker Unraid stamps into its containers.
+
 ## 1.4.0 — 2026-10-07
 
 ### Added

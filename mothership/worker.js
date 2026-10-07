@@ -46,9 +46,13 @@ async function ping(request, env) {
   // fed by unvalidated input is a defacement waiting to happen.
   const install = String(body.install ?? '');
   if (!UUID.test(install)) return new Response('bad install id', { status: 400 });
+  const num = (value, max) => Math.min(Math.max(Number(value) || 0, 0), max);
   const version = String(body.version ?? '').slice(0, 32);
   const platform = String(body.platform ?? '').slice(0, 32);
-  const servers = Math.min(Math.max(Number(body.servers) || 0, 0), 1000);
+  const servers = num(body.servers, 1000);
+  const serversRunning = Math.min(num(body.serversRunning, 1000), servers);
+  const players = num(body.players, 100_000);
+  const playersPeak = Math.max(num(body.playersPeak24h, 100_000), players);
 
   const games = {};
   if (body.games && typeof body.games === 'object') {
@@ -66,25 +70,39 @@ async function ping(request, env) {
 
   const now = Date.now();
   await env.DB.prepare(
-    `INSERT INTO installs (install, version, platform, servers, games, features, first_seen, last_seen)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)
+    `INSERT INTO installs (install, version, platform, servers, servers_running, players,
+                           players_peak, games, features, first_seen, last_seen)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)
      ON CONFLICT(install) DO UPDATE SET
-       version = ?2, platform = ?3, servers = ?4, games = ?5, features = ?6, last_seen = ?7`,
+       version = ?2, platform = ?3, servers = ?4, servers_running = ?5, players = ?6,
+       players_peak = ?7, games = ?8, features = ?9, last_seen = ?10`,
   )
-    .bind(install, version, platform, servers, JSON.stringify(games), JSON.stringify(features), now)
+    .bind(
+      install,
+      version,
+      platform,
+      servers,
+      serversRunning,
+      players,
+      playersPeak,
+      JSON.stringify(games),
+      JSON.stringify(features),
+      now,
+    )
     .run();
 
   const day = new Date(now).toISOString().slice(0, 10);
   const active = await env.DB.prepare(
-    'SELECT COUNT(*) AS n, COALESCE(SUM(servers), 0) AS s FROM installs WHERE last_seen > ?1',
+    `SELECT COUNT(*) AS n, COALESCE(SUM(servers), 0) AS s, COALESCE(SUM(players_peak), 0) AS p
+     FROM installs WHERE last_seen > ?1`,
   )
     .bind(now - 48 * 3600_000)
     .first();
   await env.DB.prepare(
-    `INSERT INTO daily (day, installs, servers) VALUES (?1, ?2, ?3)
-     ON CONFLICT(day) DO UPDATE SET installs = ?2, servers = ?3`,
+    `INSERT INTO daily (day, installs, servers, players_peak) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT(day) DO UPDATE SET installs = ?2, servers = ?3, players_peak = ?4`,
   )
-    .bind(day, active.n, active.s)
+    .bind(day, active.n, active.s, active.p)
     .run();
 
   return new Response('ok', { status: 200 });
@@ -99,13 +117,17 @@ async function sweep(env) {
 async function aggregates(env) {
   const cutoff = Date.now() - 48 * 3600_000;
   const totals = await env.DB.prepare(
-    'SELECT COUNT(*) AS installs, COALESCE(SUM(servers), 0) AS servers FROM installs WHERE last_seen > ?1',
+    `SELECT COUNT(*) AS installs, COALESCE(SUM(servers), 0) AS servers,
+            COALESCE(SUM(servers_running), 0) AS running,
+            COALESCE(SUM(players), 0) AS players,
+            COALESCE(SUM(players_peak), 0) AS peak
+     FROM installs WHERE last_seen > ?1`,
   )
     .bind(cutoff)
     .first();
 
   const rows = (
-    await env.DB.prepare('SELECT games, version, platform FROM installs WHERE last_seen > ?1')
+    await env.DB.prepare('SELECT games, version, platform, features FROM installs WHERE last_seen > ?1')
       .bind(cutoff)
       .all()
   ).results;
@@ -113,6 +135,7 @@ async function aggregates(env) {
   const games = {};
   const versions = {};
   const platforms = {};
+  const features = {};
   for (const row of rows) {
     try {
       for (const [name, count] of Object.entries(JSON.parse(row.games))) {
@@ -121,28 +144,139 @@ async function aggregates(env) {
     } catch {
       /* a malformed stored row counts as nothing */
     }
+    try {
+      for (const [name, on] of Object.entries(JSON.parse(row.features))) {
+        if (on === true) features[name] = (features[name] ?? 0) + 1;
+      }
+    } catch {
+      /* same */
+    }
     versions[row.version] = (versions[row.version] ?? 0) + 1;
     platforms[row.platform] = (platforms[row.platform] ?? 0) + 1;
   }
 
   const history = (
-    await env.DB.prepare('SELECT day, installs, servers FROM daily ORDER BY day DESC LIMIT 60').all()
+    await env.DB.prepare(
+      'SELECT day, installs, servers, players_peak FROM daily ORDER BY day DESC LIMIT 60',
+    ).all()
   ).results.reverse();
 
-  const top = (obj) =>
+  const top = (obj, n = 25) =>
     Object.entries(obj)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 25);
+      .slice(0, n);
 
   return {
     generatedAt: new Date().toISOString(),
     activeInstalls: totals.installs,
     activeServers: totals.servers,
+    serversRunning: totals.running,
+    playersNow: totals.players,
+    playersPeak: totals.peak,
     games: top(games),
     versions: top(versions),
     platforms: top(platforms),
+    features: top(features),
     history,
   };
+}
+
+/* ── charts ──────────────────────────────────────────────────────────────
+ * Hand-rolled inline SVG: a worker ships no chart library, and these three
+ * forms need none. The palette is validated for the dark surface (#121a30):
+ * violet, aqua, yellow, blue — worst adjacent CVD ΔE 8.4, normal-vision 19.8.
+ * Every form also carries its value as text, so colour is never the only
+ * channel and a screen reader gets the numbers.
+ */
+const CATEGORICAL = ['#9085e9', '#199e70', '#c98500', '#3987e5'];
+const SERIES = '#9085e9';
+
+/** Horizontal bars for magnitude: one hue, length is the whole message. */
+function barChart(rows, esc) {
+  if (rows.length === 0) return '<p class="empty">Nothing yet — the numbers appear as installs opt in.</p>';
+  const max = Math.max(...rows.map(([, v]) => v), 1);
+  return rows
+    .map(
+      ([name, value]) => `<div class="row">
+        <span class="name">${esc(name)}</span>
+        <span class="track"><span class="bar" style="width:${Math.max(2, (value / max) * 100)}%"></span></span>
+        <span class="n">${esc(value)}</span>
+      </div>`,
+    )
+    .join('');
+}
+
+/**
+ * A donut, used only where it is honest: part-to-whole at a glance with at
+ * most a handful of segments. Platforms qualify; games (dozens) do not and
+ * stay a bar chart. Segments carry a 2px surface gap and a labelled legend.
+ */
+function donutChart(rows, esc) {
+  if (rows.length === 0) return '<p class="empty">Nothing yet.</p>';
+  const slices = rows.slice(0, 4);
+  const rest = rows.slice(4).reduce((sum, [, v]) => sum + v, 0);
+  if (rest > 0) slices.push(['Other', rest]);
+  const total = slices.reduce((sum, [, v]) => sum + v, 0) || 1;
+
+  const R = 56;
+  const C = 2 * Math.PI * R;
+  let offset = 0;
+  const ring = slices
+    .map(([, value], i) => {
+      const len = (value / total) * C;
+      // The 2px gap between fills: a hairline of surface, never a hard join.
+      const dash = `${Math.max(0, len - 2)} ${C - Math.max(0, len - 2)}`;
+      const circle = `<circle class="seg" r="${R}" cx="80" cy="80" fill="none"
+        stroke="${CATEGORICAL[i % CATEGORICAL.length]}" stroke-width="18"
+        stroke-dasharray="${dash}" stroke-dashoffset="${-offset}"></circle>`;
+      offset += len;
+      return circle;
+    })
+    .join('');
+
+  const legend = slices
+    .map(
+      ([name, value], i) =>
+        `<li><span class="swatch" style="background:${CATEGORICAL[i % CATEGORICAL.length]}"></span>
+          <span class="lname">${esc(name)}</span>
+          <span class="n">${esc(value)} · ${Math.round((value / total) * 100)}%</span></li>`,
+    )
+    .join('');
+
+  return `<div class="donutwrap">
+    <svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Platforms by share of installs">
+      <g transform="rotate(-90 80 80)">${ring}</g>
+      <text x="80" y="76" class="dcount">${esc(total)}</text>
+      <text x="80" y="94" class="dlabel">installs</text>
+    </svg>
+    <ul class="legend">${legend}</ul>
+  </div>`;
+}
+
+/** One series over time: an area, no legend — the heading names it. */
+function areaChart(history, pick, esc) {
+  const points = history.filter((h) => Number.isFinite(Number(h[pick])));
+  if (points.length < 2) {
+    return '<p class="empty">A few more days of pings and the trend appears here.</p>';
+  }
+  const W = 640;
+  const H = 120;
+  const max = Math.max(...points.map((p) => Number(p[pick])), 1);
+  const x = (i) => (i / (points.length - 1)) * W;
+  const y = (v) => H - (Number(v) / max) * (H - 12) - 6;
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p[pick]).toFixed(1)}`).join(' ');
+  const area = `${line} L${W},${H} L0,${H} Z`;
+  const last = points[points.length - 1];
+  return `<svg class="area" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+      aria-label="Trend over the last ${points.length} days, now ${esc(last[pick])}">
+    <path d="${area}" fill="url(#fade)"></path>
+    <path d="${line}" fill="none" stroke="${SERIES}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+    <defs><linearGradient id="fade" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${SERIES}" stop-opacity="0.28"></stop>
+      <stop offset="100%" stop-color="${SERIES}" stop-opacity="0"></stop>
+    </linearGradient></defs>
+  </svg>
+  <p class="axis"><span>${esc(points[0].day)}</span><span>${esc(last.day)} · ${esc(last[pick])}</span></p>`;
 }
 
 async function statsJson(env) {
@@ -151,11 +285,19 @@ async function statsJson(env) {
   });
 }
 
+const FEATURE_LABELS = {
+  tournaments: 'Tournaments',
+  schedules: 'Schedules',
+  validationRuns: 'Validation runs',
+  backups: 'Backups',
+  mods: 'Mods',
+  notifications: 'Discord notifications',
+  router: 'Router integration',
+};
+
 async function statsPage(env) {
   const data = await aggregates(env);
   const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const bar = (count, max) => Math.max(2, Math.round((count / Math.max(max, 1)) * 100));
-  const maxGame = data.games[0]?.[1] ?? 1;
 
   /*
    * The portal's own look, token for token — the same theme layer the public
@@ -196,7 +338,7 @@ body::before {
     repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 44px);
   mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 95%);
 }
-main { max-width: 900px; margin: 0 auto; padding: 22px 20px 60px; }
+main { max-width: 960px; margin: 0 auto; padding: 22px 20px 60px; }
 .brand {
   display: flex; align-items: center; gap: 10px; margin-bottom: 26px;
   color: var(--muted); font-weight: 650; font-size: 0.95rem;
@@ -216,15 +358,25 @@ h2 { font-size: 1.02rem; margin: 30px 0 10px; }
   background: var(--surface); border: 1px solid var(--border-soft);
   border-radius: var(--radius); padding: 14px 18px;
 }
-.row { display: flex; align-items: center; gap: 12px; margin: 7px 0; }
-.row .name { width: 230px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .track { flex: 1; display: flex; align-items: center; gap: 10px; }
-.row .bar {
-  height: 10px; border-radius: 5px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-cyan));
-}
-.row .n { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
-.empty { color: var(--faint); }
+/* Charts: thin marks, rounded data-ends, recessive everything else. */
+.row { display: flex; align-items: center; gap: 12px; margin: 9px 0; }
+.row .name { width: 200px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .track { flex: 1; min-width: 60px; }
+.row .bar { display: block; height: 10px; border-radius: 5px; background: #9085e9; }
+.row .n { width: 46px; text-align: right; color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.empty { color: var(--faint); margin: 4px 0; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.donutwrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.donutwrap .seg { stroke-linecap: butt; }
+.dcount { fill: var(--text); font-size: 26px; font-weight: 700; text-anchor: middle; }
+.dlabel { fill: var(--faint); font-size: 10px; text-anchor: middle; text-transform: uppercase; letter-spacing: 0.08em; }
+.legend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 170px; }
+.legend li { display: flex; align-items: center; gap: 9px; margin: 7px 0; }
+.legend .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.legend .lname { flex: 1; color: var(--muted); }
+.legend .n { color: var(--faint); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.area { width: 100%; height: 120px; display: block; }
+.axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 0.78rem; margin: 6px 0 0; }
 footer {
   margin-top: 44px; color: var(--faint); font-size: 0.84rem;
   border-top: 1px solid var(--border-soft); padding-top: 16px;
@@ -240,31 +392,35 @@ numbers included. Counting installs active in the last 48 hours. Updated ${esc(d
 <div class="tiles">
   <div class="tile"><b>${esc(data.activeInstalls)}</b><span>active installs</span></div>
   <div class="tile"><b>${esc(data.activeServers)}</b><span>game servers watched</span></div>
-  <div class="tile"><b>${esc(data.games.length)}</b><span>different games</span></div>
+  <div class="tile"><b>${esc(data.serversRunning)}</b><span>servers up right now</span></div>
+  <div class="tile"><b>${esc(data.playersPeak)}</b><span>players at today's peak</span></div>
 </div>
+
 <h2>Games people run</h2>
-<div class="card">
-${
-  data.games.length === 0
-    ? '<p class="empty">Nothing yet — the numbers appear as installs opt in.</p>'
-    : data.games
-        .map(
-          ([name, count]) =>
-            `<div class="row"><span class="name">${esc(name)}</span><span class="track"><span class="bar" style="width:${bar(count, maxGame)}px"></span><span class="n">${esc(count)}</span></span></div>`,
-        )
-        .join('')
-}
+<div class="card">${barChart(data.games, esc)}</div>
+
+<div class="two">
+  <div>
+    <h2>Where it runs</h2>
+    <div class="card">${donutChart(data.platforms, esc)}</div>
+  </div>
+  <div>
+    <h2>Features in use</h2>
+    <div class="card">${barChart(
+      data.features.map(([key, count]) => [FEATURE_LABELS[key] ?? key, count]),
+      esc,
+    )}</div>
+  </div>
 </div>
+
+<h2>Installs over time</h2>
+<div class="card">${areaChart(data.history, 'installs', esc)}</div>
+
+<h2>Players at the daily peak</h2>
+<div class="card">${areaChart(data.history, 'players_peak', esc)}</div>
+
 <h2>Versions</h2>
-<div class="card">
-${
-  data.versions.length === 0
-    ? '<p class="empty">Nothing yet.</p>'
-    : data.versions
-        .map(([name, count]) => `<div class="row"><span class="name">${esc(name)}</span><span class="n">${esc(count)} install${count === 1 ? '' : 's'}</span></div>`)
-        .join('')
-}
-</div>
+<div class="card">${barChart(data.versions, esc)}</div>
 <footer>Raw aggregates: <a href="/stats.json">stats.json</a> ·
 What a ping contains, line by line: <a href="https://kengoossens.github.io/Gamekeep/wiki/security.html">the GameKeepr wiki</a> ·
 This page's code is in <a href="https://github.com/KenGoossens/Gamekeep/tree/main/mothership">the open repository</a> ·
