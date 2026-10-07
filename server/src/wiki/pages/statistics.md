@@ -25,6 +25,8 @@ line by line:
 
 ## Being asked, once
 
+![The invitation: the whole payload, two buttons, and never asked again](/api/wiki/images/telemetry-invite.png)
+
 A fresh install answers the question during setup, with the box unticked. A
 portal that **upgraded** into this feature never saw that box, so it is
 invited once — a single dialog, showing the same literal payload, with *Yes,
