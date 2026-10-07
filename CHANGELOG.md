@@ -6,7 +6,7 @@ All notable changes to GameKeepr. The format follows
 only when a version is released; `edge` tracks the main branch between
 releases.
 
-## Unreleased
+## 1.5.0 — 2026-10-08
 
 ### Added
 
