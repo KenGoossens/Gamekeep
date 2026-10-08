@@ -147,7 +147,12 @@ async function aggregates(env) {
   for (const row of rows) {
     try {
       for (const [name, count] of Object.entries(JSON.parse(row.games))) {
-        games[name] = (games[name] ?? 0) + Number(count);
+        // A portal older than the gamesWanted split still reports an
+        // unrecognised game as "Unknown" inside games; it belongs on the
+        // wish list either way, so the page reads right before everyone
+        // has upgraded.
+        const bucket = name === 'Unknown' ? wanted : games;
+        bucket[name] = (bucket[name] ?? 0) + Number(count);
       }
     } catch {
       /* a malformed stored row counts as nothing */
