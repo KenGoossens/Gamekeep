@@ -274,9 +274,15 @@ export function createUpdateChecker(deps: {
     void checkServer(server).catch(() => undefined);
   }
 
+  /* Same rule as everywhere else: a rejecting timer must not exit the
+   * process. Each server is already guarded individually; this covers the
+   * bookkeeping around them. */
+  const run = () =>
+    void checkAll().catch((err: unknown) => log(`update sweep failed: ${(err as Error).message}`));
+
   function startLoop() {
-    setTimeout(() => void checkAll(), BOOT_DELAY_MS).unref();
-    setInterval(() => void checkAll(), CHECK_INTERVAL_MS).unref();
+    setTimeout(run, BOOT_DELAY_MS).unref();
+    setInterval(run, CHECK_INTERVAL_MS).unref();
   }
 
   return { get, checkServer, checkAll, startLoop, recheckAfterRestart };

@@ -85,9 +85,19 @@ export function createWatcher(deps: {
     }
   }
 
+  /*
+   * A background timer that rejects exits the process in Node, and nothing
+   * this watcher does is worth taking the portal down for -- a locked
+   * database or a Docker hiccup costs one poll, not the evening.
+   */
+  const run = () =>
+    void tick().catch((err: unknown) =>
+      console.warn(`[GameKeepr] watch tick failed: ${(err as Error).message}`),
+    );
+
   function start(): NodeJS.Timeout {
-    void tick();
-    const timer = setInterval(() => void tick(), INTERVAL_MS);
+    run();
+    const timer = setInterval(run, INTERVAL_MS);
     timer.unref();
     return timer;
   }

@@ -158,10 +158,30 @@ const landing = `
     activity feed everyone can read.</p>
   </div>
   <div>
+    <h2>Deploys that prove themselves</h2>
+    <p>Before anything is created, a preflight holds your settings to the game's own rules. After
+    it starts, the first boot is followed until the game answers <strong>as the name you gave
+    it</strong> — verified, unconfirmed or failed, never a shrug. Slow downloads keep their
+    patience; crash loops are called what they are.</p>
+  </div>
+  <div>
+    <h2>Tournaments, end to end<span class="beta">beta</span></h2>
+    <p>Single or double elimination and round robin, for any game. Teams, seeding, check-in,
+    captain-reported results, and a shareable public page per tournament. For Counter-Strike 2 the
+    portal builds a server per match and retires it when the result is in.</p>
+  </div>
+  <div>
     <h2>Any server Steam carries</h2>
     <p>Deploy from Unraid's Community Applications, or pick any of ~580 dedicated servers on Steam
     — GameKeepr composes the container itself on Valve's official steamcmd image, with the start
     command from Steam's own app info, shown before anything exists.</p>
+  </div>
+  <div>
+    <h2>It tells you when to restart</h2>
+    <p>Every six hours GameKeepr compares each server's installed Steam build against what Steam
+    ships now — read from the server's own install receipt, whatever image built it. A newer build
+    means a badge on the card and, if you like, a message in Discord. On these servers a restart
+    <em>is</em> the update.</p>
   </div>
   <div>
     <h2>Schedules with manners</h2>
@@ -190,6 +210,7 @@ const landing = `
   <figure><img src="images/dashboard.png" alt="The dashboard" loading="lazy" /><figcaption>The command centre: is anything wrong?</figcaption></figure>
   <figure><img src="images/catalog-steam.png" alt="The Steam catalogue" loading="lazy" /><figcaption>Every dedicated server on Steam, recognised games first.</figcaption></figure>
   <figure><img src="images/logs-console.png" alt="Logs and console" loading="lazy" /><figcaption>Live logs, with a console that types at the game.</figcaption></figure>
+  <figure><img src="images/tournament-bracket.png" alt="A tournament bracket" loading="lazy" /><figcaption>Brackets, standings and a public page per tournament.</figcaption></figure>
 </section>
 
 <section class="quickstart">

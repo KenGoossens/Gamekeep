@@ -121,3 +121,9 @@ footer p { color: var(--faint); font-size: 0.88rem; }
 @media (max-width: 54rem) {
   .wiki { grid-template-columns: 1fr; }
 }
+
+/* The beta tag beside a feature heading, same gold the portal uses. */
+.features h2 .beta {
+  font-size: 0.5em; color: #e8b44c; text-transform: uppercase; letter-spacing: 0.08em;
+  vertical-align: super; margin-left: 7px; font-weight: 700;
+}

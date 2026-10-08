@@ -20,6 +20,25 @@ releases.
   public catalogue, so a hand-written `type` in someone's `servers.json`
   can never leak out as text — it still counts as `Unknown`.
 
+### Changed
+
+- **Fresh screenshots on the landing page and in the wiki.** The shots on
+  [the project page](https://kengoossens.github.io/Gamekeep/) dated from
+  before 1.0.0 and showed a portal that no longer exists. Servers, the
+  command centre, the Steam catalogue and the log console were all re-shot
+  on 1.5.0, and the page now also says what deploy verification, tournaments
+  and update detection do — three features it never mentioned.
+
+### Fixed
+
+- **A failed metrics write could take the whole portal down.** The sampler
+  runs on a timer with no error handler, so a single failing insert —
+  a database locked by a backup, a full disk — became an unhandled rejection
+  and Node exited. Caught while shooting the new screenshots, where a second
+  process held the database for a moment. The write is now guarded and the
+  sample is dropped with a line in the log; the same guard was put on the
+  down-detector and the update sweep, which had the same shape.
+
 ## 1.5.0 — 2026-10-08
 
 ### Added

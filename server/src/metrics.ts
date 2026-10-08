@@ -152,6 +152,7 @@ export function createMetricsCollector(
   registry: ServerRegistry,
   gameQuery: GameQuery,
   db: Db,
+  onError: (message: string) => void = (message) => console.warn(`[GameKeepr] ${message}`),
 ) {
   const { docker } = dockerClient;
   /** Newest sample per server, so the UI has something before the next poll. */
@@ -183,9 +184,24 @@ export function createMetricsCollector(
       const point = await sample(server);
       if (!point) continue;
       latest.set(server.id, point);
-      db.recordMetric(server.id, point);
+      /*
+       * A failing write must never take the portal down with it. The timer
+       * calls collect() with `void`, so anything thrown in here surfaces as
+       * an unhandled rejection and Node exits -- a locked database during a
+       * backup, or a full disk, would kill the whole portal over one lost
+       * sample. Dropping the sample is the right price.
+       */
+      try {
+        db.recordMetric(server.id, point);
+      } catch (error) {
+        onError(`metrics: dropped a sample for ${server.id}: ${(error as Error).message}`);
+      }
     }
-    db.pruneMetrics(Date.now() - RETENTION_MS);
+    try {
+      db.pruneMetrics(Date.now() - RETENTION_MS);
+    } catch (error) {
+      onError(`metrics: could not prune old samples: ${(error as Error).message}`);
+    }
   }
 
   function start(): NodeJS.Timeout {
