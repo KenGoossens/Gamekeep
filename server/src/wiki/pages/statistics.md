@@ -19,7 +19,8 @@ line by line:
 | `serversRunning` | How many of them are up at ping time | — |
 | `players` | How many people are playing right now, as a number | **Never player names** — the portal knows them, the ping never carries them |
 | `playersPeak24h` | The busiest minute of the last day, summed across your servers | Read from the portal's own metrics; still a count, nothing more |
-| `games` | Recognised **game names** with a count each (`"Valheim": 1`); unrecognised games count as `"Unknown"` | **Never your server names**, worlds, passwords, addresses or ports |
+| `games` | **Game names** GameKeepr recognises, with a count each (`"Valheim": 1`) | **Never your server names**, worlds, passwords, addresses or ports |
+| `gamesWanted` | Games you run that the registry does *not* know yet, named from [GameDig](https://github.com/gamedig/node-gamedig)'s public catalogue of 358 games — the project's wish list for what to support next | A game id is only ever reported when it appears in that public catalogue, so a hand-written `type` in your `servers.json` can never leak out; it counts as `"Unknown"` instead |
 | `features` | Seven booleans: tournaments, schedules, validation runs, backups, mods, Discord notifications and a router integration — in use at all | No usage details, no contents, no credentials |
 | `sentAt` | The timestamp | — |
 

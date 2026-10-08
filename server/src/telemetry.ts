@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { Db } from './db.js';
 import type { Env } from './config.js';
+import { games as gamedigGames } from 'gamedig';
 import { gameByQueryType } from './games.js';
 import type { ServerRegistry } from './registry.js';
 import type { DockerClient } from './docker/client.js';
@@ -37,9 +38,16 @@ export interface TelemetryPayload {
    */
   players: number;
   playersPeak24h: number;
-  /** Recognised games by NAME with a count each; unrecognised ones are
-   * counted as "Unknown" — never their actual names, which are the owner's. */
+  /** Games GameKeepr's own registry recognises, by NAME with a count each —
+   * never your server names, which are the owner's. */
   games: Record<string, number>;
+  /**
+   * Games running here that the registry does NOT know yet, named from
+   * GameDig's public catalogue of 358 games (so still a game's name, never
+   * yours); 'Unknown' when even that cannot say. This is the wish list: it
+   * tells the project which games to support next.
+   */
+  gamesWanted: Record<string, number>;
   /** Which big features see any use at all — booleans, nothing finer. */
   features: {
     tournaments: boolean;
@@ -60,6 +68,18 @@ const LAST_STATUS_KEY = 'telemetry.lastStatus';
 const INVITED_KEY = 'telemetry.invited';
 
 /** Checked hourly; sent when a day has passed. */
+/**
+ * A game's public name for a query type the registry does not carry, taken
+ * from GameDig's own catalogue — which is also the safety rail: a type is
+ * only ever reported when it appears there, so a hand-written
+ * `"type": "my-private-thing"` in servers.json can never leak out as text.
+ */
+function gamedigName(type: string | undefined): string {
+  if (!type) return 'Unknown';
+  const entry = (gamedigGames as Record<string, { name?: string } | undefined>)[type];
+  return typeof entry?.name === 'string' ? entry.name : 'Unknown';
+}
+
 const CHECK_MS = 60 * 60_000;
 const SEND_EVERY_MS = 24 * 3_600_000 - 2 * 60_000;
 
@@ -152,11 +172,17 @@ export function createTelemetry(deps: {
   async function payload(): Promise<TelemetryPayload> {
     const servers = registry.list().filter((s) => !s.transient);
     const games: Record<string, number> = {};
+    const gamesWanted: Record<string, number> = {};
     let serversRunning = 0;
     let players = 0;
     for (const server of servers) {
-      const label = gameByQueryType(server.query?.type)?.label ?? 'Unknown';
-      games[label] = (games[label] ?? 0) + 1;
+      const known = gameByQueryType(server.query?.type);
+      if (known) {
+        games[known.label] = (games[known.label] ?? 0) + 1;
+      } else {
+        const wanted = gamedigName(server.query?.type);
+        gamesWanted[wanted] = (gamesWanted[wanted] ?? 0) + 1;
+      }
       const status = await docker.getStatus(server).catch(() => null);
       if (status?.running) serversRunning++;
       players += gameQuery.getPlayersCached(server)?.online ?? 0;
@@ -176,6 +202,7 @@ export function createTelemetry(deps: {
       players,
       playersPeak24h: peakPlayers24h(),
       games,
+      gamesWanted,
       features: {
         tournaments: countOf('tournaments') > 0,
         schedules: countOf('schedules') > 0,

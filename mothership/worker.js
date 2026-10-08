@@ -54,13 +54,19 @@ async function ping(request, env) {
   const players = num(body.players, 100_000);
   const playersPeak = Math.max(num(body.playersPeak24h, 100_000), players);
 
-  const games = {};
-  if (body.games && typeof body.games === 'object') {
-    for (const [name, count] of Object.entries(body.games).slice(0, 50)) {
-      const n = Math.min(Math.max(Number(count) || 0, 0), 1000);
-      if (n > 0) games[String(name).slice(0, 64)] = n;
+  /** Both game maps take the same shape and the same clamps. */
+  const countMap = (raw) => {
+    const out = {};
+    if (raw && typeof raw === 'object') {
+      for (const [name, count] of Object.entries(raw).slice(0, 50)) {
+        const n = Math.min(Math.max(Number(count) || 0, 0), 1000);
+        if (n > 0) out[String(name).slice(0, 64)] = n;
+      }
     }
-  }
+    return out;
+  };
+  const games = countMap(body.games);
+  const gamesWanted = countMap(body.gamesWanted);
   const features = {};
   if (body.features && typeof body.features === 'object') {
     for (const [name, value] of Object.entries(body.features).slice(0, 20)) {
@@ -71,11 +77,11 @@ async function ping(request, env) {
   const now = Date.now();
   await env.DB.prepare(
     `INSERT INTO installs (install, version, platform, servers, servers_running, players,
-                           players_peak, games, features, first_seen, last_seen)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)
+                           players_peak, games, games_wanted, features, first_seen, last_seen)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)
      ON CONFLICT(install) DO UPDATE SET
        version = ?2, platform = ?3, servers = ?4, servers_running = ?5, players = ?6,
-       players_peak = ?7, games = ?8, features = ?9, last_seen = ?10`,
+       players_peak = ?7, games = ?8, games_wanted = ?9, features = ?10, last_seen = ?11`,
   )
     .bind(
       install,
@@ -86,6 +92,7 @@ async function ping(request, env) {
       players,
       playersPeak,
       JSON.stringify(games),
+      JSON.stringify(gamesWanted),
       JSON.stringify(features),
       now,
     )
@@ -127,12 +134,13 @@ async function aggregates(env) {
     .first();
 
   const rows = (
-    await env.DB.prepare('SELECT games, version, platform, features FROM installs WHERE last_seen > ?1')
+    await env.DB.prepare('SELECT games, games_wanted, version, platform, features FROM installs WHERE last_seen > ?1')
       .bind(cutoff)
       .all()
   ).results;
 
   const games = {};
+  const wanted = {};
   const versions = {};
   const platforms = {};
   const features = {};
@@ -143,6 +151,13 @@ async function aggregates(env) {
       }
     } catch {
       /* a malformed stored row counts as nothing */
+    }
+    try {
+      for (const [name, count] of Object.entries(JSON.parse(row.games_wanted ?? '{}'))) {
+        wanted[name] = (wanted[name] ?? 0) + Number(count);
+      }
+    } catch {
+      /* same */
     }
     try {
       for (const [name, on] of Object.entries(JSON.parse(row.features))) {
@@ -174,6 +189,7 @@ async function aggregates(env) {
     playersNow: totals.players,
     playersPeak: totals.peak,
     games: top(games),
+    gamesWanted: top(wanted, 12),
     versions: top(versions),
     platforms: top(platforms),
     features: top(features),
@@ -414,6 +430,14 @@ numbers included. Counting installs active in the last 48 hours. Updated
 
 <h2>Games people run</h2>
 <div class="card">${barChart(data.games, esc)}</div>
+${
+  data.gamesWanted.length === 0
+    ? ''
+    : `<h2>Most wanted</h2>
+<p class="sub">Games people already run on GameKeepr that its registry does not fully know yet —
+named from GameDig's public catalogue. These are the ones worth supporting next.</p>
+<div class="card">${barChart(data.gamesWanted, esc)}</div>`
+}
 
 <div class="two">
   <div>

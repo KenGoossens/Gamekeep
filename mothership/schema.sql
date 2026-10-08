@@ -28,3 +28,4 @@ ALTER TABLE installs ADD COLUMN players_peak INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE daily ADD COLUMN players_peak INTEGER NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_installs_last_seen ON installs (last_seen);
+ALTER TABLE installs ADD COLUMN games_wanted TEXT NOT NULL DEFAULT '{}';

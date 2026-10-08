@@ -6,6 +6,20 @@ All notable changes to GameKeepr. The format follows
 only when a version is released; `edge` tracks the main branch between
 releases.
 
+## Unreleased
+
+### Added
+
+- **"Unknown" on the statistics page became a wish list.** A server whose
+  game the registry does not recognise used to count as `Unknown`, which
+  told nobody anything. Those servers are now named from GameDig's public
+  catalogue of 358 games and reported separately as `gamesWanted` — the
+  public page shows them under **Most wanted**, so everyone can see which
+  games people already run on GameKeepr that it does not fully support yet.
+  The safety rail: a game id is only ever reported when it appears in that
+  public catalogue, so a hand-written `type` in someone's `servers.json`
+  can never leak out as text — it still counts as `Unknown`.
+
 ## 1.5.0 — 2026-10-08
 
 ### Added
