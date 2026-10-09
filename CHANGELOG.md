@@ -35,6 +35,21 @@ releases.
 
 ### Changed
 
+- **The public statistics page reads like a command centre.** A status strip
+  under the title says the page is listening rather than printed: a live dot,
+  when the last ping landed, how many arrived in the last 24 hours and how
+  many days of history exist. The four headline tiles carry a sparkline and,
+  once there is a full week to compare against, how much they moved — never
+  before, because a trend invented from two days is exactly the kind of
+  confident nonsense this page exists not to produce. Games and the wish list
+  became a board of counts instead of bars: every install runs one or two of
+  a game, so a bar chart there was six bars of identical length, a shape that
+  looks like data and carries none. The two trends now sit side by side, and
+  *Versions in use* says why it is there — whether an update actually reached
+  anyone. On a phone the tiles are a 2×2 board instead of a column.
+  Still no chart library: this is a Cloudflare Worker, and every form is
+  hand-rolled inline SVG on the validated palette.
+
 - **Fresh screenshots on the landing page and in the wiki.** The shots on
   [the project page](https://kengoossens.github.io/Gamekeep/) dated from
   before 1.0.0 and showed a portal that no longer exists. Servers, the

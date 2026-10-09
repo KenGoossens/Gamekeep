@@ -127,10 +127,12 @@ async function aggregates(env) {
     `SELECT COUNT(*) AS installs, COALESCE(SUM(servers), 0) AS servers,
             COALESCE(SUM(servers_running), 0) AS running,
             COALESCE(SUM(players), 0) AS players,
-            COALESCE(SUM(players_peak), 0) AS peak
+            COALESCE(SUM(players_peak), 0) AS peak,
+            COALESCE(MAX(last_seen), 0) AS last_ping,
+            SUM(CASE WHEN last_seen > ?2 THEN 1 ELSE 0 END) AS pings_today
      FROM installs WHERE last_seen > ?1`,
   )
-    .bind(cutoff)
+    .bind(cutoff, Date.now() - 24 * 3600_000)
     .first();
 
   const rows = (
@@ -200,6 +202,10 @@ async function aggregates(env) {
     serversRunning: totals.running,
     playersNow: totals.players,
     playersPeak: totals.peak,
+    // What makes a page feel live rather than printed: when the last ping
+    // landed, and how many arrived in the last day.
+    lastPingAt: Number(totals.last_ping) || null,
+    pingsToday: Number(totals.pings_today) || 0,
     games: top(games),
     gamesWanted: top(wanted, 12),
     gamesUnnamed: unnamed,
@@ -233,6 +239,76 @@ function barChart(rows, esc) {
       </div>`,
     )
     .join('');
+}
+
+/**
+ * Counts at identity, not magnitude.
+ *
+ * Every GameKeepr install runs one or two of a given game, so a bar chart of
+ * games is six bars of identical length: a shape that looks like data and
+ * carries none. A board of tiles says the same thing honestly — which games
+ * are out there, how many of each — and stays readable whether that is six
+ * games or sixty.
+ */
+function chipBoard(rows, esc) {
+  if (rows.length === 0) return '<p class="empty">Nothing yet — the numbers appear as installs opt in.</p>';
+  return `<div class="board">${rows
+    .map(
+      ([name, value]) => `<div class="chip">
+        <span class="cname">${esc(name)}</span>
+        <span class="cn">${esc(value)}</span>
+      </div>`,
+    )
+    .join('')}</div>`;
+}
+
+/**
+ * The shape of a number, beside the number. No axis, no labels: a sparkline
+ * answers "which way is this going" and leaves the value to the tile.
+ */
+function sparkline(history, pick) {
+  const points = history.filter((h) => Number.isFinite(Number(h[pick])));
+  if (points.length < 3) return '';
+  const W = 120;
+  const H = 30;
+  const max = Math.max(...points.map((p) => Number(p[pick])), 1);
+  const x = (i) => (i / (points.length - 1)) * W;
+  const y = (v) => H - (Number(v) / max) * (H - 6) - 3;
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p[pick]).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${line}" fill="none" stroke="${SERIES}" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round" opacity="0.85"></path>
+  </svg>`;
+}
+
+/**
+ * Movement over the last week, as text.
+ *
+ * Shown only when there is a week to compare against: inventing a trend from
+ * two days of history would be the kind of confident nonsense this project
+ * exists not to do.
+ */
+function trendNote(history, pick, esc) {
+  const points = history.filter((h) => Number.isFinite(Number(h[pick])));
+  if (points.length < 8) return '';
+  const now = Number(points[points.length - 1][pick]);
+  const then = Number(points[points.length - 8][pick]);
+  const delta = now - then;
+  if (delta === 0) return '<span class="delta flat">level this week</span>';
+  const sign = delta > 0 ? '+' : '−';
+  return `<span class="delta ${delta > 0 ? 'up' : 'down'}">${sign}${esc(Math.abs(delta))} this week</span>`;
+}
+
+/** "14 minutes ago" — computed server-side so the page is right without JS. */
+function ago(ms) {
+  if (!ms) return 'no pings yet';
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60_000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
 /**
@@ -302,11 +378,14 @@ function areaChart(history, pick, esc) {
       ? iso
       : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   };
+  // The gradient id is derived from the series: two charts on one page with
+  // the same id is a collision waiting for the day the colours differ.
+  const fade = `fade-${String(pick).replace(/[^a-z0-9]/gi, '')}`;
   return `<svg class="area" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
       aria-label="Trend over the last ${points.length} days, now ${esc(last[pick])}">
-    <path d="${area}" fill="url(#fade)"></path>
+    <path d="${area}" fill="url(#${fade})"></path>
     <path d="${line}" fill="none" stroke="${SERIES}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
-    <defs><linearGradient id="fade" x1="0" x2="0" y1="0" y2="1">
+    <defs><linearGradient id="${fade}" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="${SERIES}" stop-opacity="0.28"></stop>
       <stop offset="100%" stop-color="${SERIES}" stop-opacity="0"></stop>
     </linearGradient></defs>
@@ -381,13 +460,50 @@ main { max-width: 960px; margin: 0 auto; padding: 22px 20px 60px; }
 .brand img { width: 26px; height: 26px; }
 h1 { margin: 0; font-size: 1.7rem; letter-spacing: -0.01em; }
 .sub { color: var(--muted); margin: 6px 0 26px; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 8px; }
+/* 150px, not 190: on a phone that is the difference between four tiles in a
+   column and a 2×2 board you can take in at once. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 8px; }
 .tile {
   background: var(--surface); border: 1px solid var(--border-soft);
   border-radius: var(--radius); padding: 16px 18px;
 }
-.tile b { display: block; font-size: 2rem; letter-spacing: -0.02em; }
+.tile b { display: block; font-size: 2rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .tile span { color: var(--faint); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 650; }
+.tile .spark { display: block; width: 100%; height: 30px; margin-top: 10px; }
+.tile .delta, .tile .note {
+  display: block; margin-top: 6px; text-transform: none; letter-spacing: 0;
+  font-size: 0.78rem; font-weight: 500;
+}
+.tile .delta.up { color: var(--ok); }
+.tile .delta.down { color: var(--gold); }
+.tile .delta.flat, .tile .note { color: var(--faint); }
+
+/* The status strip: the line that says this page is listening, not printed. */
+.statusbar {
+  display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+  margin: -14px 0 18px; padding: 10px 16px;
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: 12px; color: var(--faint); font-size: 0.82rem;
+}
+.statusbar b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+.live { display: inline-flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 650;
+  text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72rem; }
+.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .live i { animation: none; } }
+
+/* The fleet board: identity and a count, dense enough to scan. */
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 8px; }
+.chip {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+}
+.chip .cname { color: var(--text); font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip .cn {
+  color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums;
+  background: rgba(144, 133, 233, 0.16); border-radius: 999px; padding: 1px 9px; flex: none;
+}
 h2 { font-size: 1.02rem; margin: 30px 0 10px; }
 .card {
   background: var(--surface); border: 1px solid var(--border-soft);
@@ -400,6 +516,7 @@ h2 { font-size: 1.02rem; margin: 30px 0 10px; }
 .row .bar { display: block; height: 10px; border-radius: 5px; background: #9085e9; }
 .row .n { width: 46px; text-align: right; color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .empty { color: var(--faint); margin: 4px 0; }
+.footnote { color: var(--faint); font-size: 0.84rem; margin: 8px 2px 0; max-width: 62rem; }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
 .donutwrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
 .donutwrap .seg { stroke-linecap: butt; }
@@ -434,19 +551,39 @@ numbers included. Counting installs active in the last 48 hours. Updated
       timeZone: 'UTC',
     }),
   )} UTC</time>.</p>
+
+<div class="statusbar">
+  <span class="live"><i></i> Live</span>
+  <span>Last ping <b>${esc(ago(data.lastPingAt))}</b></span>
+  <span><b>${esc(data.pingsToday)}</b> ping${data.pingsToday === 1 ? '' : 's'} in the last 24 h</span>
+  <span><b>${esc(data.history.length)}</b> day${data.history.length === 1 ? '' : 's'} of history</span>
+</div>
+
 <div class="tiles">
-  <div class="tile"><b>${esc(data.activeInstalls)}</b><span>active installs</span></div>
-  <div class="tile"><b>${esc(data.activeServers)}</b><span>game servers watched</span></div>
-  <div class="tile"><b>${esc(data.serversRunning)}</b><span>servers up right now</span></div>
-  <div class="tile"><b>${esc(data.playersPeak)}</b><span>players at today's peak</span></div>
+  <div class="tile">
+    <b>${esc(data.activeInstalls)}</b><span>active installs</span>
+    ${sparkline(data.history, 'installs')}${trendNote(data.history, 'installs', esc)}
+  </div>
+  <div class="tile">
+    <b>${esc(data.activeServers)}</b><span>game servers watched</span>
+    ${sparkline(data.history, 'servers')}${trendNote(data.history, 'servers', esc)}
+  </div>
+  <div class="tile">
+    <b>${esc(data.serversRunning)}</b><span>servers up right now</span>
+    <span class="note">of ${esc(data.activeServers)} watched</span>
+  </div>
+  <div class="tile">
+    <b>${esc(data.playersPeak)}</b><span>players at today's peak</span>
+    ${sparkline(data.history, 'players_peak')}${trendNote(data.history, 'players_peak', esc)}
+  </div>
 </div>
 
 <h2>Games people run</h2>
-<div class="card">${barChart(data.games, esc)}</div>
+<div class="card">${chipBoard(data.games, esc)}</div>
 ${
   data.gamesUnnamed === 0
     ? ''
-    : `<p class="sub">Plus ${esc(data.gamesUnnamed)} server${data.gamesUnnamed === 1 ? '' : 's'} running
+    : `<p class="footnote">Plus ${esc(data.gamesUnnamed)} server${data.gamesUnnamed === 1 ? '' : 's'} running
 something neither GameKeepr's registry nor GameDig's public catalogue could put a name to. A game is
 only ever named here when it appears in that catalogue, so a hand-written type stays unnamed by
 design rather than leaking out as text.</p>`
@@ -457,7 +594,7 @@ ${
     : `<h2>Most wanted</h2>
 <p class="sub">Games people already run on GameKeepr that its registry does not fully know yet —
 named from GameDig's public catalogue. These are the ones worth supporting next.</p>
-<div class="card">${barChart(data.gamesWanted, esc)}</div>`
+<div class="card">${chipBoard(data.gamesWanted, esc)}</div>`
 }
 
 <div class="two">
@@ -474,13 +611,20 @@ named from GameDig's public catalogue. These are the ones worth supporting next.
   </div>
 </div>
 
-<h2>Installs over time</h2>
-<div class="card">${areaChart(data.history, 'installs', esc)}</div>
+<div class="two">
+  <div>
+    <h2>Installs over time</h2>
+    <div class="card">${areaChart(data.history, 'installs', esc)}</div>
+  </div>
+  <div>
+    <h2>Players at the daily peak</h2>
+    <div class="card">${areaChart(data.history, 'players_peak', esc)}</div>
+  </div>
+</div>
 
-<h2>Players at the daily peak</h2>
-<div class="card">${areaChart(data.history, 'players_peak', esc)}</div>
-
-<h2>Versions</h2>
+<h2>Versions in use</h2>
+<p class="sub">Which release people are actually running — the honest measure of whether an update
+reached anyone.</p>
 <div class="card">${barChart(data.versions, esc)}</div>
 <footer>Raw aggregates: <a href="/stats.json">stats.json</a> ·
 What a ping contains, line by line: <a href="https://kengoossens.github.io/Gamekeep/wiki/security.html">the GameKeepr wiki</a> ·
