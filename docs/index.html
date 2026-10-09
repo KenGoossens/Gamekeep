@@ -29,6 +29,17 @@
   <p class="cta">
     <a class="btn" href="https://github.com/KenGoossens/Gamekeep">Get it on GitHub</a>
     <a class="btn ghost" href="wiki/welcome.html">Read the wiki</a>
+    <!--
+      GitHub has no URL that stars a repository — starring is an authenticated
+      write, and a link that performed one would be a CSRF hole. So this is
+      honest about what it does: it opens the repository, where the Star button
+      is, and says so in the title. The count is fetched from GitHub's public
+      API by the reader's own browser and stays hidden if that fails, because a
+      stale number baked in at build time would be worse than none.
+    -->
+    <a class="btn star" href="https://github.com/KenGoossens/Gamekeep" title="Opens the repository, where GitHub's Star button lives">
+      <span aria-hidden="true">★</span> Star on GitHub<span class="count" hidden></span>
+    </a>
   </p>
   <img class="shot" src="images/servers.png" alt="The Servers page: full-picture cards per game server" />
 </main>
@@ -112,6 +123,21 @@ docker compose up -d</code></pre>
   <a href="wiki/security.html">security model</a> explains what that means and what is done
   about it.</p>
 </section>
+<script>
+  // Eén publieke, niet-geauthenticeerde call. Mislukt hij -- rate limit, offline,
+  // een blocker -- dan blijft de knop gewoon een knop zonder getal.
+  fetch("https://api.github.com/repos/KenGoossens/Gamekeep")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((repo) => {
+      const n = repo && repo.stargazers_count;
+      if (typeof n !== "number") return;
+      const el = document.querySelector(".btn.star .count");
+      if (!el) return;
+      el.textContent = String(n);
+      el.hidden = false;
+    })
+    .catch(() => {});
+</script>
 
 <footer>
   <p>GameKeepr is open source. <a href="https://github.com/KenGoossens/Gamekeep">Source, issues and releases on GitHub</a>.

@@ -20,6 +20,16 @@ releases.
   public catalogue, so a hand-written `type` in someone's `servers.json`
   can never leak out as text — it still counts as `Unknown`.
 
+### Added
+
+- **A Star button on the project page.** GitHub has no URL that stars a
+  repository — starring is an authenticated write, and a link that performed
+  one would be a security hole — so the button is honest about what it does:
+  it opens the repository, where the Star button is, and says so on hover.
+  The count beside it is read from GitHub's public API by the reader's own
+  browser and simply stays hidden if that call fails, rather than showing a
+  stale number baked in at build time.
+
 ### Changed
 
 - **Fresh screenshots on the landing page and in the wiki.** The shots on

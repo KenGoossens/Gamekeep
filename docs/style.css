@@ -37,6 +37,17 @@ a { color: var(--accent-cyan); }
 }
 .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
 .btn:hover { filter: brightness(1.1); }
+.btn.star {
+  background: transparent; border: 1px solid var(--border); color: var(--text);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn.star span[aria-hidden] { color: #e8b44c; }
+.btn.star .count {
+  margin-left: 2px; padding: 2px 9px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07); color: var(--muted);
+  font-size: 0.86em; font-variant-numeric: tabular-nums;
+}
+.btn.star .count[hidden] { display: none; }
 .hero .shot, .gallery img {
   width: 100%; border: 1px solid var(--border); border-radius: 14px;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
