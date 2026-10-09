@@ -20,8 +20,6 @@ releases.
   public catalogue, so a hand-written `type` in someone's `servers.json`
   can never leak out as text — it still counts as `Unknown`.
 
-### Added
-
 - **A Star button on the project page.** GitHub has no URL that stars a
   repository — starring is an authenticated write, and a link that performed
   one would be a security hole — so the button is honest about what it does:
@@ -45,6 +43,15 @@ releases.
   and update detection do — three features it never mentioned.
 
 ### Fixed
+
+- **"Unknown" no longer appears as a most-wanted game.** A portal older than
+  the wish-list split reports an unrecognised server as `Unknown` inside
+  `games`, and the compatibility rule moved it onto the wish list — where it
+  showed up as a bar literally labelled *Unknown*, which told a reader
+  nothing and read like a bug. Those are now counted apart and written out
+  as one sentence under *Games people run*: how many servers run something
+  neither the registry nor GameDig could name, and why that is by design.
+  Requires a mothership deploy to take effect.
 
 - **A failed metrics write could take the whole portal down.** The sampler
   runs on a timer with no error handler, so a single failing insert —

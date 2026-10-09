@@ -141,6 +141,13 @@ async function aggregates(env) {
 
   const games = {};
   const wanted = {};
+  /*
+   * "Unknown" is not a game anyone is waiting for: it is a server whose type
+   * neither the registry nor GameDig's catalogue could put a name to. Listing
+   * it as a bar called "Unknown" on the wish list told a reader nothing and
+   * read like a bug. It is counted apart and written out as one sentence.
+   */
+  let unnamed = 0;
   const versions = {};
   const platforms = {};
   const features = {};
@@ -148,18 +155,18 @@ async function aggregates(env) {
     try {
       for (const [name, count] of Object.entries(JSON.parse(row.games))) {
         // A portal older than the gamesWanted split still reports an
-        // unrecognised game as "Unknown" inside games; it belongs on the
-        // wish list either way, so the page reads right before everyone
-        // has upgraded.
-        const bucket = name === 'Unknown' ? wanted : games;
-        bucket[name] = (bucket[name] ?? 0) + Number(count);
+        // unrecognised game as "Unknown" inside games, so the same rule has to
+        // hold for both shapes until everyone has upgraded.
+        if (name === 'Unknown') unnamed += Number(count);
+        else games[name] = (games[name] ?? 0) + Number(count);
       }
     } catch {
       /* a malformed stored row counts as nothing */
     }
     try {
       for (const [name, count] of Object.entries(JSON.parse(row.games_wanted ?? '{}'))) {
-        wanted[name] = (wanted[name] ?? 0) + Number(count);
+        if (name === 'Unknown') unnamed += Number(count);
+        else wanted[name] = (wanted[name] ?? 0) + Number(count);
       }
     } catch {
       /* same */
@@ -195,6 +202,7 @@ async function aggregates(env) {
     playersPeak: totals.peak,
     games: top(games),
     gamesWanted: top(wanted, 12),
+    gamesUnnamed: unnamed,
     versions: top(versions),
     platforms: top(platforms),
     features: top(features),
@@ -435,6 +443,14 @@ numbers included. Counting installs active in the last 48 hours. Updated
 
 <h2>Games people run</h2>
 <div class="card">${barChart(data.games, esc)}</div>
+${
+  data.gamesUnnamed === 0
+    ? ''
+    : `<p class="sub">Plus ${esc(data.gamesUnnamed)} server${data.gamesUnnamed === 1 ? '' : 's'} running
+something neither GameKeepr's registry nor GameDig's public catalogue could put a name to. A game is
+only ever named here when it appears in that catalogue, so a hand-written type stays unnamed by
+design rather than leaking out as text.</p>`
+}
 ${
   data.gamesWanted.length === 0
     ? ''
