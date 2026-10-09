@@ -30,6 +30,11 @@ releases.
   browser and simply stays hidden if that call fails, rather than showing a
   stale number baked in at build time.
 
+- **The same, once, inside the portal.** The people most likely to star this
+  are the ones already running it, so the wiki's Welcome page closes with a
+  single line about it — no pop-up, no badge, no counter that keeps asking.
+  It says what the link does and that skipping it changes nothing.
+
 ### Changed
 
 - **Fresh screenshots on the landing page and in the wiki.** The shots on

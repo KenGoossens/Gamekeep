@@ -35,3 +35,12 @@ If something looks wrong and a restart does not fix it, tell an operator or
 the owner — they can see the server's logs and configuration. The Activity
 page is also theirs to read in more detail, so a plain "it broke around 21:40"
 is genuinely useful.
+
+## If you like it
+
+GameKeepr is free and open source, built in the open. The one thing that
+genuinely helps it reach the next person looking for this is a star on
+[the GitHub repository](https://github.com/KenGoossens/Gamekeep) — GitHub
+cannot be starred from a link, so that one opens the project page where the
+Star button is. No account here is needed, nothing is sent from your portal,
+and nothing changes if you skip it.
