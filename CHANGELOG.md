@@ -59,6 +59,16 @@ releases.
 
 ### Fixed
 
+- **The statistics page called itself live, and it is not.** A portal reports
+  once a day, so every number on that page is the sum of each install's most
+  recent report — some of them nearly two days old. A pulsing "LIVE" dot over
+  that is the one dishonest thing on a page whose whole argument is that it
+  says exactly what it knows. It now reads *Daily snapshot*, with a still dot.
+  Three labels went with it: "N pings in the last 24 h" counted installs, not
+  pings (only the newest report per install is kept), "servers up right now"
+  is the count at each portal's last report, and "players at today's peak"
+  sums each portal's own busiest minute, measured at different moments.
+
 - **"Unknown" no longer appears as a most-wanted game.** A portal older than
   the wish-list split reports an unrecognised server as `Unknown` inside
   `games`, and the compatibility rule moved it onto the wish list — where it

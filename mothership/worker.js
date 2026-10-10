@@ -486,11 +486,9 @@ h1 { margin: 0; font-size: 1.7rem; letter-spacing: -0.01em; }
   border-radius: 12px; color: var(--faint); font-size: 0.82rem;
 }
 .statusbar b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
-.live { display: inline-flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 650;
+.snapshot { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 650;
   text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72rem; }
-.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: pulse 2.4s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-@media (prefers-reduced-motion: reduce) { .live i { animation: none; } }
+.snapshot i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
 
 /* The fleet board: identity and a count, dense enough to scan. */
 .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 8px; }
@@ -540,7 +538,8 @@ footer a { color: var(--muted); }
 <div class="brand"><img src="https://cdn.jsdelivr.net/gh/KenGoossens/Gamekeep@main/web/public/logo.png" alt="" width="26" height="26" /> GameKeepr</div>
 <h1>Public statistics</h1>
 <p class="sub">From opt-in, anonymous daily pings. Everyone sees this page — the people sharing the
-numbers included. Counting installs active in the last 48 hours. Updated
+numbers included. A portal reports once a day, so every number below is the sum of each install's
+<em>most recent</em> report, counting the ones that reported in the last 48 hours. Page rebuilt
 <time datetime="${esc(data.generatedAt)}">${esc(
     new Date(data.generatedAt).toLocaleString('en-GB', {
       day: 'numeric',
@@ -552,10 +551,16 @@ numbers included. Counting installs active in the last 48 hours. Updated
     }),
   )} UTC</time>.</p>
 
+<!--
+  Not "live", and the dot does not pulse. A portal reports once a day, so every
+  number here is the sum of each install's most recent report -- some of them
+  nearly two days old. Dressing that up as a live feed would be the one dishonest
+  thing on a page whose entire argument is that it tells you exactly what it knows.
+-->
 <div class="statusbar">
-  <span class="live"><i></i> Live</span>
-  <span>Last ping <b>${esc(ago(data.lastPingAt))}</b></span>
-  <span><b>${esc(data.pingsToday)}</b> ping${data.pingsToday === 1 ? '' : 's'} in the last 24 h</span>
+  <span class="snapshot"><i></i> Daily snapshot</span>
+  <span>Newest report <b>${esc(ago(data.lastPingAt))}</b></span>
+  <span><b>${esc(data.pingsToday)}</b> install${data.pingsToday === 1 ? '' : 's'} reported in the last 24 h</span>
   <span><b>${esc(data.history.length)}</b> day${data.history.length === 1 ? '' : 's'} of history</span>
 </div>
 
@@ -569,11 +574,12 @@ numbers included. Counting installs active in the last 48 hours. Updated
     ${sparkline(data.history, 'servers')}${trendNote(data.history, 'servers', esc)}
   </div>
   <div class="tile">
-    <b>${esc(data.serversRunning)}</b><span>servers up right now</span>
-    <span class="note">of ${esc(data.activeServers)} watched</span>
+    <b>${esc(data.serversRunning)}</b><span>servers up at last report</span>
+    <span class="note">of ${esc(data.activeServers)} watched · not a live count</span>
   </div>
   <div class="tile">
-    <b>${esc(data.playersPeak)}</b><span>players at today's peak</span>
+    <b>${esc(data.playersPeak)}</b><span>players at the daily peak</span>
+    <span class="note">each portal's busiest minute, summed</span>
     ${sparkline(data.history, 'players_peak')}${trendNote(data.history, 'players_peak', esc)}
   </div>
 </div>
