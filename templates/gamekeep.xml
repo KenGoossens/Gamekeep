@@ -66,7 +66,7 @@ On first start the log prints a one-time SETUP TOKEN - open the WebUI, paste it,
 
   <Config Name="TRUSTED_PROXIES" Target="TRUSTED_PROXIES" Default="127.0.0.1,::1,172.16.0.0/12" Mode="" Description="Which sources may set X-Forwarded-For. This decides what the audit log records as a visitor's IP address. The default trusts the Docker bridge range, where a reverse proxy or cloudflared lives. Widen deliberately or not at all." Type="Variable" Display="advanced" Required="false" Mask="false">127.0.0.1,::1,172.16.0.0/12</Config>
 
-  <Config Name="TRUSTED_PUBLISHERS" Target="TRUSTED_PUBLISHERS" Default="" Mode="" Description="Optional. Whose game servers may be installed from Community Applications, comma separated. Deploying a container is root-equivalent, so this is a trust list. Leave empty for the built-in default." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="TRUSTED_PUBLISHERS" Target="TRUSTED_PUBLISHERS" Default="" Mode="" Description="Optional. Which publishers deploy from Community Applications without a warning (everyone else deploys past an acknowledged warning), comma separated. Leave empty for the built-in default of well-known maintainers." Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
   <Config Name="GAME_NETWORK" Target="GAME_NETWORK" Default="gamekeep-servers" Mode="" Description="The Docker network servers deployed through the portal join, so the portal can reach them by name. Created automatically." Type="Variable" Display="advanced" Required="false" Mask="false">gamekeep-servers</Config>
 </Container>

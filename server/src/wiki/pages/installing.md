@@ -15,9 +15,11 @@ author with the server's data and your network, and the portal says so
 instead of deciding for you. Before anything is created, GameKeepr reviews
 the template and shows its findings: who published it, whether the image is
 what it claims, which paths it mounts. The hard refusals hold for every
-publisher, listed or not: privileged mode, host devices, and mounts outside
-the server's own directory are refused outright — no game server needs root
-on the host.
+publisher, listed or not: privileged mode, host devices and host networking
+are refused outright — no game server needs root on the host. A template's
+ordinary host paths are not refused but ignored: every mount lands under the
+server's own directory, chosen by the portal; only dangerous paths
+(`docker.sock`, `/etc` and friends) refuse the deploy.
 
 ## Steam
 
@@ -116,12 +118,14 @@ as far as it honestly can be — its port accepting connections — and the
 outcome note says which bar was used.
 
 The outcomes extend the verification's three with two honest extras:
-**template refused** (the app fails the same review a user's deploy would hit
-— an untrusted publisher, a refused template, or on the Steam path a missing
-Linux build) and **skipped** (this attempt could not run right now — a
-leftover container wearing the validation name, or a Steam app that refuses
-anonymous downloads, which a validation run without an account cannot prove
-anything about).
+**template refused** (the app fails the same hard review a user's deploy
+would hit — privileged mode, host devices, host networking, or on the Steam
+path an app with neither a Linux nor a Windows build) and **skipped** (this
+attempt could not run right now — a leftover container wearing the validation
+name, a publisher outside the trusted list, whose image validation will not
+execute unattended even though a deploy may proceed acknowledged, or a Steam
+app that refuses anonymous downloads, which a validation run without an
+account cannot prove anything about).
 
 Validation servers **publish no host ports**: nobody joins them, the
 verification talks over the internal Docker network, and a run therefore

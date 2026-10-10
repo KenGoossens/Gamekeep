@@ -44,7 +44,7 @@ export function TelemetryInvite({ isOwner }: { isOwner: boolean }) {
   return (
     <Modal title="Count this install?" onClose={close}>
       <p className="notes">
-        GameKeepr can send <strong>one anonymous ping per day</strong> so the project knows how many
+        GameKeepr can send <strong>one anonymous ping per hour</strong> so the project knows how many
         people run it and which games they play. It is <strong>off</strong> right now, and this is
         the only time you will be asked — the switch lives under Settings either way.
       </p>

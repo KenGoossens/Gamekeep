@@ -154,14 +154,16 @@ export function reviewTemplate(
     });
   }
 
-  if (template.network === 'host') {
+  if (template.network === 'host' || template.network.toLowerCase() === 'none') {
+    // The same refusal the deploy itself makes (deploy.ts, network-refused):
+    // this preview must never promise a deploy the route will reject.
     findings.push({
       id: 'network',
       label: 'Network',
-      state: 'warn',
-      summary: 'The template wants host networking.',
+      state: 'fail',
+      summary: `The template wants the "${template.network}" network, which bypasses container isolation.`,
       detail:
-        'Every port the container opens is then open on the Unraid host directly, with no mapping in between. It will be deployed on a bridge network instead, which usually works; if the game refuses to start, this is why.',
+        'Host networking opens every port the container opens on the Unraid host directly, with no mapping in between. GameKeepr deploys game servers on its own bridge network only, so this template is refused.',
     });
   } else {
     findings.push({

@@ -32,9 +32,10 @@ sessions visible and revocable by the owner.
   traversal, symlinks, device nodes, compression bombs), hashes verified
   where the repository publishes them, optional scanners consulted. No report
   ever says "safe" — that claim is not available.
-- **Steam-composed servers** trust Valve's official image and Steam's depots;
-  the start script in between is generated, visible in the Files tab, and
-  runs the game as an unprivileged user (`99:100`), never root.
+- **Steam-composed servers** trust Valve's official image and Steam's depots
+  — plus, for Windows-only servers, ich777's WineHQ base image, named in the
+  deploy form; the start script in between is generated, visible in the Files
+  tab, and runs the game as an unprivileged user (`99:100`), never root.
 - **Templates** are reviewed before deploy. Privileged mode, host devices and
   dangerous host paths are refused for everyone; a publisher outside the
   trusted list is a warning the operator must acknowledge, never a silent

@@ -329,8 +329,10 @@ credential.
 
 ## Installing new servers
 
-**Add server → operator level.** The catalogue is Unraid's Community
-Applications, filtered to a trust list of publishers.
+**Add server → operator level.** The catalogue is the whole of Unraid's
+Community Applications: publishers on the trusted list deploy without ceremony,
+everyone else wears a *community publisher* badge and deploys only past an
+explicit warning you acknowledge. The hard refusals below hold for both.
 
 Before anything is pulled you get a report on what the template asks for —
 privileged mode, host devices, host paths, host networking, administrative ports,
@@ -359,9 +361,9 @@ the audit log, because a tag can be moved afterwards.
 ### Any dedicated server on Steam
 
 The catalogue has a second tab: **Steam**. Where the Unraid tab trusts a
-template author, this one trusts exactly two parties — Valve's official
-`steamcmd/steamcmd` image and Steam's own depots — and GameKeepr composes
-everything in between itself.
+template author, this one trusts Valve's official `steamcmd/steamcmd` image
+and Steam's own depots (plus, for Windows-only servers, ich777's WineHQ base
+image — see below), and GameKeepr composes everything in between itself.
 
 How it works: Steam's own app info carries each app's launch configuration
 (the same data `app_info_print` shows), which is the missing half of a
@@ -386,9 +388,15 @@ or not. No API key needed anywhere.
 
 Games the registry recognises get their required ports prefilled and their
 backups, mods, player counts and typed settings out of the box. Windows-only
-servers are refused with the reason; apps that refuse anonymous downloads say
-so in their first log lines, and a Steam account can be set on the container.
-Composed servers keep stdin open, so the Console tab can type at them.
+servers — 283 of the 579 — run too: the container is composed on ich777's
+WineHQ base image, SteamCMD fetches the Windows build, and the `.exe` starts
+under Wine on a virtual display, behind a warning you acknowledge because
+Wine is proven but not native. The rows say which is which up front
+(*Windows-only · Wine*), and only an app with neither a Linux nor a Windows
+build is refused. Apps known to refuse anonymous downloads warn you in the
+form, before the first start fails on it, and a Steam account can be set on
+the deploy. Composed servers keep stdin open, so the Console tab can type at
+them.
 
 ### Which network a deployed server joins
 
@@ -452,8 +460,9 @@ the server starts, the status is green, and only your friends find out.
 
 ### Connecting a router
 
-**Settings → Router**, as owner. UniFi is supported today; the integration is a
-small interface, so other routers are a single file to add. Credentials are
+**Settings → Router**, as owner. UniFi, Fritz!Box, MikroTik and UPnP are
+supported today; the integration is a small interface, so another router is a
+single file to add. Credentials are
 encrypted with a key derived from `SESSION_SECRET`, and the controller's
 certificate is pinned on first connect.
 
@@ -483,8 +492,8 @@ meant slow games reported healthy restarts as failures. Set
 
 ## Schedules
 
-**Schedule → operator level.** A standing instruction per server: restart, stop
-or start at a set time on set days. The classic use is a nightly restart at
+**Schedule → operator level.** A standing instruction per server: restart, stop,
+start or back up at a set time on set days. The classic use is a nightly restart at
 05:00, when the memory leak has had its day.
 
 Deliberately not cron — a time and week days are the entire vocabulary the job
@@ -700,7 +709,7 @@ and rewrites one line while leaving every comment and unrelated setting alone.
 
 ## Anonymous usage statistics (off by default)
 
-GameKeepr can send **one anonymous ping a day** so the project knows how many
+GameKeepr can send **one anonymous ping an hour** so the project knows how many
 people run it and which games they play — and it is **off until you turn it
 on**. The switch sits under Settings and shows the **literal payload** before
 you decide: a random install id, the version, the platform, counts of servers

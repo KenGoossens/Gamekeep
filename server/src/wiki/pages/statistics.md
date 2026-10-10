@@ -41,7 +41,7 @@ The receiving side is as open as the sending side. The
 [mothership](https://github.com/KenGoossens/Gamekeep/tree/main/mothership) is
 a small Cloudflare Worker in the open repository — it **never reads your IP
 address**, keeps a raw row only while an install stays active (90 days, then
-swept; only daily aggregates remain), and feeds the **live public statistics
+swept; only daily aggregates remain), and feeds the **hourly public statistics
 page** at
 [gamekeepr-stats.gamekeepr.workers.dev/stats](https://gamekeepr-stats.gamekeepr.workers.dev/stats).
 Everyone who shares the numbers sees exactly the same numbers the developer

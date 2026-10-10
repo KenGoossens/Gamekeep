@@ -6,7 +6,7 @@ All notable changes to GameKeepr. The format follows
 only when a version is released; `edge` tracks the main branch between
 releases.
 
-## Unreleased
+## 1.6.0 — 2026-10-10
 
 ### Added
 
@@ -90,9 +90,9 @@ releases.
 ### Changed
 
 - **The public statistics page reads like a command centre.** A status strip
-  under the title says the page is listening rather than printed: a live dot,
-  when the last ping landed, how many arrived in the last 24 hours and how
-  many days of history exist. The four headline tiles carry a sparkline and,
+  under the title says what the page is — a snapshot, with a still dot —
+  when the last ping landed, how many installs reported in the last 24 hours
+  and how many days of history exist. The four headline tiles carry a sparkline and,
   once there is a full week to compare against, how much they moved — never
   before, because a trend invented from two days is exactly the kind of
   confident nonsense this page exists not to produce. Games and the wish list
@@ -103,6 +103,19 @@ releases.
   anyone. On a phone the tiles are a 2×2 board instead of a column.
   Still no chart library: this is a Cloudflare Worker, and every form is
   hand-rolled inline SVG on the validated palette.
+
+- **The documentation was audited against the code before this release.**
+  Twenty stale claims found and fixed across the README, wiki, changelog,
+  `.env.example` and the Unraid template: the catalogue and Steam sections now
+  describe the warn-and-acknowledge publisher model and the Wine path, every
+  "once a day" became "once an hour", the router section names all four
+  providers, and the `SESSION_SECRET` comment admits it guards every stored
+  integration credential, not just the router's. One real bug surfaced by the
+  audit: the template review told operators a host-networking template "will
+  be deployed on a bridge network instead" while the deploy refuses it — the
+  review now refuses it too, with the same reason. The Steam-catalogue and
+  statistics-invite screenshots were re-shot on 1.6.0 (Wine badges, hourly
+  wording).
 
 - **Fresh screenshots on the landing page and in the wiki.** The shots on
   [the project page](https://kengoossens.github.io/Gamekeep/) dated from
@@ -134,15 +147,16 @@ releases.
   were fully transparent until the mouse hovered that exact card, which read
   as "servers cannot be deleted" rather than "hover to see more". They now
   rest dimmed on every card an owner or operator can act on, and brighten on
-  hover or focus. (Servers defined in `config/servers.json` still cannot be
-  deleted from the portal — the file would just bring them back on the next
-  start; remove the entry there instead.)
+  hover or focus. (Servers defined in `config/servers.json` delete too — see
+  the Added entry above: the entry is recorded as removed, the container is
+  left untouched.)
 
-- **The statistics page called itself live, and it is not.** A portal reports
-  once a day, so every number on that page is the sum of each install's most
-  recent report — some of them nearly two days old. A pulsing "LIVE" dot over
-  that is the one dishonest thing on a page whose whole argument is that it
-  says exactly what it knows. It now reads *Daily snapshot*, with a still dot.
+- **The statistics page called itself live, and it is not.** Every number on
+  that page is the sum of each install's most recent report — now at most an
+  hour old for current versions, up to two days for a straggler. A pulsing
+  "LIVE" dot over that is the one dishonest thing on a page whose whole
+  argument is that it says exactly what it knows. It now reads *Hourly
+  snapshot*, with a still dot.
   Three labels went with it: "N pings in the last 24 h" counted installs, not
   pings (only the newest report per install is kept), "servers up right now"
   is the count at each portal's last report, and "players at today's peak"

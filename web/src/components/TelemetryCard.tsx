@@ -25,7 +25,7 @@ export function TelemetryCard() {
         {state.enabled ? <span className="pill ok">on</span> : <span className="pill plain">off</span>}
       </div>
       <p className="notes">
-        <strong>Off by default.</strong> Opted in, GameKeepr sends <strong>one ping per day</strong>{' '}
+        <strong>Off by default.</strong> Opted in, GameKeepr sends <strong>one ping per hour</strong>{' '}
         with exactly the payload below — the version, the platform, which <em>games</em> run (never
         your server names, addresses, players or logs) and which features see use. It feeds the
         public statistics page, so you can see the same numbers everyone else does. The random

@@ -16,8 +16,9 @@ Per server, three answers side by side:
   administrative-looking ones (RCON, web consoles) flagged and never
   pre-selected: forwarding a game port lets people play, forwarding an admin
   console puts it on the internet.
-- **What the router says** — when a UniFi router is connected, the actual
-  rules, with one-click creation of the missing ones.
+- **What the router says** — when a router is connected (UniFi, Fritz!Box,
+  MikroTik or UPnP), the actual rules, with one-click creation of the missing
+  ones.
 
 ## Forwards happen at deploy time
 
