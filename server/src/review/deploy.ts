@@ -79,15 +79,22 @@ export function reviewTemplate(
 ): Finding[] {
   const findings: Finding[] = [];
 
+  /*
+   * A warning, not a refusal: an unlisted publisher is a choice the operator
+   * makes with open eyes, not a door GameKeepr holds shut. The things that DO
+   * refuse — privileged, host devices, forbidden host paths — follow below
+   * and apply to every template, listed publisher or not.
+   */
   const trusted = isTrusted(template.repository);
   findings.push({
     id: 'publisher',
     label: 'Publisher',
-    state: trusted ? 'pass' : 'fail',
+    state: trusted ? 'pass' : 'warn',
     summary: trusted
       ? `${app.publisher}, on this portal's trusted list.`
-      : `${app.publisher} is not on this portal's trusted list.`,
-    detail: 'TRUSTED_PUBLISHERS in .env decides who may be deployed from the catalogue.',
+      : `${app.publisher} is not on this portal's trusted list — deploying means trusting their image with this server's data and your network.`,
+    detail:
+      'The container still runs unprivileged, without host devices, with every mount inside its own directory — but the code inside the image is the publisher\'s. TRUSTED_PUBLISHERS in .env names who deploys without this warning.',
   });
 
   // ---- the things that refuse outright -----------------------------------

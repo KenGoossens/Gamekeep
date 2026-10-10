@@ -183,8 +183,11 @@ export function createValidationRunner(deps: {
     }
     result.label = app.name;
     if (!catalog.isTrusted(app.repository)) {
-      result.outcome = 'refused';
-      result.note = `${app.publisher} is not on the trusted-publisher list — the same refusal a deploy would get.`;
+      // A deploy merely warns here and an operator may acknowledge it; a
+      // validation run starts containers with nobody watching, which is not
+      // the place to execute an unlisted publisher's image.
+      result.outcome = 'skipped';
+      result.note = `${app.publisher} is not on the trusted-publisher list — a deploy warns and may proceed acknowledged, but validation does not run unlisted publishers' images unattended.`;
       return;
     }
 

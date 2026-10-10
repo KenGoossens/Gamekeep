@@ -4,16 +4,19 @@ import { dirname, join } from 'node:path';
 const FEED_URL = 'https://assets.ca.unraid.net/feed/applicationFeed.json';
 const FEED_TTL_MS = 6 * 60 * 60 * 1000;
 // Bumped whenever the cached shape changes, so an old cache is discarded.
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const FEED_MAX_BYTES = 64 * 1024 * 1024;
 
 /**
- * Publishers whose game-server templates may be deployed.
+ * Publishers whose game-server templates deploy without a warning.
  *
- * Deploying a container is root-equivalent on the host, so this is not a
- * convenience filter -- it is the list of people being trusted with that. The
- * default covers the well-known Unraid game-server maintainers; extend it with
- * TRUSTED_PUBLISHERS in .env, deliberately.
+ * Every other publisher's template still shows in the catalogue and can be
+ * deployed, but only past an explicit acknowledgement: you are trusting that
+ * image's author with your game data and your LAN. The hard rails never
+ * depend on this list -- privileged containers, host devices, forbidden host
+ * paths and host networking are refused whoever published the template. The
+ * default covers the well-known Unraid game-server maintainers; extend it
+ * with TRUSTED_PUBLISHERS in .env, deliberately.
  */
 export const DEFAULT_TRUSTED_PUBLISHERS = [
   'ich777',
@@ -41,6 +44,8 @@ export interface CatalogApp {
    */
   network: string;
   privileged: boolean;
+  /** On the trusted-publishers list: deploys without the publisher warning. */
+  trusted: boolean;
   fields: TemplateField[];
 }
 
@@ -132,11 +137,18 @@ export function createCatalog(databasePath: string, trusted: string[]) {
       downloads: Number(raw.downloads ?? 0) || 0,
       network: String(raw.Network ?? 'bridge').trim() || 'bridge',
       privileged: String(raw.Privileged ?? 'false').toLowerCase() === 'true',
+      trusted: isTrusted(repository),
       fields: readFields(raw.Config),
     };
   }
 
-  /** Only game servers from trusted publishers ever enter the cache. */
+  /**
+   * Every game server in the feed enters the cache — trusted publishers
+   * first, everyone else behind a visible badge and a deploy warning. Hiding
+   * the rest used to read as "GameKeepr cannot run this game" when the truth
+   * was "this author is not on your list", and the review gate is where that
+   * judgement belongs.
+   */
   function extract(feed: unknown): CatalogApp[] {
     const list = (feed as { applist?: unknown[] })?.applist ?? [];
     const out: CatalogApp[] = [];
@@ -148,11 +160,16 @@ export function createCatalog(databasePath: string, trusted: string[]) {
       if (entry.Deprecated === true || entry.Blacklist === true) continue;
 
       const app = toApp(entry);
-      if (!app || !isTrusted(app.repository)) continue;
+      if (!app) continue;
       out.push(app);
     }
 
-    out.sort((a, b) => b.downloads - a.downloads || a.name.localeCompare(b.name));
+    out.sort(
+      (a, b) =>
+        Number(b.trusted) - Number(a.trusted) ||
+        b.downloads - a.downloads ||
+        a.name.localeCompare(b.name),
+    );
     return out;
   }
 

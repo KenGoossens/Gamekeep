@@ -77,8 +77,8 @@ export function CatalogPage() {
         <h1>Add a game server</h1>
         <p>
           {source === 'unraid'
-            ? `${total} game servers from trusted publishers in Community Applications. Deploying creates a container on your Unraid server.`
-            : 'Any dedicated server on Steam, as a container GameKeepr composes itself on Valve’s official steamcmd image.'}
+            ? `All ${total} game servers in Community Applications — trusted publishers first, the rest behind a warning you acknowledge. Deploying creates a container on your Unraid server.`
+            : 'Any dedicated server on Steam, as a container GameKeepr composes itself — Windows-only servers run through Wine.'}
         </p>
       </div>
 
@@ -129,6 +129,7 @@ export function CatalogPage() {
               </span>
               <p className="catalog-overview">{app.overview.slice(0, 180)}</p>
             </div>
+            {!app.trusted ? <span className="pill warn">community publisher</span> : null}
             {installed.includes(app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) ? (
               <span className="pill plain">already added</span>
             ) : (

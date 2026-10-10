@@ -10,6 +10,32 @@ releases.
 
 ### Added
 
+- **Every shipped Steam server now carries its OS, checked up front.** The
+  Enshrouded lesson, applied to the whole list: a new generator
+  (`server/scripts/enrich-steam-os.mts`) classified all 579 shipped servers
+  through SteamCMD's own app info — importing the deploy preflight's
+  classifier rather than reimplementing it, so the baked value and the
+  deploy-time judgement cannot drift apart. The result: 283 are Windows-only
+  (they run through Wine and the row now says so with a **Windows-only ·
+  Wine** badge), 237 ship both builds, 42 are Linux-only, 9 have no server
+  build at all (**no server build** badge), 8 are delisted. The badge
+  informs; the deploy still inspects the app live and decides from that.
+
+- **The Unraid catalogue shows every game server, not only trusted
+  publishers'.** The feed was always read whole;
+  templates from authors outside the trusted list were silently dropped,
+  which read as "GameKeepr cannot run this game" when the truth was "this
+  author is not on your list". They now appear behind a **community
+  publisher** badge, sorted after the trusted ones, and deploy only past an
+  explicit warning the operator acknowledges — you are trusting that image's
+  author with the server's data and your network, and the portal says so
+  instead of deciding for you. What does not change, for any publisher:
+  privileged mode, host devices, forbidden host paths and host networking are
+  refused outright, and every mount stays inside the server's own directory.
+  `TRUSTED_PUBLISHERS` in `.env` still names who deploys without the warning.
+  Validation runs still skip unlisted publishers: they start containers
+  unattended, which is no place to execute an unknown image.
+
 - **Windows-only Steam servers now deploy — through Wine.** Plenty of games
   (Enshrouded, Sons of the Forest) publish no Linux dedicated server at all,
   and the Steam tab used to be a dead end for them. GameKeepr now composes

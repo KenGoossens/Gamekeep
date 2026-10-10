@@ -6,11 +6,18 @@
 
 ## Unraid apps
 
-Templates from Community Applications, limited to trusted publishers. Before
-anything is created, GameKeepr reviews the template and shows its findings:
-who published it, whether the image is what it claims, which paths it mounts.
-Templates that ask for privileged mode are refused outright — no game server
-needs root on the host.
+Every game-server template in Community Applications, trusted publishers
+first. Publishers on the portal's trusted list (`TRUSTED_PUBLISHERS` in
+`.env`; ich777, binhex, linuxserver and friends by default) deploy without
+ceremony. Everyone else wears a **community publisher** badge and deploys
+only past an explicit warning you acknowledge — you are trusting that image's
+author with the server's data and your network, and the portal says so
+instead of deciding for you. Before anything is created, GameKeepr reviews
+the template and shows its findings: who published it, whether the image is
+what it claims, which paths it mounts. The hard refusals hold for every
+publisher, listed or not: privileged mode, host devices, and mounts outside
+the server's own directory are refused outright — no game server needs root
+on the host.
 
 ## Steam
 
@@ -40,7 +47,11 @@ below — the deploy form always names the image it will use.)
   display. The deploy says so and asks you to acknowledge: it works well for
   many servers, but it is not native — expect a bit more RAM, and the odd
   game needs Wine settings of its own. An app with neither a Linux nor a
-  Windows build is refused with the reason.
+  Windows build is refused with the reason. The catalogue tells you all of
+  this **on the row**, before you click anything: every shipped server
+  carries its OS from Steam's own app info (283 of the 579 are Windows-only),
+  as a **Windows-only · Wine** or **no server build** badge. The deploy still
+  inspects the app live — the badge informs, the inspection decides.
 - Whether an app allows
   **anonymous downloads** is judged up front, from Valve's own
   dedicated-servers list: a known "no" warns you to set a Steam account

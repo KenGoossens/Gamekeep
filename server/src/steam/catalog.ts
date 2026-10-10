@@ -24,6 +24,13 @@ export interface SteamCatalogEntry {
   known: string | null;
   /** The tool's own Steam client icon, when it has one. */
   iconUrl: string | null;
+  /**
+   * Which builds Steam publishes, baked in by scripts/enrich-steam-os.mts:
+   * 'windows' means "runs here through Wine", 'none' means not even a Windows
+   * build. Null for store-search rows and apps with no usable app info — the
+   * per-app inspection answers for those.
+   */
+  os: 'linux' | 'windows' | 'both' | 'none' | null;
 }
 
 export interface SteamCatalogStatus {
@@ -31,7 +38,12 @@ export interface SteamCatalogStatus {
   snapshotDate: string;
 }
 
-function decorate(app: { appid: number; name: string; icon?: string }): SteamCatalogEntry {
+function decorate(app: {
+  appid: number;
+  name: string;
+  icon?: string;
+  os?: 'linux' | 'windows' | 'both' | 'none';
+}): SteamCatalogEntry {
   return {
     appId: app.appid,
     name: app.name,
@@ -39,6 +51,7 @@ function decorate(app: { appid: number; name: string; icon?: string }): SteamCat
     iconUrl: app.icon
       ? `https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/${app.appid}/${app.icon}.jpg`
       : null,
+    os: app.os ?? null,
   };
 }
 

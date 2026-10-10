@@ -104,6 +104,8 @@ export interface CatalogApp {
   project: string | null;
   support: string | null;
   downloads: number;
+  /** On the portal's trusted-publishers list; others deploy past a warning. */
+  trusted: boolean;
 }
 
 export interface TemplateField {
@@ -664,7 +666,14 @@ export interface SteamSearch {
   /** How many dedicated servers the shipped Steam snapshot holds. */
   total: number;
   snapshotDate: string;
-  results: Array<{ appId: number; name: string; known: string | null; iconUrl: string | null }>;
+  results: Array<{
+    appId: number;
+    name: string;
+    known: string | null;
+    iconUrl: string | null;
+    /** 'windows' = runs through Wine; 'none' = no server build; null = unknown. */
+    os: 'linux' | 'windows' | 'both' | 'none' | null;
+  }>;
   /** Set when the query itself was an app id or a store URL. */
   appId: number | null;
 }

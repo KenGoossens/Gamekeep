@@ -35,8 +35,11 @@ sessions visible and revocable by the owner.
 - **Steam-composed servers** trust Valve's official image and Steam's depots;
   the start script in between is generated, visible in the Files tab, and
   runs the game as an unprivileged user (`99:100`), never root.
-- **Templates** are reviewed before deploy; untrusted publishers and
-  privileged requests are refused.
+- **Templates** are reviewed before deploy. Privileged mode, host devices and
+  dangerous host paths are refused for everyone; a publisher outside the
+  trusted list is a warning the operator must acknowledge, never a silent
+  pass. Validation runs skip unlisted publishers entirely — they start
+  containers unattended, which is no place to execute an unknown image.
 
 ## Honesty rules
 

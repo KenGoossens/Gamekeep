@@ -202,12 +202,9 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
     const found = body.appId ? await catalog.find(body.appId) : undefined;
     if (!found) return reply.code(404).send({ error: 'unknown-app' });
 
-    // Re-checked here rather than trusted from the earlier listing: this is the
-    // request that actually creates a container.
-    if (!catalog.isTrusted(found.repository)) {
-      return reply.code(403).send({ error: 'publisher-not-trusted', publisher: found.publisher });
-    }
-
+    // No publisher gate here any more: the review below turns an unlisted
+    // publisher into a warning the operator must acknowledge, and the hard
+    // refusals (privileged, devices, host paths) hold for everyone.
     const name = String(body.name ?? found.name).trim();
     if (name.toLowerCase().startsWith(RESERVED_NAME_PREFIX)) {
       return reply.code(400).send({

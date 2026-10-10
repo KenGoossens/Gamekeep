@@ -114,6 +114,16 @@ export function SteamCatalog() {
               </p>
             </div>
             {r.known ? <span className="pill ok">full support</span> : null}
+            {r.os === 'windows' ? (
+              <span className="pill warn" title="Steam publishes no Linux build; GameKeepr runs the Windows server through Wine.">
+                Windows-only · Wine
+              </span>
+            ) : null}
+            {r.os === 'none' ? (
+              <span className="pill bad" title="Steam publishes neither a Linux nor a Windows build of this app.">
+                no server build
+              </span>
+            ) : null}
             <button
               type="button"
               className="btn-primary small"
