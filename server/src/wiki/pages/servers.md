@@ -3,9 +3,10 @@
 ![The Servers page: one full-picture card per server, running ones first](/api/wiki/images/servers.png)
 
 The Servers page shows every server you may see, running ones first. The
-search box filters by name. Hovering a card shows its quick actions:
-operators get a pencil to **rename** the server (presentation only — nothing
-technical changes), the owner also gets a bin to **delete** it (see
+search box filters by name. Each card carries its quick actions, dimmed until
+you hover or focus them: operators get a pencil to **rename** the server
+(presentation only — nothing technical changes), the owner also gets a bin to
+**delete** it (see
 *Installing game servers* for exactly what a delete does and does not touch).
 
 ## How do I get in?

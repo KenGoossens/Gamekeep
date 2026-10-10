@@ -122,7 +122,8 @@ one already going.
 
 ## Renaming and removing
 
-Operators can **rename** a server from its card (the pencil on hover): only
+Operators can **rename** a server from its card (the pencil, dimmed until
+hovered): only
 the display name changes — the container, the URLs and the artwork stay put.
 Servers listed by hand in `config/servers.json` are renamed in that file.
 

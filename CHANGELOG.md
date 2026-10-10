@@ -59,6 +59,21 @@ releases.
 
 ### Fixed
 
+- **A server deployed from the Steam catalogue gets its artwork immediately.**
+  The Steam deploy route saved the recognised game's app id but never started
+  the artwork download — only the template-catalogue route and portal startup
+  did — so a freshly deployed Steam server sat on a lettered tile until the
+  next portal restart. The route now fetches the poster right after the deploy,
+  the same way the catalogue path does.
+
+- **The Rename and Delete buttons on a server card are visible again.** They
+  were fully transparent until the mouse hovered that exact card, which read
+  as "servers cannot be deleted" rather than "hover to see more". They now
+  rest dimmed on every card an owner or operator can act on, and brighten on
+  hover or focus. (Servers defined in `config/servers.json` still cannot be
+  deleted from the portal — the file would just bring them back on the next
+  start; remove the entry there instead.)
+
 - **The statistics page called itself live, and it is not.** A portal reports
   once a day, so every number on that page is the sum of each install's most
   recent report — some of them nearly two days old. A pulsing "LIVE" dot over

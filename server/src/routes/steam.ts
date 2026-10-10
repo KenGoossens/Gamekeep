@@ -25,7 +25,7 @@ import { autoForward } from '../router/stored.js';
  * container definition itself.
  */
 export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
-  const { registry, db, env, guard, deployer, steam, notify, gameQuery } = ctx;
+  const { registry, db, env, guard, deployer, steam, notify, gameQuery, artwork } = ctx;
   const operator = { preHandler: guard.requireOperator };
 
   /** Accepts an app id, a store URL or a steamdb URL; people paste all three. */
@@ -246,6 +246,12 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
       db.addManagedServer(serverId, definition, user.id);
       registry.reload();
       gameQuery.invalidate(serverId);
+
+      // Same as the catalogue path: fetch the poster now, or the card shows a
+      // letter until the next portal restart.
+      void artwork
+        .ensure(registry.list(), (message) => request.log.info(message))
+        .catch(() => undefined);
 
       // Same as the catalogue path: the deploy decided the ports, so a
       // connected router opens them now instead of after a forgotten click.

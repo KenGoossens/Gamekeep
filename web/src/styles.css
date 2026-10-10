@@ -300,9 +300,10 @@ body::after {
   color: var(--faint, #778);
 }
 
-/* Card actions: present but quiet, loud on intent. Always visible on touch
-   screens, where hover does not exist. */
-.tile-actions { display: inline-flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
+/* Card actions: present but quiet, loud on intent. Fully invisible proved
+   undiscoverable -- people thought servers could not be deleted at all -- so
+   the buttons now rest dimmed and brighten on hover or focus. */
+.tile-actions { display: inline-flex; gap: 4px; opacity: 0.45; transition: opacity 120ms ease; }
 .tile:hover .tile-actions, .tile:focus-within .tile-actions { opacity: 1; }
 @media (hover: none) { .tile-actions { opacity: 1; } }
 .tile-action {
