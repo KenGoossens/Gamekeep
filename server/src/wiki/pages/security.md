@@ -78,7 +78,7 @@ encrypted copies and survives any of them changing.
 Exactly two things can ever leave a GameKeepr install towards the project,
 both documented on their own pages and both entirely in the user's hands:
 the **opt-in, off-by-default** [anonymous usage statistics](/wiki/statistics)
-(one daily ping whose literal payload is shown before you decide; it feeds a
+(one hourly ping whose literal payload is shown before you decide; it feeds a
 public statistics page everyone can read) and
 [issue reports](/wiki/reporting-issues) (a prefilled GitHub form you read and
 approve before submitting). Errors and logs are deliberately never collected —

@@ -1,5 +1,6 @@
 /**
- * The GameKeepr mothership: receives the opt-in anonymous daily pings and
+ * The GameKeepr mothership: receives the opt-in anonymous pings (hourly since
+ * 1.6; daily before that) and
  * serves the public statistics page. This file is in the open repository on
  * purpose — anyone can read exactly what happens to a ping.
  *
@@ -537,9 +538,10 @@ footer a { color: var(--muted); }
 <body><main>
 <div class="brand"><img src="https://cdn.jsdelivr.net/gh/KenGoossens/Gamekeep@main/web/public/logo.png" alt="" width="26" height="26" /> GameKeepr</div>
 <h1>Public statistics</h1>
-<p class="sub">From opt-in, anonymous daily pings. Everyone sees this page — the people sharing the
-numbers included. A portal reports once a day, so every number below is the sum of each install's
-<em>most recent</em> report, counting the ones that reported in the last 48 hours. Page rebuilt
+<p class="sub">From opt-in, anonymous pings. Everyone sees this page — the people sharing the
+numbers included. A portal reports every hour (older versions once a day), so every number below
+is the sum of each install's <em>most recent</em> report, counting the ones that reported in the
+last 48 hours. Page rebuilt
 <time datetime="${esc(data.generatedAt)}">${esc(
     new Date(data.generatedAt).toLocaleString('en-GB', {
       day: 'numeric',
@@ -552,13 +554,14 @@ numbers included. A portal reports once a day, so every number below is the sum 
   )} UTC</time>.</p>
 
 <!--
-  Not "live", and the dot does not pulse. A portal reports once a day, so every
-  number here is the sum of each install's most recent report -- some of them
-  nearly two days old. Dressing that up as a live feed would be the one dishonest
-  thing on a page whose entire argument is that it tells you exactly what it knows.
+  Not "live", and the dot does not pulse. A portal reports once an hour (older
+  versions once a day), so every number here is the sum of each install's most
+  recent report -- up to an hour old at best, and up to two days for a straggler.
+  Dressing that up as a live feed would be the one dishonest thing on a page
+  whose entire argument is that it tells you exactly what it knows.
 -->
 <div class="statusbar">
-  <span class="snapshot"><i></i> Daily snapshot</span>
+  <span class="snapshot"><i></i> Hourly snapshot</span>
   <span>Newest report <b>${esc(ago(data.lastPingAt))}</b></span>
   <span><b>${esc(data.pingsToday)}</b> install${data.pingsToday === 1 ? '' : 's'} reported in the last 24 h</span>
   <span><b>${esc(data.history.length)}</b> day${data.history.length === 1 ? '' : 's'} of history</span>

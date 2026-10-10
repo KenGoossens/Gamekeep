@@ -69,6 +69,8 @@ export interface GameServer {
   yourAccess?: ServerAccess;
   /** A tournament match server: watch it, never drive it. */
   transient?: boolean;
+  /** Where the definition lives; deleting a 'config' server leaves its container alone. */
+  source?: 'config' | 'managed' | 'match';
   /** Whose artwork this card wears when not its own. */
   artworkId?: string | null;
   id: string;

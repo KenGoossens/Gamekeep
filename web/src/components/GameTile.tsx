@@ -45,7 +45,9 @@ export function GameTile({ server }: { server: GameServer }) {
     event.stopPropagation();
     if (
       !confirm(
-        `Delete ${displayName}? The container is stopped and removed. The game's data and backups stay on disk.`,
+        server.source === 'config'
+          ? `Remove ${displayName} from the portal? Its container is left untouched (the portal did not deploy it), and its entry in config/servers.json is ignored from now on — delete the line there too, or re-add it to bring the server back.`
+          : `Delete ${displayName}? The container is stopped and removed. The game's data and backups stay on disk.`,
       )
     )
       return;

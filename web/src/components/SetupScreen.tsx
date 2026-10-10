@@ -98,7 +98,7 @@ export function SetupScreen({ onDone }: { onDone: () => void }) {
         >
           <input type="checkbox" checked={telemetry} onChange={(e) => setTelemetry(e.target.checked)} />
           <span>
-            Share anonymous usage statistics — a daily ping with the GameKeepr version, platform,
+            Share anonymous usage statistics — an hourly ping with the GameKeepr version, platform,
             and which games run (never names, addresses or logs). You can inspect the exact payload
             and switch this off any time under Settings.
           </span>

@@ -37,6 +37,9 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
       /** True for tournament match servers: badge on the card, no lifecycle
        * buttons, and only the observe-tabs on the detail page. */
       transient: server.transient === true,
+      /** Where the definition lives: deleting a 'config' server leaves its
+       * container alone, so the card words its confirmation accordingly. */
+      source: server.transient === true ? ('match' as const) : registry.isFromConfig(server.id) ? ('config' as const) : ('managed' as const),
       /** Which artwork entry to show; match servers wear their game's. */
       artworkId: server.artworkId ?? null,
       // 'poster' is full-bleed Steam art, 'icon' is a logo centred on a tint,
@@ -229,13 +232,32 @@ export function registerServerRoutes(app: FastifyInstance, ctx: AppContext) {
           message: 'The tournament runs this server; it retires by itself.',
         });
       }
-      const managed = ctx.db.listManagedServers().some((m) => m.id === server.id);
-      if (!managed) {
-        return reply.code(409).send({
-          error: 'config-managed',
-          message:
-            'This server comes from config/servers.json. Remove it there; the portal will not touch servers it did not deploy.',
+      /*
+       * A config server deletes too, differently: the file is mounted
+       * read-only on purpose, so the portal records the id as removed and
+       * stops listing it — schedules, access exceptions and caches go the
+       * same way a deployed server's do. What stays untouched: the container
+       * (the portal did not deploy it, so it will not destroy it) and the
+       * file's own line, which is simply ignored until someone deletes it
+       * there — or re-adds it, which brings the server back.
+       */
+      if (registry.isFromConfig(server.id)) {
+        registry.removeConfigServer(server.id);
+        ctx.db.removeSchedulesFor(server.id);
+        ctx.db.clearServerRoleOverrides(server.id);
+        docker.invalidate(server);
+        gameQuery.invalidate(server.id);
+        ctx.metrics.forget(server.id);
+        ctx.db.audit({
+          userId: user.id,
+          username: user.username,
+          serverId: server.id,
+          action: 'server-removed',
+          result: 'success',
+          detail: `Removed ${server.displayName} from the portal; its config/servers.json entry is ignored from now on and the container (if any) was not touched`,
+          ...originOf(request),
         });
+        return reply.send({ ok: true, containerRemoved: false });
       }
 
       try {

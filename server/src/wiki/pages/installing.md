@@ -158,3 +158,10 @@ Two ways out, with very different weight:
   container and forgets the server. The game's data directory and its backups
   deliberately stay on disk — worlds do not die by button. Clean the disk by
   hand when you are sure.
+
+A server listed by hand in `config/servers.json` deletes too, with one honest
+difference: the file is mounted read-only, so the portal records the entry as
+removed and stops listing it — schedules, access exceptions and caches go the
+same way — but the container (which the portal did not deploy) is left
+untouched. Delete the line from the file at your leisure; re-adding it later
+brings the server back.

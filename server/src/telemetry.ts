@@ -67,7 +67,6 @@ const LAST_SENT_KEY = 'telemetry.lastSentAt';
 const LAST_STATUS_KEY = 'telemetry.lastStatus';
 const INVITED_KEY = 'telemetry.invited';
 
-/** Checked hourly; sent when a day has passed. */
 /**
  * A game's public name for a query type the registry does not carry, taken
  * from GameDig's own catalogue — which is also the safety rail: a type is
@@ -80,8 +79,15 @@ function gamedigName(type: string | undefined): string {
   return typeof entry?.name === 'string' ? entry.name : 'Unknown';
 }
 
-const CHECK_MS = 60 * 60_000;
-const SEND_EVERY_MS = 24 * 3_600_000 - 2 * 60_000;
+/*
+ * Checked every ten minutes; sent when an hour has passed. Hourly, not daily:
+ * the public page sums each install's newest report, and a day-old number on
+ * a page that counts running servers and players was the stalest thing on it.
+ * The payload is identical either way — opting in shares the same fields, just
+ * fresher. The two-minute slack keeps a slow tick from skipping a whole hour.
+ */
+const CHECK_MS = 10 * 60_000;
+const SEND_EVERY_MS = 3_600_000 - 2 * 60_000;
 
 export function createTelemetry(deps: {
   db: Db;

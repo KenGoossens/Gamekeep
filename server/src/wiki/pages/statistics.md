@@ -7,8 +7,9 @@ an unticked box at setup, and a switch under *Settings → Anonymous usage
 statistics* that shows the **literal payload** before the decision. It is
 reversible at any moment.
 
-Opted in, GameKeepr sends **one ping per day**. This is the entire payload,
-line by line:
+Opted in, GameKeepr sends **one ping per hour** (daily before 1.6 — the
+payload did not change, only the freshness of the public page). This is the
+entire payload, line by line:
 
 | Field | What it is | What it is NOT |
 |---|---|---|

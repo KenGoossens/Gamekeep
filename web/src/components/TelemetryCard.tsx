@@ -95,7 +95,7 @@ export function TelemetryCard() {
             }
           }}
         >
-          {busy ? 'Saving…' : state.enabled ? 'Turn off' : 'Opt in — share the payload above, daily'}
+          {busy ? 'Saving…' : state.enabled ? 'Turn off' : 'Opt in — share the payload above, hourly'}
         </button>
       </div>
     </section>

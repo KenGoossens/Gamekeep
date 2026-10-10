@@ -10,6 +10,22 @@ releases.
 
 ### Added
 
+- **The owner can remove config-file servers from the portal.** A server from
+  `config/servers.json` used to answer the bin with "remove it there" — but
+  the file is mounted read-only on purpose, so the portal now does its own
+  half honestly: the entry is recorded as removed and stops being listed,
+  schedules, access exceptions and caches go with it, and the container (which
+  the portal did not deploy) is deliberately left untouched. The confirmation
+  on the card says exactly that. Deleting the line from the file stays yours
+  to do; re-adding it later brings the server back.
+
+- **Opted-in installs report hourly instead of daily.** The public statistics
+  page sums each install's newest report, and a day-old number on a page that
+  counts running servers and players was the stalest thing on it. The payload
+  is unchanged — same fields, shown literally before you opt in — only the
+  cadence moved. The status strip now says *Hourly snapshot*, and the page
+  footnote is honest about stragglers: older versions still report daily.
+
 - **Every shipped Steam server now carries its OS, checked up front.** The
   Enshrouded lesson, applied to the whole list: a new generator
   (`server/scripts/enrich-steam-os.mts`) classified all 579 shipped servers
