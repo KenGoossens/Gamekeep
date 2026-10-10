@@ -301,6 +301,9 @@ export function createValidationRunner(deps: {
       appName: info.name,
       name: deployName,
       command,
+      // The same decision the deploy route makes: a Windows-only server is
+      // validated the way it would run — through Wine.
+      platform: (info.linux ? 'linux' : 'windows') as 'linux' | 'windows',
       ports,
       gameParams: '',
       validate: false,

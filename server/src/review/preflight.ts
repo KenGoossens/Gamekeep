@@ -97,17 +97,26 @@ const anonByAppid = new Map(
  * is true by construction rather than by copy.
  */
 export function steamPreflight(
-  info: { name: string; appId: number; linux: boolean },
+  info: { name: string; appId: number; linux: boolean; windows: boolean },
   hasCredentials: boolean,
 ): Finding[] {
   const findings: Finding[] = [];
-  if (!info.linux) {
+  if (!info.linux && info.windows) {
+    findings.push({
+      id: 'no-linux',
+      label: 'Linux build',
+      state: 'warn',
+      summary: `Steam publishes no Linux build of ${info.name} — GameKeepr will run the Windows server through Wine.`,
+      detail:
+        'The container downloads the Windows files and starts the .exe under Wine on a virtual display, the same way the Unraid community runs these servers. It works well for many games, but it is not native: a bit more RAM, and the odd game needs Wine settings of its own.',
+    });
+  } else if (!info.linux) {
     findings.push({
       id: 'no-linux',
       label: 'Linux build',
       state: 'fail',
-      summary: `Steam publishes no Linux build of ${info.name}, so it cannot run here.`,
-      detail: 'The Unraid catalogue may have a Wine-based template for it.',
+      summary: `Steam publishes neither a Linux nor a Windows build of ${info.name}, so it cannot run here.`,
+      detail: 'Only a macOS build (or none at all) is on record for this app.',
     });
   }
   findings.push(reviewSteamAnonymous(info.appId, hasCredentials));

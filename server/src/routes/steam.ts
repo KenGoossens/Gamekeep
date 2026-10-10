@@ -6,7 +6,7 @@ import { originOf } from '../auth/origin.js';
 import { DeployError, NAME_PATTERN, RESERVED_NAME_PREFIX, slugify } from '../deploy.js';
 import { ModSourceError } from '../mods/sources.js';
 import { inspectSteamApp, proposeCommand } from '../steam/appinfo.js';
-import { buildSteamPlan, writeSteamScaffold, STEAM_IMAGE } from '../steam/compose.js';
+import { buildSteamPlan, writeSteamScaffold, steamImageFor, STEAM_IMAGE, type SteamPlatform } from '../steam/compose.js';
 import { notifyServer } from '../notify.js';
 import { identifyGame } from '../games.js';
 import { passes, uncertain, type Finding } from '../findings.js';
@@ -17,8 +17,9 @@ import { autoForward } from '../router/stored.js';
  * Deploying any dedicated server Steam carries, from a container the portal
  * composes itself.
  *
- * The template path trusts a template author; this path trusts exactly two
- * parties -- Valve's official steamcmd image and Steam's own depots -- and
+ * The template path trusts a template author; this path trusts Valve's
+ * official steamcmd image and Steam's own depots (plus, for Windows-only
+ * servers, ich777's WineHQ base image -- see steam/compose.ts), and
  * shows the operator the one thing in between: the generated start script,
  * which also lands in the server's own volume where the Files tab can read
  * it. Nothing here can ever be privileged, because the portal writes the
@@ -88,11 +89,16 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
             );
         }
 
+        // Which build a deploy would run: native Linux first, Windows through
+        // Wine second, and null when Steam has neither (the button says why).
+        const platform: SteamPlatform | null = info.linux ? 'linux' : info.windows ? 'windows' : null;
+
         return reply.send({
           info,
           command,
           warnings,
-          image: STEAM_IMAGE,
+          platform,
+          image: platform ? steamImageFor(platform) : STEAM_IMAGE,
           known: known ? { label: known.label } : null,
           // Prefilled from the registry when the game is recognised; the
           // operator edits or extends the list either way.
@@ -202,6 +208,10 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
         appName: info.name,
         name,
         command,
+        // Decided here from Steam's own data, never from the client: native
+        // Linux when it exists, otherwise the Windows build through Wine.
+        // Neither existing already failed the preflight above.
+        platform: (info.linux ? 'linux' : 'windows') as SteamPlatform,
         ports,
         gameParams: String(body.gameParams ?? '').replace(/[\r\n]/g, ' ').slice(0, 300),
         validate: body.validate === true,
@@ -271,7 +281,7 @@ export function registerSteamRoutes(app: FastifyInstance, ctx: AppContext) {
         serverId,
         action: 'server-deployed',
         result: 'success',
-        detail: `Composed ${info.name} (Steam app ${appId}, ${STEAM_IMAGE}) as ${name}; start: ${command}`,
+        detail: `Composed ${info.name} (Steam app ${appId}, ${plan.image}) as ${name}; start: ${command}`,
         ...originOf(request),
       });
       const server = registry.get(serverId);

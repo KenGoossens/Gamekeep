@@ -219,13 +219,15 @@ function SteamDeployForm({
       </div>
 
       <p className="notes">
-        Composed by GameKeepr on Valve’s official <code>{proposal.image}</code> image: SteamCMD
-        downloads app {info.appId} on first start
+        Composed by GameKeepr on the <code>{proposal.image}</code> image: SteamCMD downloads app{' '}
+        {info.appId} on first start
         {info.sizeMB
           ? ` (~${info.sizeMB >= 1024 ? `${(info.sizeMB / 1024).toFixed(1)} GB` : `${info.sizeMB} MB`})`
           : ''}
-        , then the start command below runs as an unprivileged user. The generated script lands in
-        the server’s own files, where you can read and edit it later.
+        , then the start command below runs as an unprivileged user
+        {proposal.platform === 'windows' ? ' — through Wine, since this server is a Windows program' : ''}
+        . The generated script lands in the server’s own files, where you can read and edit it
+        later.
       </p>
       {proposal.known ? (
         <p className="hint ok">
@@ -389,10 +391,16 @@ function SteamDeployForm({
         <button
           type="button"
           className="btn-primary"
-          disabled={busy || !info.linux || !name.trim() || steps !== null}
+          disabled={busy || !proposal.platform || !name.trim() || steps !== null}
           onClick={() => void deploy()}
         >
-          {busy ? 'Deploying…' : info.linux ? 'Deploy' : 'No Linux build — cannot deploy'}
+          {busy
+            ? 'Deploying…'
+            : proposal.platform === 'windows'
+              ? 'Deploy (runs through Wine)'
+              : proposal.platform
+                ? 'Deploy'
+                : 'No Linux or Windows build — cannot deploy'}
         </button>
         <button type="button" className="btn-ghost" onClick={onCancel} disabled={busy}>
           Back

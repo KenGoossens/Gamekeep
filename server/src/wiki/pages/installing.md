@@ -19,6 +19,8 @@ sorted first), as a container **GameKeepr composes itself** on Valve's
 official `steamcmd` image. Here you trust exactly two parties — Valve's image
 and Steam's own depots — and the one thing in between is a start script
 GameKeepr writes, which lands in the server's own files where you can read it.
+(Windows-only servers add a third party: ich777's WineHQ base image, see
+below — the deploy form always names the image it will use.)
 
 - The **start command** comes from Steam's own app info and is shown for you
   to confirm. When Steam lists no Linux command, GameKeepr's registry fills
@@ -30,7 +32,16 @@ GameKeepr writes, which lands in the server's own files where you can read it.
   right headless command — edit it in the form or later in the Files tab.
 - SteamCMD downloads the server on first start and re-checks on every start,
   which is also how it updates.
-- Windows-only servers are refused with the reason. Whether an app allows
+- **Windows-only servers run through Wine.** Plenty of games (Enshrouded,
+  Sons of the Forest) publish no Linux build at all. For those, GameKeepr
+  composes the container on ich777's WineHQ base image instead — the same
+  author whose per-game Wine containers are the Unraid community's standard —
+  downloads the Windows files, and starts the `.exe` under Wine on a virtual
+  display. The deploy says so and asks you to acknowledge: it works well for
+  many servers, but it is not native — expect a bit more RAM, and the odd
+  game needs Wine settings of its own. An app with neither a Linux nor a
+  Windows build is refused with the reason.
+- Whether an app allows
   **anonymous downloads** is judged up front, from Valve's own
   dedicated-servers list: a known "no" warns you to set a Steam account
   *before* the first start fails on it, and an app the list does not know says

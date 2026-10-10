@@ -676,11 +676,14 @@ export interface SteamAppProposal {
     type: string;
     osList: string[];
     linux: boolean;
+    windows: boolean;
     sizeMB: number | null;
     launches: Array<{ executable: string; arguments: string; os: string; description: string }>;
   };
   command: string;
   warnings: string[];
+  /** Which build a deploy would run: native, through Wine, or not at all. */
+  platform: 'linux' | 'windows' | null;
   image: string;
   known: { label: string } | null;
   ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp'; purpose: string }>;

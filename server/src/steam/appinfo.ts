@@ -32,9 +32,11 @@ export interface SteamAppInfo {
   type: string;
   osList: string[];
   launches: SteamLaunch[];
-  /** Whether anything here can run on Linux at all. */
+  /** Whether a native Linux build exists. */
   linux: boolean;
-  /** Rough size of the Linux depots, for expectation-setting only. */
+  /** Whether a Windows build exists — runnable here through Wine. */
+  windows: boolean;
+  /** Rough size of the depots a deploy here would pull, for expectation-setting only. */
   sizeMB: number | null;
 }
 
@@ -50,6 +52,13 @@ function osOf(raw: RawLaunch): SteamLaunch['os'] {
   if (/linux/i.test(os)) return 'linux';
   if (/windows/i.test(os)) return 'windows';
   if (/macos/i.test(os)) return 'macos';
+  /*
+   * Publishers of Windows-only tools often leave oslist empty (Enshrouded's
+   * dedicated server lists plain "enshrouded_server.exe"), and "any" used to
+   * mean "counts as Linux" — which composed a Linux container around a binary
+   * bash can never run. The file name is the honest tiebreaker.
+   */
+  if (/\.(exe|bat|cmd)$/i.test(raw.executable ?? '')) return 'windows';
   return 'any';
 }
 
@@ -110,11 +119,20 @@ export async function inspectSteamApp(appId: number): Promise<SteamAppInfo> {
     .map((o) => o.trim())
     .filter(Boolean);
 
-  // The depots whose bytes a Linux install would actually pull.
+  const linux =
+    launches.some((l) => l.os === 'linux' || l.os === 'any') ||
+    osList.some((o) => /linux/i.test(o));
+  const windows =
+    launches.some((l) => l.os === 'windows' || l.os === 'any') ||
+    osList.some((o) => /windows/i.test(o));
+
+  // The depots whose bytes a deploy here would actually pull: the Linux ones
+  // when a native build exists, the Windows ones when Wine will run it.
+  const wanted = linux ? /linux/i : /windows/i;
   let size = 0;
   for (const depot of Object.values(app.depots ?? {})) {
     const os = depot?.config?.oslist ?? '';
-    if (depot?.maxsize && (!os || /linux/i.test(os))) size += Number(depot.maxsize) || 0;
+    if (depot?.maxsize && (!os || wanted.test(os))) size += Number(depot.maxsize) || 0;
   }
 
   return {
@@ -132,9 +150,8 @@ export async function inspectSteamApp(appId: number): Promise<SteamAppInfo> {
     type: String(app.common.type ?? ''),
     osList,
     launches,
-    linux:
-      launches.some((l) => l.os === 'linux' || l.os === 'any') ||
-      osList.some((o) => /linux/i.test(o)),
+    linux,
+    windows,
     sizeMB: size > 0 ? Math.round(size / 1048576) : null,
   };
 }
@@ -149,7 +166,11 @@ export async function inspectSteamApp(appId: number): Promise<SteamAppInfo> {
  */
 export function proposeCommand(info: SteamAppInfo): { command: string; warnings: string[] } {
   const warnings: string[] = [];
-  const candidates = info.launches.filter((l) => l.os === 'linux' || l.os === 'any');
+  // No native Linux build: the Windows entries are the candidates, because
+  // the composed container will run them through Wine.
+  const candidates = info.linux
+    ? info.launches.filter((l) => l.os === 'linux' || l.os === 'any')
+    : info.launches.filter((l) => l.os === 'windows' || l.os === 'any');
 
   if (candidates.length === 0) {
     return {
@@ -157,7 +178,9 @@ export function proposeCommand(info: SteamAppInfo): { command: string; warnings:
       warnings: [
         info.linux
           ? 'Steam lists no Linux launch command for this app, so the start command must be written by hand.'
-          : 'Steam publishes no Linux build of this server, so it cannot run here without Wine — use an Unraid template that provides one instead.',
+          : info.windows
+            ? 'Steam lists no launch command for this app at all, so the start command must be written by hand (the .exe the game’s documentation names).'
+            : 'Steam publishes neither a Linux nor a Windows build of this server, so it cannot run here.',
       ],
     };
   }
@@ -198,9 +221,14 @@ export function proposeCommand(info: SteamAppInfo): { command: string; warnings:
       'The suggested command mentions a display (X11), which a container does not have. Check the game’s own documentation for the headless variant.',
     );
   }
+  if (!info.linux) {
+    warnings.push(
+      `${info.name} ships no Linux build: the server is a Windows program, and GameKeepr will run it through Wine on a virtual display. That works well for many servers (Enshrouded, Sons of the Forest), but it is not native — if the game misbehaves, check whether its community recommends specific Wine settings.`,
+    );
+  }
   if (candidates.length > 1) {
     warnings.push(
-      `Steam lists ${candidates.length} Linux launch variants; the most headless-looking one was chosen. The others: ${candidates
+      `Steam lists ${candidates.length} ${info.linux ? 'Linux' : 'Windows'} launch variants; the most headless-looking one was chosen. The others: ${candidates
         .filter((c) => c !== best)
         .map((c) => `${c.executable} ${c.arguments}`.trim())
         .join(' · ')}`,

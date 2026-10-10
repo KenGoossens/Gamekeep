@@ -10,6 +10,18 @@ releases.
 
 ### Added
 
+- **Windows-only Steam servers now deploy — through Wine.** Plenty of games
+  (Enshrouded, Sons of the Forest) publish no Linux dedicated server at all,
+  and the Steam tab used to be a dead end for them. GameKeepr now composes
+  those on ich777's WineHQ base image — the same author whose per-game Wine
+  containers are the Unraid community's standard way of running these servers
+  — forces SteamCMD to the Windows build, keeps a 64-bit Wine prefix inside
+  the serverfiles volume (so it survives recreates and is deleted with the
+  server's data), and starts the `.exe` under `wine64` on a virtual display.
+  The deploy form says all of this up front and asks for an acknowledgement,
+  because Wine is proven but not native. An app with neither a Linux nor a
+  Windows build is still refused, now with that exact reason.
+
 - **"Unknown" on the statistics page became a wish list.** A server whose
   game the registry does not recognise used to count as `Unknown`, which
   told nobody anything. Those servers are now named from GameDig's public
@@ -58,6 +70,16 @@ releases.
   and update detection do — three features it never mentioned.
 
 ### Fixed
+
+- **A Windows-only server no longer composes a container that can never
+  start.** Steam's app info often leaves the OS off a launch entry
+  (Enshrouded's dedicated server lists plain `enshrouded_server.exe` with no
+  OS at all), and "no OS given" used to count as Linux-capable — so the
+  preflight waved the deploy through, SteamCMD downloaded nothing for the
+  Linux platform, and bash tried to run a Windows `.exe` forever. A launch
+  entry's file name is now the honest tiebreaker (`.exe` means Windows), the
+  download size shown at deploy time counts the depots that will actually be
+  pulled, and the preflight routes such apps to the new Wine path instead.
 
 - **A server deployed from the Steam catalogue gets its artwork immediately.**
   The Steam deploy route saved the recognised game's app id but never started
