@@ -106,6 +106,20 @@ export interface GameConfigFile {
    * discover it.
    */
   envAuthoritative?: boolean;
+  /**
+   * For 'json' files whose join settings do not live at the top level
+   * (Enshrouded nests its passwords per user group): accessors over the
+   * parsed object. When present they replace the top-level `keys` handling
+   * entirely — `keys` then only documents nothing and stays empty. `set`
+   * mutates the object and returns false when the file's structure does not
+   * carry the field, which the caller reports as not-found rather than
+   * guessing where to put it.
+   */
+  json?: {
+    keys: Array<{ kind: 'name' | 'world' | 'password' | 'admin'; fileKey: string }>;
+    get: (config: unknown, kind: 'name' | 'world' | 'password' | 'admin') => string | null;
+    set: (config: unknown, kind: 'name' | 'world' | 'password' | 'admin', value: string) => boolean;
+  };
 }
 
 /**
@@ -577,12 +591,66 @@ export const GAMES: GameProfile[] = [
       { key: 'SERVER_SLOT_COUNT', label: 'Player limit', type: 'number', min: 1, max: 16 },
     ],
     configFile: {
-      // Only the top-level name is reachable here: since the userGroups
-      // update the passwords live nested per role group, which this one-key
-      // surgery honestly does not edit — the Files tab does.
+      /*
+       * Since the userGroups update the passwords live nested per role group,
+       * so this file gets accessors instead of top-level keys. The player
+       * password lands on BOTH the Friend and the Guest group: one join
+       * password for players, and no group left carrying an image template's
+       * publicly-known default (the Nodiaque incident). The admin password is
+       * the Admin group's.
+       */
       locate: { fileName: 'enshrouded_server.json' },
       format: 'json',
-      keys: { name: 'name' },
+      keys: {},
+      json: (() => {
+        type Group = { name?: unknown; password?: unknown };
+        const groups = (config: unknown): Group[] | null => {
+          const list = (config as { userGroups?: unknown })?.userGroups;
+          return Array.isArray(list) ? (list as Group[]) : null;
+        };
+        const groupPassword = (config: unknown, group: string): string | null => {
+          const hit = groups(config)?.find((g) => g.name === group);
+          return typeof hit?.password === 'string' ? hit.password : null;
+        };
+        const setGroupPasswords = (config: unknown, names: string[], value: string): boolean => {
+          const list = groups(config);
+          if (!list) return false;
+          let any = false;
+          for (const g of list) {
+            if (typeof g.name === 'string' && names.includes(g.name)) {
+              g.password = value;
+              any = true;
+            }
+          }
+          return any;
+        };
+        return {
+          keys: [
+            { kind: 'name' as const, fileKey: 'name' },
+            { kind: 'password' as const, fileKey: 'userGroups[Friend,Guest].password' },
+            { kind: 'admin' as const, fileKey: 'userGroups[Admin].password' },
+          ],
+          get(config: unknown, kind: 'name' | 'world' | 'password' | 'admin'): string | null {
+            if (kind === 'name') {
+              const name = (config as { name?: unknown })?.name;
+              return typeof name === 'string' ? name : null;
+            }
+            if (kind === 'password') return groupPassword(config, 'Guest');
+            if (kind === 'admin') return groupPassword(config, 'Admin');
+            return null;
+          },
+          set(config: unknown, kind: 'name' | 'world' | 'password' | 'admin', value: string): boolean {
+            if (kind === 'name') {
+              if (typeof config !== 'object' || config === null) return false;
+              (config as { name?: unknown }).name = value;
+              return true;
+            }
+            if (kind === 'password') return setGroupPasswords(config, ['Friend', 'Guest'], value);
+            if (kind === 'admin') return setGroupPasswords(config, ['Admin'], value);
+            return false;
+          },
+        };
+      })(),
     },
     match: [/enshrouded/i],
     modsUnavailable: 'Enshrouded has no mod support, so there is nothing to install.',

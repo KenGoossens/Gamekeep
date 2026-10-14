@@ -73,10 +73,33 @@ export interface WatchTiming {
   pollMs?: number;
 }
 
+/** The operator's typed join settings, held privately by the watch — never on
+ * the DeployWatch object, which is serialized to the UI. */
+export type JoinValues = Partial<Record<'name' | 'world' | 'password' | 'admin', string>>;
+
+export interface WatchHooks {
+  /**
+   * Writes the typed join settings into the game's OWN config file once the
+   * first boot has produced one, restarting the server when the file actually
+   * changed. This is what makes the Joining card's promise true for images
+   * that never read the env variables (the Nodiaque Enshrouded lesson):
+   * 'applied' means the file changed and the server was restarted once;
+   * 'unchanged' means the file already carried the values (the image read its
+   * env); 'skipped' means this game has no described config file, the image
+   * regenerates it from env, or the write could not be made — detail says
+   * which.
+   */
+  applyJoinSettings?: (
+    server: ServerConfig,
+    values: JoinValues,
+  ) => Promise<{ result: 'applied' | 'unchanged' | 'skipped'; detail: string }>;
+}
+
 export function createDeployWatcher(
   dockerClient: DockerClient,
   gameQuery: GameQuery,
   timing: WatchTiming = {},
+  hooks: WatchHooks = {},
 ) {
   const { docker } = dockerClient;
   const stallMs = timing.stallMs ?? STALL_MS;
@@ -152,12 +175,47 @@ export function createDeployWatcher(
     }
   }
 
-  async function run(server: ServerConfig, watch: DeployWatch, expectedName: string | null) {
+  async function run(
+    server: ServerConfig,
+    watch: DeployWatch,
+    expectedName: string | null,
+    joinValues?: JoinValues,
+  ) {
     const budgetMs =
       (server.restartTimeoutSeconds ?? gameByQueryType(server.query?.type)?.startupSeconds ?? 300) *
       1000;
     const start = Date.now();
     const ceiling = start + ceilingMs;
+    /** The budget restarts when the auto-apply restarts the server. */
+    let budgetAnchor = start;
+
+    /**
+     * The one automatic config write: once the game first proves it is up —
+     * which is also the first moment its config file certainly exists — the
+     * typed join settings go into that file, and a changed file earns one
+     * restart. Attempted once, whatever the outcome; a failure is reported,
+     * never retried into a restart loop.
+     */
+    let joinPending = Boolean(joinValues && hooks.applyJoinSettings);
+    let joinApplied = false;
+    const applyJoin = async (): Promise<'restarted' | 'done'> => {
+      joinPending = false;
+      watch.message = 'Game is up — writing the typed join settings into its own config file';
+      try {
+        const outcome = await hooks.applyJoinSettings!(server, joinValues!);
+        if (outcome.result === 'applied') {
+          joinApplied = true;
+          watch.message = 'Join settings written into the game’s config file — restarted once to load them';
+          budgetAnchor = Date.now();
+          lastMovement = Date.now();
+          lastCounter = null;
+          return 'restarted';
+        }
+      } catch {
+        // The server itself is fine; the normal verification below judges it.
+      }
+      return 'done';
+    };
 
     let lastCounter: number | null = null;
     let lastMovement = start;
@@ -212,22 +270,32 @@ export function createDeployWatcher(
           gameQuery.invalidate(server.id);
           const answer = await gameQuery.getPlayers(server);
           if (answer) {
+            if (joinPending && (await applyJoin()) === 'restarted') {
+              await sleep(pollMs);
+              continue;
+            }
+            const appliedSuffix = joinApplied
+              ? ' The typed join settings were written into the game’s own config file, and the server restarted once to load them.'
+              : '';
             if (!expectedName || !answer.serverName) {
               watch.outcome = 'success';
-              watch.note = expectedName
-                ? 'The game answered. It reports no server name over its query protocol, so the name could not be cross-checked.'
-                : 'The game answered its query.';
+              watch.note =
+                (expectedName
+                  ? 'The game answered. It reports no server name over its query protocol, so the name could not be cross-checked.'
+                  : 'The game answered its query.') + appliedSuffix;
               return;
             }
             if (nameMatches(expectedName, answer.serverName)) {
               watch.outcome = 'success';
-              watch.note = `The game answered as "${answer.serverName}" — the configuration landed.`;
+              watch.note = `The game answered as "${answer.serverName}" — the configuration landed.${appliedSuffix}`;
               return;
             }
             watch.outcome = 'unconfirmed';
             watch.note =
               `The server answers, but calls itself "${answer.serverName}" instead of "${expectedName}". ` +
-              'Its image may not have read the settings it was given — check the Settings tab against the Joining card.';
+              (joinApplied
+                ? 'The settings were written into its config file and it restarted once, so the file may not be the one this image reads — check the Files tab.'
+                : 'Its image may not have read the settings it was given — check the Settings tab against the Joining card.');
             return;
           }
           watch.phase = 'waiting-game';
@@ -235,13 +303,25 @@ export function createDeployWatcher(
         } else {
           // No query protocol: a listening port is the strongest proof left.
           const ports = (tcpPorts ??= await publishedTcpPorts(server.container));
+          let accepted = false;
           for (const port of ports) {
             if (await portAccepts(server.container, port)) {
-              watch.outcome = 'success';
-              watch.note =
-                'This game has no query protocol, so the check stops at its port accepting connections — which it does.';
-              return;
+              accepted = true;
+              break;
             }
+          }
+          if (accepted) {
+            if (joinPending && (await applyJoin()) === 'restarted') {
+              await sleep(pollMs);
+              continue;
+            }
+            watch.outcome = 'success';
+            watch.note =
+              'This game has no query protocol, so the check stops at its port accepting connections — which it does.' +
+              (joinApplied
+                ? ' The typed join settings were written into the game’s own config file, and the server restarted once to load them.'
+                : '');
+            return;
           }
           watch.phase = 'waiting-game';
           watch.message =
@@ -262,7 +342,7 @@ export function createDeployWatcher(
         lastCounter = counter;
       }
 
-      const elapsed = Date.now() - start;
+      const elapsed = Date.now() - budgetAnchor;
       if (elapsed > budgetMs) {
         // The note only ever claims what was measured: when stats never
         // answered, the verdict says so instead of asserting "nothing moved".
@@ -295,7 +375,12 @@ export function createDeployWatcher(
    * Starts following one freshly deployed server. Returns the watch the
    * deploy response hands to the UI; the following itself runs detached.
    */
-  function start(server: ServerConfig, expectedName: string | null, kind: WatchKind = 'deploy'): DeployWatch {
+  function start(
+    server: ServerConfig,
+    expectedName: string | null,
+    kind: WatchKind = 'deploy',
+    joinValues?: JoinValues,
+  ): DeployWatch {
     // One server, one active watch: a second save or deploy supersedes the
     // old proof instead of running two polls (and two verdicts) in parallel.
     const existing = watchForServer(server.id);
@@ -314,7 +399,7 @@ export function createDeployWatcher(
     };
     watches.set(watch.id, watch);
 
-    void run(server, watch, expectedName)
+    void run(server, watch, expectedName, joinValues)
       .catch((err: unknown) => {
         // The watcher itself failing is not the server failing.
         watch.outcome = 'unconfirmed';

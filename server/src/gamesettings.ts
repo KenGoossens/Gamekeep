@@ -221,6 +221,15 @@ export function createGameSettings(dockerClient: DockerClient) {
     return ini.readKey(text, key, section);
   }
 
+  /** Parses a json-accessor file; bad JSON is reported, never guessed around. */
+  function parseJson(text: string): unknown {
+    try {
+      return JSON.parse(text) as unknown;
+    } catch {
+      throw new GameSettingsError('The file is not valid JSON; fix it on the Files tab first.', 'bad-value');
+    }
+  }
+
   /** Null when this game has no described config file or none exists yet. */
   async function scan(server: ServerConfig): Promise<GameSettingsView | null> {
     const profile = profileFor(server);
@@ -228,13 +237,28 @@ export function createGameSettings(dockerClient: DockerClient) {
     const read = await readLocated(server, profile.config);
     if (!read) return null;
 
-    const values = (
-      Object.entries(profile.config.keys) as Array<[JoinKey, string | { key: string; section: string }]>
-    ).map(([key, raw]) => ({
-      key,
-      fileKey: specOf(raw).key,
-      value: readValue(read.text, profile.config, raw),
-    }));
+    const accessor = profile.config.json;
+    const values = accessor
+      ? (() => {
+          let data: unknown = null;
+          try {
+            data = parseJson(read.text);
+          } catch {
+            // A broken file still gets a scan; every value honestly reads null.
+          }
+          return accessor.keys.map(({ kind, fileKey }) => ({
+            key: kind,
+            fileKey,
+            value: data === null ? null : accessor.get(data, kind),
+          }));
+        })()
+      : (
+          Object.entries(profile.config.keys) as Array<[JoinKey, string | { key: string; section: string }]>
+        ).map(([key, raw]) => ({
+          key,
+          fileKey: specOf(raw).key,
+          value: readValue(read.text, profile.config, raw),
+        }));
     return {
       file: read.file,
       gameLabel: profile.label,
@@ -252,7 +276,7 @@ export function createGameSettings(dockerClient: DockerClient) {
   async function prepare(
     server: ServerConfig,
     changes: Partial<Record<JoinKey, string>>,
-  ): Promise<{ file: string; text: string; applied: JoinKey[] }> {
+  ): Promise<{ file: string; text: string; applied: JoinKey[]; changed: boolean }> {
     const profile = profileFor(server);
     if (!profile) {
       throw new GameSettingsError('This game has no described configuration file.', 'unsupported');
@@ -267,20 +291,46 @@ export function createGameSettings(dockerClient: DockerClient) {
 
     let text = read.text;
     const applied: JoinKey[] = [];
-    for (const [key, raw] of Object.entries(changes) as Array<[JoinKey, string]>) {
-      const keySpec = profile.config.keys[key];
-      if (!keySpec) continue;
-      const { key: fileKey, section } = specOf(keySpec);
-      const value = String(raw).replace(/[\r\n\0]/g, ' ').trim();
-      text =
-        profile.config.format === 'xml-properties'
-          ? writeXmlProp(text, fileKey, value)
-          : profile.config.format === 'json'
-            ? writeJsonKey(text, fileKey, value)
-            : ini.writeKey(text, fileKey, section, value);
-      applied.push(key);
+    const accessor = profile.config.json;
+    if (accessor) {
+      const data = parseJson(text);
+      for (const [key, raw] of Object.entries(changes) as Array<[JoinKey, string]>) {
+        if (!accessor.keys.some((k) => k.kind === key)) continue;
+        const value = String(raw).replace(/[\r\n\0]/g, ' ').trim();
+        if (!accessor.set(data, key, value)) {
+          throw new GameSettingsError(
+            `The file does not carry the structure that holds its ${key} — edit it on the Files tab.`,
+            'not-found',
+          );
+        }
+        applied.push(key);
+      }
+      if (applied.length > 0) text = JSON.stringify(data, null, 2) + '\n';
+    } else {
+      for (const [key, raw] of Object.entries(changes) as Array<[JoinKey, string]>) {
+        const keySpec = profile.config.keys[key];
+        if (!keySpec) continue;
+        const { key: fileKey, section } = specOf(keySpec);
+        const value = String(raw).replace(/[\r\n\0]/g, ' ').trim();
+        text =
+          profile.config.format === 'xml-properties'
+            ? writeXmlProp(text, fileKey, value)
+            : profile.config.format === 'json'
+              ? writeJsonKey(text, fileKey, value)
+              : ini.writeKey(text, fileKey, section, value);
+        applied.push(key);
+      }
     }
-    return { file: read.file, text, applied };
+    // Reparsed-and-reprinted JSON can differ in whitespace while carrying the
+    // same values, so "changed" compares values, not bytes, for accessor files.
+    const changed = accessor
+      ? applied.some((key) => {
+          const current = accessor.get(parseJson(read.text), key);
+          const next = accessor.get(parseJson(text), key);
+          return current !== next;
+        })
+      : text !== read.text;
+    return { file: read.file, text, applied, changed };
   }
 
   /** The write itself; the file browser's backup covers the regret case. */

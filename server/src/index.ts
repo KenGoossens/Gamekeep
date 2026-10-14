@@ -11,6 +11,7 @@ import { openDatabase } from './db.js';
 import { createDockerClient } from './docker/client.js';
 import { createActionRunner } from './docker/actions.js';
 import { createDeployWatcher } from './deployverify.js';
+import { createJoinApplier } from './autoapply.js';
 import { createGameQuery } from './query/gamedig.js';
 import { createCooldown } from './cooldown.js';
 import { createArtworkStore } from './artwork.js';
@@ -91,7 +92,19 @@ async function main() {
   const docker = createDockerClient(env);
   const gameQuery = createGameQuery();
   const actions = createActionRunner(docker, gameQuery);
-  const deployWatch = createDeployWatcher(docker, gameQuery);
+  const gameSettings = createGameSettings(docker);
+  const deployWatch = createDeployWatcher(docker, gameQuery, {}, {
+    // After a deploy's first boot, the typed Joining values go into the
+    // game's own config file (one automatic restart when the file changed) —
+    // so an image that ignores GameKeepr's env variables still comes up with
+    // the name and passwords the operator typed.
+    applyJoinSettings: createJoinApplier({
+      dockerClient: docker,
+      gameSettings,
+      // Console rather than app.log: built before Fastify is (same as notify).
+      log: (message) => console.info(`[GameKeepr] ${message}`),
+    }),
+  });
   const cooldown = createCooldown(db);
   const artwork = createArtworkStore(env.DATABASE_PATH);
   const catalog = createCatalog(
@@ -101,7 +114,6 @@ async function main() {
   const deployer = createDeployer(docker);
   const metrics = createMetricsCollector(docker, registry, gameQuery, db);
   const settings = createSettingsManager(docker);
-  const gameSettings = createGameSettings(docker);
   const files = createFileBrowser(docker);
   const notify = createNotifier({
     publicUrl: env.PUBLIC_URL,

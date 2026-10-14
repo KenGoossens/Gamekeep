@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.7.0 — 2026-10-14
+
+### Added
+
+- **The Joining card's promise is now kept by the portal itself, not by hoping
+  the image reads its env.** The typed join settings always landed on the
+  container as environment variables — which only ever worked for images that
+  read them. One that does not (Nodiaque's Enshrouded, say) booted wearing its
+  template's own name and its template's publicly-known passwords, and the
+  only clue was the verification's "calls itself something else" note. Now the
+  deploy verification finishes the job: once the first boot proves the game
+  up — the one moment its config file certainly exists — the typed values are
+  checked against the game's **own config file** and, only when they differ,
+  written in (through the same backed-up surgery the Settings tab uses) with
+  exactly one automatic restart to load them. The deploy screen narrates it,
+  the outcome note records it, and images that already honoured their env are
+  left untouched — no churn, no second restart. Games whose images regenerate
+  the file from env on every boot are skipped on purpose; there the env *is*
+  the file's source.
+
+- **Enshrouded's passwords became editable — nested where they really live.**
+  The registry's config-file surgery only knew top-level keys, and Enshrouded
+  keeps its passwords per user group since the userGroups update; the Settings
+  tab honestly refused to touch them. JSON config files can now carry
+  accessors for nested values: for Enshrouded the player password sets the
+  Friend **and** Guest groups (one join password, and no group left wearing an
+  image template's publicly-known default) and the admin password sets the
+  Admin group — on the Settings tab and in the deploy auto-apply alike.
+
+
 All notable changes to GameKeepr. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [semantic versioning](https://semver.org). The `latest` image on ghcr.io moves

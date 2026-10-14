@@ -404,7 +404,29 @@ export function registerCatalogRoutes(app: FastifyInstance, ctx: AppContext) {
           .filter((spec) => spec.connect === 'name')
           .map((spec) => (typedValues[spec.key] ?? '').trim())
           .find((v) => v !== '') ?? null;
-      const watch = deployed ? ctx.deployWatch.start(deployed, expectedName) : null;
+      /*
+       * The typed join settings ride along privately: once the first boot
+       * proves the game up, the watch writes them into the game's OWN config
+       * file and restarts once if that changed anything — the half of the
+       * Joining promise that env variables alone cannot keep, because not
+       * every image reads them. Only typed, non-empty values travel; an empty
+       * password stays the operator's deliberate choice.
+       */
+      const joinValues: Partial<Record<'name' | 'world' | 'password' | 'admin', string>> = {};
+      for (const spec of connectSpecs) {
+        const value = (typedValues[spec.key] ?? '').trim();
+        if (spec.connect && value && !(spec.connect in joinValues)) {
+          joinValues[spec.connect] = value;
+        }
+      }
+      const watch = deployed
+        ? ctx.deployWatch.start(
+            deployed,
+            expectedName,
+            'deploy',
+            Object.keys(joinValues).length > 0 ? joinValues : undefined,
+          )
+        : null;
 
       return reply.code(201).send({
         serverId,

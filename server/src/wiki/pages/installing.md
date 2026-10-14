@@ -71,6 +71,16 @@ below — the deploy form always names the image it will use.)
   Joining card). Everything can still be changed later on the Settings tab,
   and the server's overview shows a Joining card with the address, port and
   password for everyone who may see it.
+- **…and made true whatever the image does with them**: the values land on the
+  container as environment variables, but not every image reads those — some
+  ship a template config with their own defaults (and publicly-known
+  passwords). So once the first boot proves the game up, the verification
+  checks the game's **own config file** against what you typed and, only when
+  it differs, writes your values in (same backup as a Settings-tab save) and
+  restarts the server once — automatically, before anyone was told it is
+  ready. The outcome note says when this happened. Images that already read
+  their env, and games whose images regenerate the file from env on every
+  boot, are left alone.
 - **Values checked before anything exists**: each join setting is held to the
   game's own rules in the form — a four-character Valheim password is refused
   right there (the game would refuse to boot on it, minutes later and much
