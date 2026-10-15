@@ -9,6 +9,7 @@
  * the mod installer, keeps those answers from drifting apart.
  */
 
+import { randomBytes } from 'node:crypto';
 import { safeSegment } from './paths.js';
 
 export interface ModLayout {
@@ -119,6 +120,14 @@ export interface GameConfigFile {
     keys: Array<{ kind: 'name' | 'world' | 'password' | 'admin'; fileKey: string }>;
     get: (config: unknown, kind: 'name' | 'world' | 'password' | 'admin') => string | null;
     set: (config: unknown, kind: 'name' | 'world' | 'password' | 'admin', value: string) => boolean;
+    /**
+     * The game's own rules over the whole edited object, checked BEFORE a
+     * restart could brick the server on them: returns the refusal message, or
+     * null when the config is one the game will accept. Enshrouded refuses to
+     * boot when two user groups share a password — a rule no per-field edit
+     * can see.
+     */
+    validate?: (config: unknown) => string | null;
   };
 }
 
@@ -594,10 +603,14 @@ export const GAMES: GameProfile[] = [
       /*
        * Since the userGroups update the passwords live nested per role group,
        * so this file gets accessors instead of top-level keys. The player
-       * password lands on BOTH the Friend and the Guest group: one join
-       * password for players, and no group left carrying an image template's
-       * publicly-known default (the Nodiaque incident). The admin password is
-       * the Admin group's.
+       * password is the Guest group's; the admin password is the Admin
+       * group's. The Friend group gets a fresh random password whenever the
+       * player password is set — Enshrouded REFUSES TO BOOT when two groups
+       * share a password ("user groups passwords must be unique"), so the one
+       * join password can never cover two groups, and leaving Friend alone
+       * would keep an image template's publicly-known default as a working
+       * key (the Nodiaque incident). Effectively: Friend is disabled unless
+       * someone manages it by hand on the Files tab.
        */
       locate: { fileName: 'enshrouded_server.json' },
       format: 'json',
@@ -627,7 +640,7 @@ export const GAMES: GameProfile[] = [
         return {
           keys: [
             { kind: 'name' as const, fileKey: 'name' },
-            { kind: 'password' as const, fileKey: 'userGroups[Friend,Guest].password' },
+            { kind: 'password' as const, fileKey: 'userGroups[Guest].password' },
             { kind: 'admin' as const, fileKey: 'userGroups[Admin].password' },
           ],
           get(config: unknown, kind: 'name' | 'world' | 'password' | 'admin'): string | null {
@@ -645,9 +658,24 @@ export const GAMES: GameProfile[] = [
               (config as { name?: unknown }).name = value;
               return true;
             }
-            if (kind === 'password') return setGroupPasswords(config, ['Friend', 'Guest'], value);
+            if (kind === 'password') {
+              // Friend moves to a random value in the same edit: unique (the
+              // game's rule) and no longer the template's public default. A
+              // config without a Friend group is fine — Guest decides success.
+              const ok = setGroupPasswords(config, ['Guest'], value);
+              setGroupPasswords(config, ['Friend'], randomBytes(18).toString('base64url'));
+              return ok;
+            }
             if (kind === 'admin') return setGroupPasswords(config, ['Admin'], value);
             return false;
+          },
+          validate(config: unknown): string | null {
+            const passwords = (groups(config) ?? [])
+              .map((g) => (typeof g.password === 'string' ? g.password : ''))
+              .filter((p) => p !== '');
+            return new Set(passwords).size === passwords.length
+              ? null
+              : 'Enshrouded refuses to start when two user groups share a password — give the admin password a value different from the player password.';
           },
         };
       })(),

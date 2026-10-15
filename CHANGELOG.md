@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.7.1 — 2026-10-15
+
+### Fixed
+
+- **Setting Enshrouded's player password no longer stops the server from
+  booting.** 1.7.0 wrote the player password onto the Friend *and* Guest
+  groups — and Enshrouded refuses to start when two groups share a password
+  (`Internal Error: user groups passwords must be unique`), which a save from
+  the Settings tab or a fresh deploy's auto-apply could trip. The player
+  password now goes to the Guest group alone; the Friend group gets a fresh
+  random password in the same edit, so it stays unique and never keeps an
+  image template's publicly-known default. A new whole-file check also refuses
+  — in the form, before any restart — a player and admin password that are
+  identical, since the game would refuse them too.
+
+
 ## 1.7.0 — 2026-10-14
 
 ### Added

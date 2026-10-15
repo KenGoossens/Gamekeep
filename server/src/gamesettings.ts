@@ -305,7 +305,13 @@ export function createGameSettings(dockerClient: DockerClient) {
         }
         applied.push(key);
       }
-      if (applied.length > 0) text = JSON.stringify(data, null, 2) + '\n';
+      if (applied.length > 0) {
+        // The game's own whole-file rules, checked before any restart could
+        // brick the server on them (Enshrouded: group passwords must differ).
+        const refusal = accessor.validate?.(data);
+        if (refusal) throw new GameSettingsError(refusal, 'bad-value');
+        text = JSON.stringify(data, null, 2) + '\n';
+      }
     } else {
       for (const [key, raw] of Object.entries(changes) as Array<[JoinKey, string]>) {
         const keySpec = profile.config.keys[key];
