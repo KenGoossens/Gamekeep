@@ -19,6 +19,9 @@
   </nav>
 </header>
 <main class="solo"><article class="prose"><h1>Changelog</h1>
+<h2>Unreleased</h2>
+<h3>Fixed</h3>
+<ul><li><strong>&quot;A restart installs it&quot; became &quot;usually&quot;, and GameKeepr's own servers earn the stronger claim.</strong> On Enshrouded's release day a restart kept answering &quot;already up to date&quot; while Steam demonstrably shipped a new build — SteamCMD sessions can hold stale app info and skip an update that exists. The composed Steam servers' start script now forces <code>+app_info_update 1</code> before every <code>+app_update</code>, so their restarts really do install what Steam ships; the update card is honest about template images, where GameKeepr does not own the script: stale app info can delay the update briefly, and the card names the manual escape hatch.</li></ul>
 <h2>1.7.1 — 2026-10-15</h2>
 <h3>Fixed</h3>
 <ul><li><strong>Setting Enshrouded's player password no longer stops the server from booting.</strong> 1.7.0 wrote the player password onto the Friend <em>and</em> Guest groups — and Enshrouded refuses to start when two groups share a password (<code>Internal Error: user groups passwords must be unique</code>), which a save from the Settings tab or a fresh deploy's auto-apply could trip. The player password now goes to the Guest group alone; the Friend group gets a fresh random password in the same edit, so it stays unique and never keeps an image template's publicly-known default. A new whole-file check also refuses — in the form, before any restart — a player and admin password that are identical, since the game would refuse them too.</li></ul>

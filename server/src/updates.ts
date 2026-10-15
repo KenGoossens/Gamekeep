@@ -202,7 +202,7 @@ export function createUpdateChecker(deps: {
         updateAvailable,
         checkedAt: Date.now(),
         note: updateAvailable
-          ? 'A restart installs it: these servers run SteamCMD on every start.'
+          ? 'A restart usually installs it: these servers run SteamCMD on every start (stale Steam app info can delay it briefly).'
           : null,
       });
 
@@ -215,7 +215,7 @@ export function createUpdateChecker(deps: {
           void notify.send({
             kind: 'update-available',
             server: notifyServer(server),
-            detail: `Steam ships build ${latest}; this server runs ${manifest.build}. A restart installs it.`,
+            detail: `Steam ships build ${latest}; this server runs ${manifest.build}. A restart usually installs it.`,
           });
         }
       }

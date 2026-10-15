@@ -40,8 +40,11 @@ export function UpdateCard({ serverId, canOperate }: { serverId: string; canOper
       {status?.updateAvailable ? (
         <p className="notes">
           Steam ships build <code>{status.latestBuild}</code>; this server runs{' '}
-          <code>{status.installedBuild}</code>. <strong>A restart installs it</strong> — these
-          servers run SteamCMD on every start.
+          <code>{status.installedBuild}</code>. <strong>A restart usually installs it</strong> —
+          these servers run SteamCMD on every start. If a restart keeps saying “already up to
+          date” right after Steam shipped the update, the image’s SteamCMD is holding stale app
+          info; give Steam an hour, or run the update by hand with{' '}
+          <code>+app_info_update 1</code> before <code>+app_update</code>.
         </p>
       ) : status?.latestBuild ? (
         <p className="notes">

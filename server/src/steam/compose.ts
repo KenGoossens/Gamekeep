@@ -111,10 +111,14 @@ else
     UPDATE=(+app_update "$APP_ID")
 fi
 # force_install_dir must come before login, per Valve's own documentation.
+# app_info_update 1 forces fresh app info in THIS session: without it SteamCMD
+# can hold stale data and answer "already up to date" for an app Steam updated
+# minutes ago — seen in the field on Enshrouded's release day.
 runuser -u "$RUN_AS" -- ${req.platform === 'windows' ? `"$STEAMCMD_DIR/steamcmd.sh" \\
     +@sSteamCmdForcePlatformType windows \\` : `/usr/bin/steamcmd \\`}
     +force_install_dir "$SERVER_DIR" \\
     "\${LOGIN[@]}" \\
+    +app_info_update 1 \\
     "\${UPDATE[@]}" \\
     +quit
 STATUS=$?

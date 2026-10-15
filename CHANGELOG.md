@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **"A restart installs it" became "usually", and GameKeepr's own servers earn
+  the stronger claim.** On Enshrouded's release day a restart kept answering
+  "already up to date" while Steam demonstrably shipped a new build — SteamCMD
+  sessions can hold stale app info and skip an update that exists. The
+  composed Steam servers' start script now forces `+app_info_update 1` before
+  every `+app_update`, so their restarts really do install what Steam ships;
+  the update card is honest about template images, where GameKeepr does not
+  own the script: stale app info can delay the update briefly, and the card
+  names the manual escape hatch.
+
+
 ## 1.7.1 — 2026-10-15
 
 ### Fixed
