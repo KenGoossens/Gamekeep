@@ -480,6 +480,8 @@ export interface GameSettingsScan {
     fileKey: string;
     value: string | null;
   }>;
+  /** A game-specific heads-up about the file as it is (never enforced), or null. */
+  advice: string | null;
 }
 
 /** One deploy's first boot, followed until the game proves itself. */

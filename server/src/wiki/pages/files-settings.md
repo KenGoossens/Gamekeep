@@ -49,7 +49,7 @@ Covered today, each researched against the game's own documentation:
 | V Rising | `ServerHostSettings.json` (the live copy, not the StreamingAssets defaults) | name, world, password — *admins are Steam IDs* |
 | ARK: Survival Evolved | `GameUserSettings.ini` | name, password, admin password — *ich777 passes these as launch arguments, so the file is shown read-only* |
 | Conan Exiles | `ServerSettings.ini` | password, admin password — *the display name lives in a second file, out of honest reach* |
-| Enshrouded | `enshrouded_server.json` | name — *passwords live nested per role group since the userGroups update; edit those on the Files tab* |
+| Enshrouded | `enshrouded_server.json` | name, password, admin password — *nested per role group; the player password covers the Guest group, and the Friend group is re-randomised with it so no two groups ever share a password (the game refuses to boot on duplicates)* |
 
 Games deliberately absent, with the reason: Satisfactory is claimed in-game
 (no pre-boot name/password config exists); Rust has no join password at all
@@ -71,6 +71,12 @@ Three honest behaviours:
   the file there is lost work, so the portal shows it read-only with a pointer
   to the matching variables above instead of offering an edit it knows will be
   undone.
+- **Known traps are said out loud.** Some games carry a rule their file does
+  not show: Enshrouded ignores its entire `gameSettings` block (durability,
+  difficulty, day length) until `gameSettingsPreset` says `Custom`, so a
+  hand-tuned setting under any other preset looks saved and does nothing. The
+  Settings tab prints that heads-up whenever the file is in that state —
+  advice, never enforcement.
 - **No file yet is said plainly.** Most games write their config on first
   boot; before that the section says to start the server once, instead of
   inventing a file the game might ignore.

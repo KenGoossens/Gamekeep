@@ -41,6 +41,8 @@ export interface GameSettingsView {
   envAuthoritative: boolean;
   /** The join keys this game's file carries, with their current values. */
   values: Array<{ key: JoinKey; fileKey: string; value: string | null }>;
+  /** A game-specific heads-up about the file as it is (never enforced), or null. */
+  advice: string | null;
 }
 
 /** The four join-setting classes, in one place: routes and type derive from it. */
@@ -259,11 +261,21 @@ export function createGameSettings(dockerClient: DockerClient) {
           fileKey: specOf(raw).key,
           value: readValue(read.text, profile.config, raw),
         }));
+    const advice = (() => {
+      if (!accessor?.advise) return null;
+      try {
+        return accessor.advise(parseJson(read.text));
+      } catch {
+        // A broken file's problem is the broken file, not a missing preset.
+        return null;
+      }
+    })();
     return {
       file: read.file,
       gameLabel: profile.label,
       envAuthoritative: profile.config.envAuthoritative === true,
       values,
+      advice,
     };
   }
 

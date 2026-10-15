@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 1.7.2 — 2026-10-15
+
+### Added
+
+- **The Settings tab warns about traps the config file does not show.** A
+  game's file can carry a rule no field reveals: Enshrouded ignores its entire
+  `gameSettings` block — durability, difficulty, day length — until
+  `gameSettingsPreset` says `Custom`, so a hand-tuned setting under any other
+  preset looks saved and does nothing (found the hard way: durability off, and
+  tools kept wearing out). Config files can now carry a game-specific
+  heads-up, shown on the Settings tab whenever the file is in such a state.
+  Advice, never enforcement: the file stays yours to edit.
 
 ### Fixed
 

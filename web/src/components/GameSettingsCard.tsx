@@ -72,6 +72,7 @@ export function GameSettingsCard({ serverId, serverName }: { serverId: string; s
           undone. Shown read-only for exactly that reason.
         </p>
       ) : null}
+      {scan.advice ? <p className="hint bad">{scan.advice}</p> : null}
 
       {scan.values.map((row) => (
         <label className="field" key={row.key}>

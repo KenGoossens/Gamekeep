@@ -19,7 +19,9 @@
   </nav>
 </header>
 <main class="solo"><article class="prose"><h1>Changelog</h1>
-<h2>Unreleased</h2>
+<h2>1.7.2 — 2026-10-15</h2>
+<h3>Added</h3>
+<ul><li><strong>The Settings tab warns about traps the config file does not show.</strong> A game's file can carry a rule no field reveals: Enshrouded ignores its entire <code>gameSettings</code> block — durability, difficulty, day length — until <code>gameSettingsPreset</code> says <code>Custom</code>, so a hand-tuned setting under any other preset looks saved and does nothing (found the hard way: durability off, and tools kept wearing out). Config files can now carry a game-specific heads-up, shown on the Settings tab whenever the file is in such a state. Advice, never enforcement: the file stays yours to edit.</li></ul>
 <h3>Fixed</h3>
 <ul><li><strong>&quot;A restart installs it&quot; became &quot;usually&quot;, and GameKeepr's own servers earn the stronger claim.</strong> On Enshrouded's release day a restart kept answering &quot;already up to date&quot; while Steam demonstrably shipped a new build — SteamCMD sessions can hold stale app info and skip an update that exists. The composed Steam servers' start script now forces <code>+app_info_update 1</code> before every <code>+app_update</code>, so their restarts really do install what Steam ships; the update card is honest about template images, where GameKeepr does not own the script: stale app info can delay the update briefly, and the card names the manual escape hatch.</li></ul>
 <h2>1.7.1 — 2026-10-15</h2>

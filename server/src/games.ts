@@ -128,6 +128,14 @@ export interface GameConfigFile {
      * can see.
      */
     validate?: (config: unknown) => string | null;
+    /**
+     * A non-blocking heads-up about the file AS IT IS — the trap the game's
+     * documentation knows and a reasonable operator does not. Enshrouded
+     * silently ignores its whole gameSettings block until gameSettingsPreset
+     * says "Custom"; hand-tuned durability on the Default preset looks saved
+     * and does nothing. Shown on the Settings tab, never enforced.
+     */
+    advise?: (config: unknown) => string | null;
   };
 }
 
@@ -676,6 +684,15 @@ export const GAMES: GameProfile[] = [
             return new Set(passwords).size === passwords.length
               ? null
               : 'Enshrouded refuses to start when two user groups share a password — give the admin password a value different from the player password.';
+          },
+          advise(config: unknown): string | null {
+            const preset = (config as { gameSettingsPreset?: unknown })?.gameSettingsPreset;
+            if (typeof preset !== 'string' || preset === 'Custom') return null;
+            return (
+              `This file's gameSettingsPreset is "${preset}", and Enshrouded ignores the entire gameSettings block ` +
+              '(durability, difficulty, day length — all of it) until the preset says "Custom". Edit it on the Files tab ' +
+              'and restart the server; a hand-tuned setting under any other preset looks saved and does nothing.'
+            );
           },
         };
       })(),
