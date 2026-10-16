@@ -19,6 +19,9 @@
   </nav>
 </header>
 <main class="solo"><article class="prose"><h1>Changelog</h1>
+<h2>1.7.3 — 2026-10-16</h2>
+<h3>Fixed</h3>
+<ul><li><strong>Wine deploys start on Wine 10+ images.</strong> The generated start script called <code>wine64</code>, a launcher Wine stopped shipping — on the current WineHQ base image (wine 11) the first boot died with <code>wine64: not found</code>, in a loop. The script now asks the image which binary it has (<code>wine64</code> or <code>wine</code>) and refuses plainly when neither exists. Found live, on this project's own Enshrouded server, minutes after recommending the migration — the fix went to the running server first and to the generator second.</li></ul>
 <h2>1.7.2 — 2026-10-15</h2>
 <h3>Added</h3>
 <ul><li><strong>The Settings tab warns about traps the config file does not show.</strong> A game's file can carry a rule no field reveals: Enshrouded ignores its entire <code>gameSettings</code> block — durability, difficulty, day length — until <code>gameSettingsPreset</code> says <code>Custom</code>, so a hand-tuned setting under any other preset looks saved and does nothing (found the hard way: durability off, and tools kept wearing out). Config files can now carry a game-specific heads-up, shown on the Settings tab whenever the file is in such a state. Advice, never enforcement: the file stays yours to edit.</li></ul>

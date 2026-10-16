@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.3 — 2026-10-16
+
+### Fixed
+
+- **Wine deploys start on Wine 10+ images.** The generated start script called
+  `wine64`, a launcher Wine stopped shipping — on the current WineHQ base
+  image (wine 11) the first boot died with `wine64: not found`, in a loop.
+  The script now asks the image which binary it has (`wine64` or `wine`) and
+  refuses plainly when neither exists. Found live, on this project's own
+  Enshrouded server, minutes after recommending the migration — the fix went
+  to the running server first and to the generator second.
+
+
 ## 1.7.2 — 2026-10-15
 
 ### Added

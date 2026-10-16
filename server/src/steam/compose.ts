@@ -176,7 +176,14 @@ fi
  * server's data — never left behind in the container layer.
  */
 function winePrefixBlock(): string {
-  return `# A 64-bit Wine prefix beside the game files; built once, then reused.
+  return `# Wine 10+ dropped the separate wine64 launcher; older images only have
+# wine64. The script asks instead of assuming -- assuming cost a day once.
+WINE_BIN="$(command -v wine64 || command -v wine || true)"
+if [ -z "$WINE_BIN" ]; then
+    echo "---GameKeepr: this image has no wine binary at all; a Windows server cannot start without one.---"
+    exit 78
+fi
+# A 64-bit Wine prefix beside the game files; built once, then reused.
 export WINEARCH=win64
 export WINEPREFIX="$SERVER_DIR/WINE64"
 if [ ! -d "$WINEPREFIX/drive_c" ]; then
@@ -200,7 +207,9 @@ function startBlock(command: string, platform: SteamPlatform): string {
   // The Windows variants: the same command-or-convention choice, but the
   // program starts under wine64, on a virtual display games cannot tell from
   // a real one. xvfb-run picks a free display number by itself.
-  const WINE_RUN = `xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' wine64`;
+  // $WINE_BIN is set by winePrefixBlock and expands in the outer (root)
+  // shell, like $SERVER_DIR on the same line.
+  const WINE_RUN = `xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' $WINE_BIN`;
   if (platform === 'windows' && command.trim()) {
     const singleQuoted = command.replace(/'/g, `'\\''`);
     return `# The launch line came from Steam's own app info and was shown at
